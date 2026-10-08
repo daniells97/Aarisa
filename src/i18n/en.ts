@@ -659,6 +659,8 @@ export const en = {
   "error.allocations_exceed_payment": "The lines add up to more than the payment.",
   "error.line_not_found": "That line isn't open for this client.",
   "error.already_paid": "This line is already paid.",
+  "ov.latePayment": "{client} hasn't paid {what}",
+  "ov.latePaymentBody": "{amount}, {days} days past the usual date. {count} lines are late in all.",
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -5,10 +5,12 @@ import { assertCan, type Actor } from './actor';
 import { latestHovershipWeek, loadHovershipWeek } from './hovership';
 import { listRuns } from './payroll';
 import { loadTforceWeek } from './tforce';
+import { loadSettlements } from './settlements';
 
 // Overview (spec 6.2) for both operations. Late payments join with Settlements in Phase 3.
 
 export type NeedItem =
+  | { kind: 'late_payment'; operation: string; lineKind: string; periodStart: string | null; periodEnd: string | null; reference: string | null; missingCents: number; daysLate: number; count: number; lineId: string }
   | { kind: 'tforce_exceptions'; count: number; week: string }
   | { kind: 'unknown_codes'; count: number; week: string }
   | { kind: 'run_ready'; runId: string; start: string; end: string; payCents: number }
@@ -37,6 +39,12 @@ export async function loadOverview(tx: Tx, actor: Actor, today: string, week?: s
   } else if (run && run.status === 'draft' && run.blockers[0]) {
     const b = run.blockers[0];
     needs.push({ kind: 'run_blocked', runId: run.runId, start: run.period.start, end: run.period.end, reason: b.kind === 'missing_report' ? `missing_report:${b.weeks.join(',')}` : b.kind });
+  }
+  // Money already paid out and not collected comes right after payroll blockers (design 6.2).
+  if (showMoney) {
+    const late = (await loadSettlements(tx, actor, today)).lines.filter((l) => l.status === 'late' && (l.missingCents ?? 0) > 0).sort((a, b) => b.daysLate - a.daysLate);
+    const top = late[0];
+    if (top) needs.push({ kind: 'late_payment', operation: top.operation, lineKind: top.kind, periodStart: top.periodStart, periodEnd: top.periodEnd, reference: top.job?.orderNumber ?? top.reference, missingCents: top.missingCents!, daysLate: top.daysLate, count: late.length, lineId: top.id });
   }
   if (showMoney && cur.lostMoney[0]) {
     const d = cur.lostMoney[0];

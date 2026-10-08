@@ -116,6 +116,16 @@ function Need({ item }: { item: NeedItem }) {
       body = t('ov.tforceExceptionsBody');
       action = <Link className={buttonClass('primary', 'sm')} to="/tforce/week/$weekId" params={{ weekId: item.week }}>{t('ov.review')}</Link>;
       break;
+    case 'late_payment': {
+      const client = item.operation === 'tforce' ? 'T-Force' : 'Hovership';
+      const what = item.lineKind === 'hovership_invoice' && item.periodEnd ? t('st.weekEnding', { date: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
+        : item.lineKind === 'tforce_weekly' && item.periodStart && item.periodEnd ? t('st.ecommerce', { start: f.date(item.periodStart, { month: 'short', day: 'numeric' }), end: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
+          : item.reference ?? '';
+      title = t('ov.latePayment', { client, what });
+      body = t('ov.latePaymentBody', { amount: f.money(item.missingCents), days: item.daysLate, count: item.count });
+      action = <Link className={buttonClass('secondary', 'sm')} to="/settlements" search={{ line: item.lineId }}>{t('ov.open')}</Link>;
+      break;
+    }
     case 'unknown_codes':
       title = t('ov.unknownCodes', { count: item.count });
       body = t('ov.unknownCodesBody');

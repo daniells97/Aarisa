@@ -661,4 +661,6 @@ export const es: Record<MessageKey, string> = {
   "error.allocations_exceed_payment": "Las líneas suman más que el pago.",
   "error.line_not_found": "Esa línea no está abierta para este cliente.",
   "error.already_paid": "Esta línea ya está pagada.",
+  "ov.latePayment": "{client} no ha pagado {what}",
+  "ov.latePaymentBody": "{amount}, {days} días después de la fecha habitual. {count} líneas atrasadas en total.",
 };
