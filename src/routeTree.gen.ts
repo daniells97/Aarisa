@@ -14,7 +14,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppDriversRouteImport } from './routes/_app/drivers'
 import { Route as AppExceptionsRouteImport } from './routes/_app/exceptions'
-import { Route as AppPayrollRouteImport } from './routes/_app/payroll'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppSettlementsRouteImport } from './routes/_app/settlements'
 import { Route as AppStyleguideRouteImport } from './routes/_app/styleguide'
@@ -23,8 +22,11 @@ import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthDevRouteImport } from './routes/auth/dev'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
+import { Route as PayrollExportRunIdRouteImport } from './routes/payroll-export.$runId'
 import { Route as AppExtraJobsNewRouteImport } from './routes/_app/extra-jobs/new'
 import { Route as AppHovershipIndexRouteImport } from './routes/_app/hovership/index'
+import { Route as AppPayrollIndexRouteImport } from './routes/_app/payroll/index'
+import { Route as AppPayrollRunIdRouteImport } from './routes/_app/payroll/$runId'
 import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
 import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
 import { Route as AppTforceTodayRouteImport } from './routes/_app/tforce/today'
@@ -53,11 +55,6 @@ const AppDriversRoute = AppDriversRouteImport.update({
 const AppExceptionsRoute = AppExceptionsRouteImport.update({
   id: '/exceptions',
   path: '/exceptions',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppPayrollRoute = AppPayrollRouteImport.update({
-  id: '/payroll',
-  path: '/payroll',
   getParentRoute: () => AppRoute,
 } as any)
 const AppServicesRoute = AppServicesRouteImport.update({
@@ -100,6 +97,11 @@ const AuthLogoutRoute = AuthLogoutRouteImport.update({
   path: '/auth/logout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PayrollExportRunIdRoute = PayrollExportRunIdRouteImport.update({
+  id: '/payroll-export/$runId',
+  path: '/payroll-export/$runId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppExtraJobsNewRoute = AppExtraJobsNewRouteImport.update({
   id: '/extra-jobs/new',
   path: '/extra-jobs/new',
@@ -108,6 +110,16 @@ const AppExtraJobsNewRoute = AppExtraJobsNewRouteImport.update({
 const AppHovershipIndexRoute = AppHovershipIndexRouteImport.update({
   id: '/hovership/',
   path: '/hovership/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPayrollIndexRoute = AppPayrollIndexRouteImport.update({
+  id: '/payroll/',
+  path: '/payroll/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPayrollRunIdRoute = AppPayrollRunIdRouteImport.update({
+  id: '/payroll/$runId',
+  path: '/payroll/$runId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRatesRoute = AppSettingsRatesRouteImport.update({
@@ -141,7 +153,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
-  '/payroll': typeof AppPayrollRoute
   '/services': typeof AppServicesRoute
   '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
@@ -150,19 +161,21 @@ export interface FileRoutesByFullPath {
   '/auth/dev': typeof AuthDevRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/payroll-export/$runId': typeof PayrollExportRunIdRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/payroll/$runId': typeof AppPayrollRunIdRoute
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
   '/tforce/week': typeof AppTforceWeekRoute
   '/hovership/': typeof AppHovershipIndexRoute
+  '/payroll/': typeof AppPayrollIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
-  '/payroll': typeof AppPayrollRoute
   '/services': typeof AppServicesRoute
   '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
@@ -171,13 +184,16 @@ export interface FileRoutesByTo {
   '/auth/dev': typeof AuthDevRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/payroll-export/$runId': typeof PayrollExportRunIdRoute
   '/': typeof AppIndexRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/payroll/$runId': typeof AppPayrollRunIdRoute
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
   '/tforce/week': typeof AppTforceWeekRoute
   '/hovership': typeof AppHovershipIndexRoute
+  '/payroll': typeof AppPayrollIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
 }
 export interface FileRoutesById {
@@ -186,7 +202,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/drivers': typeof AppDriversRoute
   '/_app/exceptions': typeof AppExceptionsRoute
-  '/_app/payroll': typeof AppPayrollRoute
   '/_app/services': typeof AppServicesRoute
   '/_app/settlements': typeof AppSettlementsRoute
   '/_app/styleguide': typeof AppStyleguideRoute
@@ -195,13 +210,16 @@ export interface FileRoutesById {
   '/auth/dev': typeof AuthDevRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/payroll-export/$runId': typeof PayrollExportRunIdRoute
   '/_app/': typeof AppIndexRoute
   '/_app/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/_app/payroll/$runId': typeof AppPayrollRunIdRoute
   '/_app/settings/rates': typeof AppSettingsRatesRoute
   '/_app/settings/team': typeof AppSettingsTeamRoute
   '/_app/tforce/today': typeof AppTforceTodayRoute
   '/_app/tforce/week': typeof AppTforceWeekRoute
   '/_app/hovership/': typeof AppHovershipIndexRoute
+  '/_app/payroll/': typeof AppPayrollIndexRoute
   '/_app/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
 }
 export interface FileRouteTypes {
@@ -211,7 +229,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/drivers'
     | '/exceptions'
-    | '/payroll'
     | '/services'
     | '/settlements'
     | '/styleguide'
@@ -220,19 +237,21 @@ export interface FileRouteTypes {
     | '/auth/dev'
     | '/auth/login'
     | '/auth/logout'
+    | '/payroll-export/$runId'
     | '/extra-jobs/new'
+    | '/payroll/$runId'
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
     | '/tforce/week'
     | '/hovership/'
+    | '/payroll/'
     | '/hovership/week/$weekId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/drivers'
     | '/exceptions'
-    | '/payroll'
     | '/services'
     | '/settlements'
     | '/styleguide'
@@ -241,13 +260,16 @@ export interface FileRouteTypes {
     | '/auth/dev'
     | '/auth/login'
     | '/auth/logout'
+    | '/payroll-export/$runId'
     | '/'
     | '/extra-jobs/new'
+    | '/payroll/$runId'
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
     | '/tforce/week'
     | '/hovership'
+    | '/payroll'
     | '/hovership/week/$weekId'
   id:
     | '__root__'
@@ -255,7 +277,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/_app/drivers'
     | '/_app/exceptions'
-    | '/_app/payroll'
     | '/_app/services'
     | '/_app/settlements'
     | '/_app/styleguide'
@@ -264,13 +285,16 @@ export interface FileRouteTypes {
     | '/auth/dev'
     | '/auth/login'
     | '/auth/logout'
+    | '/payroll-export/$runId'
     | '/_app/'
     | '/_app/extra-jobs/new'
+    | '/_app/payroll/$runId'
     | '/_app/settings/rates'
     | '/_app/settings/team'
     | '/_app/tforce/today'
     | '/_app/tforce/week'
     | '/_app/hovership/'
+    | '/_app/payroll/'
     | '/_app/hovership/week/$weekId'
   fileRoutesById: FileRoutesById
 }
@@ -281,6 +305,7 @@ export interface RootRouteChildren {
   AuthDevRoute: typeof AuthDevRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
+  PayrollExportRunIdRoute: typeof PayrollExportRunIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -318,13 +343,6 @@ declare module '@tanstack/react-router' {
       path: '/exceptions'
       fullPath: '/exceptions'
       preLoaderRoute: typeof AppExceptionsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/payroll': {
-      id: '/_app/payroll'
-      path: '/payroll'
-      fullPath: '/payroll'
-      preLoaderRoute: typeof AppPayrollRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/services': {
@@ -383,6 +401,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLogoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/payroll-export/$runId': {
+      id: '/payroll-export/$runId'
+      path: '/payroll-export/$runId'
+      fullPath: '/payroll-export/$runId'
+      preLoaderRoute: typeof PayrollExportRunIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/extra-jobs/new': {
       id: '/_app/extra-jobs/new'
       path: '/extra-jobs/new'
@@ -395,6 +420,20 @@ declare module '@tanstack/react-router' {
       path: '/hovership'
       fullPath: '/hovership/'
       preLoaderRoute: typeof AppHovershipIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/payroll/': {
+      id: '/_app/payroll/'
+      path: '/payroll'
+      fullPath: '/payroll/'
+      preLoaderRoute: typeof AppPayrollIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/payroll/$runId': {
+      id: '/_app/payroll/$runId'
+      path: '/payroll/$runId'
+      fullPath: '/payroll/$runId'
+      preLoaderRoute: typeof AppPayrollRunIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings/rates': {
@@ -438,36 +477,38 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppDriversRoute: typeof AppDriversRoute
   AppExceptionsRoute: typeof AppExceptionsRoute
-  AppPayrollRoute: typeof AppPayrollRoute
   AppServicesRoute: typeof AppServicesRoute
   AppSettlementsRoute: typeof AppSettlementsRoute
   AppStyleguideRoute: typeof AppStyleguideRoute
   AppWeekRoute: typeof AppWeekRoute
   AppIndexRoute: typeof AppIndexRoute
   AppExtraJobsNewRoute: typeof AppExtraJobsNewRoute
+  AppPayrollRunIdRoute: typeof AppPayrollRunIdRoute
   AppSettingsRatesRoute: typeof AppSettingsRatesRoute
   AppSettingsTeamRoute: typeof AppSettingsTeamRoute
   AppTforceTodayRoute: typeof AppTforceTodayRoute
   AppTforceWeekRoute: typeof AppTforceWeekRoute
   AppHovershipIndexRoute: typeof AppHovershipIndexRoute
+  AppPayrollIndexRoute: typeof AppPayrollIndexRoute
   AppHovershipWeekWeekIdRoute: typeof AppHovershipWeekWeekIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDriversRoute: AppDriversRoute,
   AppExceptionsRoute: AppExceptionsRoute,
-  AppPayrollRoute: AppPayrollRoute,
   AppServicesRoute: AppServicesRoute,
   AppSettlementsRoute: AppSettlementsRoute,
   AppStyleguideRoute: AppStyleguideRoute,
   AppWeekRoute: AppWeekRoute,
   AppIndexRoute: AppIndexRoute,
   AppExtraJobsNewRoute: AppExtraJobsNewRoute,
+  AppPayrollRunIdRoute: AppPayrollRunIdRoute,
   AppSettingsRatesRoute: AppSettingsRatesRoute,
   AppSettingsTeamRoute: AppSettingsTeamRoute,
   AppTforceTodayRoute: AppTforceTodayRoute,
   AppTforceWeekRoute: AppTforceWeekRoute,
   AppHovershipIndexRoute: AppHovershipIndexRoute,
+  AppPayrollIndexRoute: AppPayrollIndexRoute,
   AppHovershipWeekWeekIdRoute: AppHovershipWeekWeekIdRoute,
 }
 
@@ -480,6 +521,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthDevRoute: AuthDevRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthLogoutRoute: AuthLogoutRoute,
+  PayrollExportRunIdRoute: PayrollExportRunIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

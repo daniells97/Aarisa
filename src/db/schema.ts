@@ -261,6 +261,7 @@ export const payrollLines = pgTable('payroll_lines', {
   contractorId: uuid('contractor_id').references(() => contractors.id),
   routeDays: integer('route_days').notNull(),
   pieces: integer('pieces').notNull(),
+  stops: integer('stops').notNull().default(0), // Hovership stat stops, kept apart from packages
   bonusCents: cents('bonus_cents').notNull(),
   payCents: cents('pay_cents').notNull(),
   marginCents: cents('margin_cents').notNull(),

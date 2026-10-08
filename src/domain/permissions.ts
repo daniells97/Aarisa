@@ -11,6 +11,7 @@ export type Permission =
   | 'payroll.approve'
   | 'payroll.reopen'
   | 'payroll.view'
+  | 'payroll.export'
   | 'money.view' // client rates, revenue, profit
   | 'settlements.record'
   | 'setup.edit' // drivers, contractors, services, rates
@@ -27,6 +28,8 @@ const matrix: Record<Permission, Role[]> = {
   'payroll.reopen': ['owner'],
   // Dispatchers see driver pay but never client rates, revenue or profit.
   'payroll.view': ['owner', 'dispatcher', 'finance', 'viewer'],
+  // The payroll file goes to whoever pays drivers (open question 6); viewers can download it read-only.
+  'payroll.export': ['owner', 'finance', 'viewer'],
   'money.view': ['owner', 'finance', 'viewer'],
   'settlements.record': ['owner', 'finance'],
   'setup.edit': ['owner'],

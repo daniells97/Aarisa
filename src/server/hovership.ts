@@ -196,15 +196,9 @@ export async function setBonus(tx: Tx, actor: Actor, input: { driverId: string; 
   return after!;
 }
 
-/** Everything the Hovership weekly screen needs for the week starting Monday `start`. */
-export async function loadHovershipWeek(tx: Tx, actor: Actor, start: string) {
-  assertCan(actor, 'payroll.view');
-  const showMoney = can(actor.role, 'money.view');
-  const op = await getOperation(tx, 'hovership');
-  const end = addDays(start, 6);
-  const { fn: rate, rows: rateRows, ids } = await hovershipRateFn(tx, op.id);
-
-  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), gte(workRecords.date, start), lte(workRecords.date, end)));
+/** Driver-days and STEM for a date range, rebuilt from the work records. */
+export async function loadHovershipDays(tx: Tx, operationId: string, ids: Record<string, string>, from: string, to: string) {
+  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, operationId), gte(workRecords.date, from), lte(workRecords.date, to)));
   const dayMap = new Map<string, HovershipDay>();
   for (const w of records) {
     if (!w.driverId) continue;
@@ -216,8 +210,20 @@ export async function loadHovershipWeek(tx: Tx, actor: Actor, start: string) {
     dayMap.set(key, d);
   }
   const [stem] = await tx.select({ total: sql<string>`coalesce(sum(${operationRevenue.amountCents}), 0)` }).from(operationRevenue)
-    .where(and(eq(operationRevenue.operationId, op.id), eq(operationRevenue.kind, 'stem'), gte(operationRevenue.date, start), lte(operationRevenue.date, end)));
-  const summary = hovershipSummary([...dayMap.values()], Number(stem?.total ?? 0), rate);
+    .where(and(eq(operationRevenue.operationId, operationId), eq(operationRevenue.kind, 'stem'), gte(operationRevenue.date, from), lte(operationRevenue.date, to)));
+  return { records, days: [...dayMap.values()], stemCents: Number(stem?.total ?? 0) };
+}
+
+/** Everything the Hovership weekly screen needs for the week starting Monday `start`. */
+export async function loadHovershipWeek(tx: Tx, actor: Actor, start: string) {
+  assertCan(actor, 'payroll.view');
+  const showMoney = can(actor.role, 'money.view');
+  const op = await getOperation(tx, 'hovership');
+  const end = addDays(start, 6);
+  const { fn: rate, rows: rateRows, ids } = await hovershipRateFn(tx, op.id);
+
+  const { days: hsDays, stemCents } = await loadHovershipDays(tx, op.id, ids, start, end);
+  const summary = hovershipSummary(hsDays, stemCents, rate);
 
   const driverRows = summary.drivers.length
     ? await tx.select({ id: drivers.id, name: drivers.fullName, code: drivers.hovershipCode }).from(drivers).where(inArray(drivers.id, summary.drivers.map((d) => d.driverId)))
