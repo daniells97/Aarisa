@@ -19,6 +19,9 @@ Claude Code: when you hit one of these, build behind a setting or a placeholder 
 | 11 | Do they want historical data loaded (Jan–Jul 2026) or start clean? | Seed / migration |
 | 12 | "Low pieces" threshold for T-Force exceptions (default: under 10% of the route median; 20% would also flag 9000J on Jun 17 with 15 pieces). | Phase 2 |
 | 13 | Is a guaranteed daily minimum paid to Hovership drivers? (Some bonuses look like floor top-ups.) | Phase 1 bonus rules |
+| 19 | The Hovership report has a Bonus column, but spec §5.2 says Finance/Owner types the bonus. Phase 1 imports the report value as the starting bonus (source `hovership_report`) and lets Finance/Owner change it, with each change audited. Is that right, or should bonuses always start at zero? | Phase 1 bonus entry |
+| 20 | Driver code `DUB088` appears once with a blank name and elsewhere as "Naira Rivera". Seed uses the non-blank name. Should a blank name in a report be an exception? | Phase 1 import |
+| 21 | STEM reasons are typed by hand ("Diablo", "DIABLO", "DIablo", "Pittsburg", "Pitsburg", "Pittrsburg Martinez"…). Kept as free text for now; does Aarisa want a closed list of stations? | Reporting |
 
 ## Need Dimetrics / Leanova
 
@@ -29,3 +32,5 @@ Claude Code: when you hit one of these, build behind a setting or a placeholder 
 | 16 | Speech-to-text provider for WhatsApp voice notes (self-hosted Whisper vs hosted API). |
 | 17 | File storage: local volume or S3-compatible bucket. |
 | 18 | Teams integration later (phase 4) or not at all. |
+| 22 | The client process documents ("Document 1 -TFORCE Process", "Document 2 Tforce", "TFORCE Process", "Propuesta_Nomina_Aarisa") were not on the server during Phase 1, so they haven't been checked against the spec yet. |
+| 23 | Zitadel on the shared VPS has no admin service account that Claude Code can use. Creating the "Aarisa" project, roles and PKCE app needs a PAT from an IAM or org owner, or a person doing it in the console. |
