@@ -9,10 +9,11 @@ describe('overview (server)', () => {
       await clearHovership(tx);
       await importHovership(tx, actorAs('owner'), { fileName: 'f.csv', text: HOVERSHIP_CSV });
       const o = await loadOverview(tx, actorAs('owner'), '2026-06-22', '2026-06-15');
-      expect(o.figures).toMatchObject({ packages: 2_553, routeDays: 51, owedCents: 7_344_50, profitCents: 1_222_50 });
+      expect(o.figures).toMatchObject({ hovershipPackages: 2_553, hovershipRouteDays: 51, profitCents: 1_222_50 });
       expect(o.hovership.revenueCents).toBe(7_792_00 + 775_00);
-      expect(o.needs.map((n) => n.kind)).toEqual(['run_ready', 'lost_day']);
+      expect(o.needs.map((n) => n.kind).filter((k) => k !== 'tforce_exceptions')).toEqual(['run_ready', 'lost_day']);
       expect(o.perDay.reduce((s, d) => s + d.hovership, 0)).toBe(2_553);
+      expect(o.figures.tforcePieces).toBe(4_910); // seeded T-Force report for the same week
     }));
 
   it('gives dispatchers no profit, revenue or lost-money items', () =>

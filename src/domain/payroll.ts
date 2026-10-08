@@ -1,10 +1,24 @@
 import type { ValuedDay } from './hovership';
 import type { Cents } from './money';
 
-// Payroll run for one operation and pay period (spec §5.5).
+// Payroll run for one operation and pay period (spec §5.5). Lines are per payee: a driver, or a
+// contractor paid as one party (T-Force routes owned by Puma).
 
-export interface PayrollLine {
-  driverId: string;
+export interface Payee { driverId: string | null; contractorId: string | null }
+export const payeeKey = (p: Payee) => (p.driverId ? `d:${p.driverId}` : `c:${p.contractorId}`);
+
+/** One payable unit of work for a payee on a day (a Hovership driver-day or a T-Force route-day). */
+export interface RunItem extends Payee {
+  date: string;
+  packages: number;
+  stops: number;
+  bonusCents: Cents;
+  payCents: Cents;
+  revenueCents: Cents;
+  missingRate: boolean;
+}
+
+export interface PayrollLine extends Payee {
   routeDays: number;
   packages: number;
   stops: number;
@@ -15,7 +29,7 @@ export interface PayrollLine {
 }
 
 export interface PayrollTotals {
-  drivers: number;
+  drivers: number; // payees: drivers plus contractors
   routeDays: number;
   packages: number;
   stops: number;
@@ -32,29 +46,30 @@ export type Blocker =
   | { kind: 'missing_rates'; count: number }
   | { kind: 'no_work' };
 
-export interface PayrollInput {
-  days: ValuedDay[];
+export interface RunInput {
+  items: RunItem[];
   otherRevenueCents: Cents;
   expectedWeeks: string[]; // Mondays of the period
   coveredWeeks: string[]; // Mondays that have a report
   openExceptions: number;
-  previousDriverIds: string[] | null; // null when there is no earlier run
+  previousPayees: string[] | null; // payee keys of the last approved run; null when there is none
 }
 
-export function buildPayroll(input: PayrollInput) {
-  const byDriver = new Map<string, PayrollLine>();
-  for (const d of input.days) {
-    const l = byDriver.get(d.driverId) ?? { driverId: d.driverId, routeDays: 0, packages: 0, stops: 0, bonusCents: 0, payCents: 0, revenueCents: 0, marginCents: 0 };
+export function buildRun(input: RunInput) {
+  const byPayee = new Map<string, PayrollLine>();
+  for (const it of input.items) {
+    const k = payeeKey(it);
+    const l = byPayee.get(k) ?? { driverId: it.driverId, contractorId: it.contractorId, routeDays: 0, packages: 0, stops: 0, bonusCents: 0, payCents: 0, revenueCents: 0, marginCents: 0 };
     l.routeDays++;
-    l.packages += d.t13 + d.t4;
-    l.stops += d.stat;
-    l.bonusCents += d.bonusCents;
-    l.payCents += d.driverPayCents;
-    l.revenueCents += d.revenueCents;
-    l.marginCents += d.marginCents;
-    byDriver.set(d.driverId, l);
+    l.packages += it.packages;
+    l.stops += it.stops;
+    l.bonusCents += it.bonusCents;
+    l.payCents += it.payCents;
+    l.revenueCents += it.revenueCents;
+    l.marginCents += it.revenueCents - it.payCents;
+    byPayee.set(k, l);
   }
-  const lines = [...byDriver.values()];
+  const lines = [...byPayee.values()];
   const sum = (k: keyof PayrollLine) => lines.reduce((s, l) => s + (l[k] as number), 0);
   const totals: PayrollTotals = {
     drivers: lines.length,
@@ -72,14 +87,29 @@ export function buildPayroll(input: PayrollInput) {
   const missingWeeks = input.expectedWeeks.filter((w) => !input.coveredWeeks.includes(w));
   if (missingWeeks.length) blockers.push({ kind: 'missing_report', weeks: missingWeeks });
   if (input.openExceptions > 0) blockers.push({ kind: 'open_exceptions', count: input.openExceptions });
-  const missingRates = input.days.filter((d) => d.missing.length > 0).length;
+  const missingRates = input.items.filter((i) => i.missingRate).length;
   if (missingRates) blockers.push({ kind: 'missing_rates', count: missingRates });
   if (!lines.length) blockers.push({ kind: 'no_work' });
 
-  const newDrivers = input.previousDriverIds ? lines.map((l) => l.driverId).filter((id) => !input.previousDriverIds!.includes(id)) : [];
-  const negativeDays = input.days.filter((d) => d.marginCents < 0).sort((a, b) => a.marginCents - b.marginCents);
+  const newPayees = input.previousPayees ? lines.map(payeeKey).filter((k) => !input.previousPayees!.includes(k)) : [];
+  const negativeDays = input.items.filter((i) => i.revenueCents - i.payCents < 0)
+    .map((i) => ({ payee: payeeKey(i), date: i.date, marginCents: i.revenueCents - i.payCents }))
+    .sort((a, b) => a.marginCents - b.marginCents);
+  return { lines, totals, blockers, ready: blockers.length === 0, warnings: { newPayees, negativeDays } };
+}
 
-  return { lines, totals, blockers, ready: blockers.length === 0, warnings: { newDrivers, negativeDays } };
+/** Hovership: one item per valued driver-day. */
+export function hovershipItems(days: ValuedDay[]): RunItem[] {
+  return days.map((d) => ({
+    driverId: d.driverId, contractorId: null, date: d.date, packages: d.t13 + d.t4, stops: d.stat,
+    bonusCents: d.bonusCents, payCents: d.driverPayCents, revenueCents: d.revenueCents, missingRate: d.missing.length > 0,
+  }));
+}
+
+/** Kept for the Hovership tests: a run from valued driver-days. */
+export function buildPayroll(input: Omit<RunInput, 'items' | 'previousPayees'> & { days: ValuedDay[]; previousDriverIds: string[] | null }) {
+  const r = buildRun({ ...input, items: hovershipItems(input.days), previousPayees: input.previousDriverIds?.map((id) => `d:${id}`) ?? null });
+  return { ...r, warnings: { newDrivers: r.warnings.newPayees.map((k) => k.slice(2)), negativeDays: r.warnings.negativeDays } };
 }
 
 const csvCell = (v: string | number) => {

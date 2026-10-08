@@ -18,3 +18,5 @@ export function rangeText(p: { start: string; end: string }, t: T, f: F) {
 }
 
 export const statusTone = { draft: 'warn', ready: 'ok', approved: 'ok', reopened: 'waiting', paid: 'muted' } as const;
+
+export const opName = (code: string) => (code === 'tforce' ? 'T-Force' : 'Hovership');

@@ -238,3 +238,9 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
 .resolved ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
 .week-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 1200px) { .week-layout { grid-template-columns: 1fr; } }
+.bar-col .bar + .bar-tforce { margin-top: 0; }
+.bar-tforce { background: var(--ink); }
+.swatch-tforce { background: var(--ink); }
+.bar-col { gap: 0; }
+.bar-col .bar-label { margin-bottom: 6px; }
+.bar-col .bar-day { margin-top: 6px; }
