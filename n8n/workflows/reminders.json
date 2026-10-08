@@ -1,0 +1,188 @@
+{
+  "name": "Aarisa - reminders",
+  "nodes": [
+    {
+      "id": "7-00-pm-every-day",
+      "name": "7:00 PM every day",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 19 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "jobs-without-order-number",
+      "name": "Jobs without order number",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/reminders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Aarisa portal service token"
+        }
+      }
+    },
+    {
+      "id": "one-reminder-per-person",
+      "name": "One reminder per person",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nreturn (r.recipients || []).map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: p.locale === 'es' ? 'es' : 'en_US', count: String(p.jobs.length), date: r.date } }));"
+      }
+    },
+    {
+      "id": "send-reminder-template",
+      "name": "Send reminder template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'order_number_reminder', language: { code: $json.lang },\n    components: [{ type: 'body', parameters: [{ type: 'text', text: $json.count }] }] } }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API token"
+        }
+      }
+    },
+    {
+      "id": "log-reminder",
+      "name": "Log reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ direction: 'out', phone: $('One reminder per person').item.json.phone, type: 'template', body: 'order_number_reminder ' + $('One reminder per person').item.json.count, waMessageId: $json.messages?.[0]?.id ?? null }) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Aarisa portal service token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "7:00 PM every day": {
+      "main": [
+        [
+          {
+            "node": "Jobs without order number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jobs without order number": {
+      "main": [
+        [
+          {
+            "node": "One reminder per person",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One reminder per person": {
+      "main": [
+        [
+          {
+            "node": "Send reminder template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send reminder template": {
+      "main": [
+        [
+          {
+            "node": "Log reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "America/Los_Angeles",
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "meta": {
+    "builtBy": "scripts/build-n8n.mjs"
+  }
+}

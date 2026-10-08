@@ -32,11 +32,13 @@ import { Route as AppSettingsAuditRouteImport } from './routes/_app/settings/aud
 import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
 import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
 import { Route as AppTforceTodayRouteImport } from './routes/_app/tforce/today'
+import { Route as ApiIntegrationsContextRouteImport } from './routes/api/integrations/context'
 import { Route as ApiIntegrationsDailyChangesRouteImport } from './routes/api/integrations/daily-changes'
 import { Route as ApiIntegrationsExtraJobDraftsRouteImport } from './routes/api/integrations/extra-job-drafts'
 import { Route as ApiIntegrationsImportsRouteImport } from './routes/api/integrations/imports'
 import { Route as ApiIntegrationsMessagesRouteImport } from './routes/api/integrations/messages'
 import { Route as ApiIntegrationsMorningListRouteImport } from './routes/api/integrations/morning-list'
+import { Route as ApiIntegrationsRemindersRouteImport } from './routes/api/integrations/reminders'
 import { Route as AppHovershipWeekWeekIdRouteImport } from './routes/_app/hovership/week/$weekId'
 import { Route as AppTforceWeekIndexRouteImport } from './routes/_app/tforce/week/index'
 import { Route as AppTforceWeekWeekIdRouteImport } from './routes/_app/tforce/week/$weekId'
@@ -155,6 +157,11 @@ const AppTforceTodayRoute = AppTforceTodayRouteImport.update({
   path: '/tforce/today',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiIntegrationsContextRoute = ApiIntegrationsContextRouteImport.update({
+  id: '/api/integrations/context',
+  path: '/api/integrations/context',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiIntegrationsDailyChangesRoute =
   ApiIntegrationsDailyChangesRouteImport.update({
     id: '/api/integrations/daily-changes',
@@ -181,6 +188,12 @@ const ApiIntegrationsMorningListRoute =
   ApiIntegrationsMorningListRouteImport.update({
     id: '/api/integrations/morning-list',
     path: '/api/integrations/morning-list',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiIntegrationsRemindersRoute =
+  ApiIntegrationsRemindersRouteImport.update({
+    id: '/api/integrations/reminders',
+    path: '/api/integrations/reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AppHovershipWeekWeekIdRoute = AppHovershipWeekWeekIdRouteImport.update({
@@ -219,11 +232,13 @@ export interface FileRoutesByFullPath {
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
+  '/api/integrations/context': typeof ApiIntegrationsContextRoute
   '/api/integrations/daily-changes': typeof ApiIntegrationsDailyChangesRoute
   '/api/integrations/extra-job-drafts': typeof ApiIntegrationsExtraJobDraftsRoute
   '/api/integrations/imports': typeof ApiIntegrationsImportsRoute
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
+  '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
   '/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/hovership/': typeof AppHovershipIndexRoute
   '/payroll/': typeof AppPayrollIndexRoute
@@ -251,11 +266,13 @@ export interface FileRoutesByTo {
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
+  '/api/integrations/context': typeof ApiIntegrationsContextRoute
   '/api/integrations/daily-changes': typeof ApiIntegrationsDailyChangesRoute
   '/api/integrations/extra-job-drafts': typeof ApiIntegrationsExtraJobDraftsRoute
   '/api/integrations/imports': typeof ApiIntegrationsImportsRoute
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
+  '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
   '/extra-jobs': typeof AppExtraJobsIndexRoute
   '/hovership': typeof AppHovershipIndexRoute
   '/payroll': typeof AppPayrollIndexRoute
@@ -285,11 +302,13 @@ export interface FileRoutesById {
   '/_app/settings/rates': typeof AppSettingsRatesRoute
   '/_app/settings/team': typeof AppSettingsTeamRoute
   '/_app/tforce/today': typeof AppTforceTodayRoute
+  '/api/integrations/context': typeof ApiIntegrationsContextRoute
   '/api/integrations/daily-changes': typeof ApiIntegrationsDailyChangesRoute
   '/api/integrations/extra-job-drafts': typeof ApiIntegrationsExtraJobDraftsRoute
   '/api/integrations/imports': typeof ApiIntegrationsImportsRoute
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
+  '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
   '/_app/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/_app/hovership/': typeof AppHovershipIndexRoute
   '/_app/payroll/': typeof AppPayrollIndexRoute
@@ -319,11 +338,13 @@ export interface FileRouteTypes {
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
+    | '/api/integrations/context'
     | '/api/integrations/daily-changes'
     | '/api/integrations/extra-job-drafts'
     | '/api/integrations/imports'
     | '/api/integrations/messages'
     | '/api/integrations/morning-list'
+    | '/api/integrations/reminders'
     | '/extra-jobs/'
     | '/hovership/'
     | '/payroll/'
@@ -351,11 +372,13 @@ export interface FileRouteTypes {
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
+    | '/api/integrations/context'
     | '/api/integrations/daily-changes'
     | '/api/integrations/extra-job-drafts'
     | '/api/integrations/imports'
     | '/api/integrations/messages'
     | '/api/integrations/morning-list'
+    | '/api/integrations/reminders'
     | '/extra-jobs'
     | '/hovership'
     | '/payroll'
@@ -384,11 +407,13 @@ export interface FileRouteTypes {
     | '/_app/settings/rates'
     | '/_app/settings/team'
     | '/_app/tforce/today'
+    | '/api/integrations/context'
     | '/api/integrations/daily-changes'
     | '/api/integrations/extra-job-drafts'
     | '/api/integrations/imports'
     | '/api/integrations/messages'
     | '/api/integrations/morning-list'
+    | '/api/integrations/reminders'
     | '/_app/extra-jobs/'
     | '/_app/hovership/'
     | '/_app/payroll/'
@@ -405,11 +430,13 @@ export interface RootRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
   PayrollExportRunIdRoute: typeof PayrollExportRunIdRoute
+  ApiIntegrationsContextRoute: typeof ApiIntegrationsContextRoute
   ApiIntegrationsDailyChangesRoute: typeof ApiIntegrationsDailyChangesRoute
   ApiIntegrationsExtraJobDraftsRoute: typeof ApiIntegrationsExtraJobDraftsRoute
   ApiIntegrationsImportsRoute: typeof ApiIntegrationsImportsRoute
   ApiIntegrationsMessagesRoute: typeof ApiIntegrationsMessagesRoute
   ApiIntegrationsMorningListRoute: typeof ApiIntegrationsMorningListRoute
+  ApiIntegrationsRemindersRoute: typeof ApiIntegrationsRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -575,6 +602,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTforceTodayRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/integrations/context': {
+      id: '/api/integrations/context'
+      path: '/api/integrations/context'
+      fullPath: '/api/integrations/context'
+      preLoaderRoute: typeof ApiIntegrationsContextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/integrations/daily-changes': {
       id: '/api/integrations/daily-changes'
       path: '/api/integrations/daily-changes'
@@ -608,6 +642,13 @@ declare module '@tanstack/react-router' {
       path: '/api/integrations/morning-list'
       fullPath: '/api/integrations/morning-list'
       preLoaderRoute: typeof ApiIntegrationsMorningListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/integrations/reminders': {
+      id: '/api/integrations/reminders'
+      path: '/api/integrations/reminders'
+      fullPath: '/api/integrations/reminders'
+      preLoaderRoute: typeof ApiIntegrationsRemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/hovership/week/$weekId': {
@@ -688,11 +729,13 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   AuthLogoutRoute: AuthLogoutRoute,
   PayrollExportRunIdRoute: PayrollExportRunIdRoute,
+  ApiIntegrationsContextRoute: ApiIntegrationsContextRoute,
   ApiIntegrationsDailyChangesRoute: ApiIntegrationsDailyChangesRoute,
   ApiIntegrationsExtraJobDraftsRoute: ApiIntegrationsExtraJobDraftsRoute,
   ApiIntegrationsImportsRoute: ApiIntegrationsImportsRoute,
   ApiIntegrationsMessagesRoute: ApiIntegrationsMessagesRoute,
   ApiIntegrationsMorningListRoute: ApiIntegrationsMorningListRoute,
+  ApiIntegrationsRemindersRoute: ApiIntegrationsRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

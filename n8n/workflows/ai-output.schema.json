@@ -1,0 +1,187 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "daily_changes",
+    "extra_job"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "daily_changes",
+        "extra_job",
+        "other"
+      ]
+    },
+    "daily_changes": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "confirm_all",
+            "changes"
+          ],
+          "properties": {
+            "confirm_all": {
+              "type": "boolean"
+            },
+            "changes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "route",
+                  "driver_name",
+                  "matched_driver_id",
+                  "matched_contractor_id",
+                  "confidence"
+                ],
+                "properties": {
+                  "route": {
+                    "type": "string"
+                  },
+                  "driver_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "matched_driver_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "matched_contractor_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contractor_hint": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "confidence": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "extra_job": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "service",
+            "date",
+            "near_route",
+            "driver_id",
+            "contractor_id",
+            "payee_name",
+            "client_amount",
+            "driver_amount",
+            "order_number",
+            "note",
+            "missing"
+          ],
+          "properties": {
+            "service": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "recovery_route",
+                    "pickup",
+                    "grainger",
+                    "other"
+                  ]
+                }
+              ]
+            },
+            "date": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "near_route": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "driver_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "contractor_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "payee_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "client_amount": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "driver_amount": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "order_number": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "missing": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

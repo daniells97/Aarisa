@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:docker": "scripts/e2e-docker.sh",
-    "db:restore-sample": "tsx scripts/restore-sample-bonuses.ts"
+    "db:restore-sample": "tsx scripts/restore-sample-bonuses.ts",
+    "n8n:build": "node scripts/build-n8n.mjs"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.41",

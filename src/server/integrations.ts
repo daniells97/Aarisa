@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Tx } from '~/db/client';
-import { aiSuggestions, contractors, drivers, messages, routes, users } from '~/db/schema';
+import { aiSuggestions, contractors, drivers, extraJobs, messages, routes, serviceTypes, users } from '~/db/schema';
 import { can, isRole } from '~/domain/permissions';
 import { isLocale } from '~/i18n';
 import type { Actor } from './actor';
@@ -231,4 +231,35 @@ export async function confirmExtraJobDraft(tx: Tx, actor: Actor, suggestionId: s
   if (!before || before.status !== 'pending') throw new RuleError('draft_used');
   const [after] = await tx.update(aiSuggestions).set({ status: 'applied', confirmedBy: actor.userId, confirmedAt: new Date() }).where(eq(aiSuggestions.id, suggestionId)).returning();
   await audit(tx, { table: 'ai_suggestions', recordId: suggestionId, action: 'update', before, after, userId: actor.userId, source: actor.source });
+}
+
+/** What the AI needs to match names: routes, people with aliases, contractors, services. No money. */
+export async function aiContext(tx: Tx, date: string) {
+  const op = await getOperation(tx, 'tforce');
+  const day = await morningList(tx, date);
+  const people = await tx.select({ id: drivers.id, name: drivers.fullName, aliases: drivers.aliases, contractorId: drivers.contractorId }).from(drivers).where(eq(drivers.active, true));
+  const companies = await tx.select({ id: contractors.id, name: contractors.name }).from(contractors).where(eq(contractors.active, true));
+  return {
+    date,
+    routes: day.routes,
+    drivers: people.map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, contractor: companies.find((c) => c.id === p.contractorId)?.name ?? null })),
+    contractors: companies,
+    services: [...EXTRA_SERVICES],
+    operation: op.code,
+  };
+}
+
+/** 7 PM reminder: extra jobs saved on `date` without an order number, grouped by the phone of who saved them. */
+export async function orderNumberReminders(tx: Tx, date: string) {
+  const rows = await tx.select({ id: extraJobs.id, orderNumber: extraJobs.orderNumber, service: serviceTypes.name, phone: users.phone, name: users.name, locale: users.locale })
+    .from(extraJobs).innerJoin(serviceTypes, eq(serviceTypes.id, extraJobs.serviceTypeId)).leftJoin(users, eq(users.id, extraJobs.createdBy))
+    .where(eq(extraJobs.date, date));
+  const byPhone = new Map<string, { phone: string; name: string; locale: string; jobs: { id: string; service: string }[] }>();
+  for (const r of rows) {
+    if (r.orderNumber || !r.phone) continue;
+    const entry = byPhone.get(r.phone) ?? { phone: r.phone, name: r.name ?? '', locale: r.locale ?? 'en', jobs: [] };
+    entry.jobs.push({ id: r.id, service: r.service });
+    byPhone.set(r.phone, entry);
+  }
+  return { date, recipients: [...byPhone.values()] };
 }

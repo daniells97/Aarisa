@@ -99,3 +99,26 @@ describe('integration API (server)', () => {
       expect(JSON.stringify(list)).not.toMatch(/Cents/);
     }));
 });
+
+describe('AI context and reminders (server)', () => {
+  it('context lists routes, drivers with aliases and contractors, and no money', () =>
+    withRollback(async (tx) => {
+      const { aiContext } = await import('./integrations');
+      const ctx = await aiContext(tx, '2026-06-18');
+      expect(ctx.routes).toHaveLength(19);
+      expect(ctx.contractors.map((c) => c.name)).toContain('Puma');
+      expect(ctx.drivers.find((d) => d.name === 'Norwin Saloman')).toBeTruthy();
+      expect(JSON.stringify(ctx)).not.toMatch(/Cents|rate/i);
+    }));
+
+  it('7 PM reminder groups jobs without an order number by who saved them', () =>
+    withRollback(async (tx) => {
+      const { orderNumberReminders } = await import('./integrations');
+      const u = await person(tx, 'dispatcher', '+19255550107');
+      const [robert] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Robert Arteaga'));
+      await createExtraJob(tx, actorAs('dispatcher', u.id), { clientUuid: crypto.randomUUID(), service: 'pickup', date: '2026-09-05', nearRouteId: null, payee: { driverId: robert!.id }, clientAmountCents: null, driverAmountCents: 30_00, orderNumber: null, note: null });
+      await createExtraJob(tx, actorAs('dispatcher', u.id), { clientUuid: crypto.randomUUID(), service: 'pickup', date: '2026-09-05', nearRouteId: null, payee: { driverId: robert!.id }, clientAmountCents: null, driverAmountCents: 30_00, orderNumber: 'TF-9', note: null });
+      const r = await orderNumberReminders(tx, '2026-09-05');
+      expect(r.recipients).toEqual([expect.objectContaining({ phone: '+19255550107', jobs: [expect.objectContaining({ service: 'Pickup' })] })]);
+    }));
+});
