@@ -15,7 +15,6 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "types": ["node", "vite/client"],
-    "baseUrl": ".",
     "paths": { "~/*": ["./src/*"] }
   },
   "include": ["src", "tests", "*.ts"]
