@@ -566,6 +566,11 @@ export const en = {
   "error.payee_required": "Choose who did the job.",
   "error.driver_amount_required": "Enter what the driver or contractor gets.",
   "xj.thingsMissing": "{count} things missing",
+  "xj.fromVoice": "Filled in from your WhatsApp voice note at {time}. Check the green fields, then save.",
+  "xj.fromText": "Filled in from your WhatsApp message at {time}. Check the green fields, then save.",
+  "error.draft_expired": "This link expired. Fill in the job here or send the message again.",
+  "error.draft_used": "This draft was already saved.",
+  "error.unknown_phone": "That phone number isn't on Team access.",
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -255,3 +255,4 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
 .svc-toggles button { min-height: 56px; border: 1px solid var(--control); border-radius: var(--r-md); background: var(--surface); font: 600 16px var(--font); color: var(--ink); cursor: pointer; }
 .svc-toggles button[aria-pressed='true'] { background: var(--green); border-color: var(--green); color: #fff; }
 @media (min-width: 900px) { .svc-toggles { grid-template-columns: repeat(4, 1fr); } }
+.svc-toggles button.ai-picked { box-shadow: 0 0 0 3px var(--green-ai-line); }

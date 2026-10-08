@@ -16,13 +16,13 @@ export function TextField({ label, hint, error, className, ...rest }: FieldProps
   );
 }
 
-export function SelectField({ label, hint, error, children, ...rest }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
+export function SelectField({ label, hint, error, children, className, ...rest }: FieldProps & SelectHTMLAttributes<HTMLSelectElement>) {
   const id = useId();
   const describedBy = [hint && `${id}-hint`, error && `${id}-err`].filter(Boolean).join(' ') || undefined;
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <select id={id} className="input" aria-invalid={error ? true : undefined} aria-describedby={describedBy} {...rest}>{children}</select>
+      <select id={id} className={['input', className].filter(Boolean).join(' ')} aria-invalid={error ? true : undefined} aria-describedby={describedBy} {...rest}>{children}</select>
       {hint && <span id={`${id}-hint`} className="muted" style={{ fontSize: 13.5 }}>{hint}</span>}
       {error && <span id={`${id}-err`} className="field-error">{error}</span>}
     </div>

@@ -568,4 +568,9 @@ export const es: Record<MessageKey, string> = {
   "error.payee_required": "Elige quién hizo el trabajo.",
   "error.driver_amount_required": "Escribe cuánto recibe el conductor o contratista.",
   "xj.thingsMissing": "Faltan {count} cosas",
+  "xj.fromVoice": "Llenado desde tu nota de voz de WhatsApp a las {time}. Revisa los campos en verde y guarda.",
+  "xj.fromText": "Llenado desde tu mensaje de WhatsApp a las {time}. Revisa los campos en verde y guarda.",
+  "error.draft_expired": "Este enlace venció. Llena el trabajo aquí o envía el mensaje otra vez.",
+  "error.draft_used": "Este borrador ya se guardó.",
+  "error.unknown_phone": "Ese número no está en Acceso del equipo.",
 };

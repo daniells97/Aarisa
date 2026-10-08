@@ -20,6 +20,7 @@ jobs:
     env:
       DATABASE_URL: postgres://aarisa:aarisa@127.0.0.1:5432/aarisa_ci
       SESSION_SECRET: ci-only-session-secret-0123456789abcdef
+      N8N_SERVICE_TOKEN: ci-only-service-token-0123456789abcdef
       DEV_LOGIN: '1'
       APP_BASE_URL: http://127.0.0.1:3100
       TZ: America/Los_Angeles
