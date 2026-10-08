@@ -10,6 +10,7 @@ import { SYSTEM_ACTOR } from '~/server/actor';
 import { importHovership } from '~/server/hovership';
 import { setAssignment, setUnknownName } from '~/server/daily';
 import { importTforce } from '~/server/tforce';
+import { createExtraJob } from '~/server/extra-jobs';
 
 /** Idempotent: running twice inserts nothing new. Every insert is audited as `system`. */
 export async function seedMasterData(database = createDb()) {
@@ -141,9 +142,28 @@ export async function seedTforceSample(database: ReturnType<typeof createDb>) {
   });
 }
 
+/** Two illustrative extra jobs on June 18, as in the Mobile-Offline design (amounts are made up). */
+export async function seedExtraJobs(database: ReturnType<typeof createDb>) {
+  await database.transaction(async (tx) => {
+    const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
+    const [robert] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Robert Arteaga'));
+    const [r9000r] = await tx.select().from(routes).where(eq(routes.code, '9000R'));
+    const a = await createExtraJob(tx, SYSTEM_ACTOR, {
+      clientUuid: '6f0c1a52-5d0e-4c2f-9a51-000000000001', service: 'recovery_route', date: '2026-06-18', nearRouteId: r9000r!.id,
+      payee: { contractorId: puma!.id }, clientAmountCents: 180_00, driverAmountCents: 120_00, orderNumber: 'TF-55821', note: null,
+    });
+    const b = await createExtraJob(tx, SYSTEM_ACTOR, {
+      clientUuid: '6f0c1a52-5d0e-4c2f-9a51-000000000002', service: 'grainger', date: '2026-06-18', nearRouteId: null,
+      payee: { driverId: robert!.id }, clientAmountCents: null, driverAmountCents: 40_00, orderNumber: null, note: null,
+    });
+    console.log(`Extra jobs: ${[a, b].filter((x) => x.created).length} new`);
+  });
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const database = await seedMasterData();
   await seedHovershipSample(database);
   await seedTforceSample(database);
+  await seedExtraJobs(database);
   await database.$client.end();
 }

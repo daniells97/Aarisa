@@ -244,3 +244,14 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
 .bar-col { gap: 0; }
 .bar-col .bar-label { margin-bottom: 6px; }
 .bar-col .bar-day { margin-top: 6px; }
+
+/* ---------- extra jobs ---------- */
+.job-list { list-style: none; margin: 0; padding: 0; }
+.job-card { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--line-soft); }
+.job-card:first-child { border-top: 0; }
+.xj-form { max-width: 640px; }
+.svc-toggles { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.svc-toggles legend { font-size: 14px; font-weight: 500; color: var(--ink-2); margin-bottom: 8px; padding: 0; }
+.svc-toggles button { min-height: 56px; border: 1px solid var(--control); border-radius: var(--r-md); background: var(--surface); font: 600 16px var(--font); color: var(--ink); cursor: pointer; }
+.svc-toggles button[aria-pressed='true'] { background: var(--green); border-color: var(--green); color: #fff; }
+@media (min-width: 900px) { .svc-toggles { grid-template-columns: repeat(4, 1fr); } }

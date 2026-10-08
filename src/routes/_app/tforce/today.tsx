@@ -89,7 +89,7 @@ function TodayPage() {
               <span className="num">{dateLabel}</span>
               <Link to="/tforce/today" search={{ date: addDays(day.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
-            <Link to="/extra-jobs/new" className={buttonClass()}>{t('td.logExtra')}</Link>
+            <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>
           </div>
         } />
       {!day.canEdit && <p className="notice notice-info" style={{ margin: 0 }}>{t('td.readOnly')}</p>}

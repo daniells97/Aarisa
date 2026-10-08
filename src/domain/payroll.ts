@@ -16,10 +16,13 @@ export interface RunItem extends Payee {
   payCents: Cents;
   revenueCents: Cents;
   missingRate: boolean;
+  /** An extra job pays an agreed amount but is not a route-day. */
+  extraJob?: boolean;
 }
 
 export interface PayrollLine extends Payee {
   routeDays: number;
+  extraJobs: number;
   packages: number;
   stops: number;
   bonusCents: Cents;
@@ -31,6 +34,7 @@ export interface PayrollLine extends Payee {
 export interface PayrollTotals {
   drivers: number; // payees: drivers plus contractors
   routeDays: number;
+  extraJobs: number;
   packages: number;
   stops: number;
   bonusCents: Cents;
@@ -59,8 +63,9 @@ export function buildRun(input: RunInput) {
   const byPayee = new Map<string, PayrollLine>();
   for (const it of input.items) {
     const k = payeeKey(it);
-    const l = byPayee.get(k) ?? { driverId: it.driverId, contractorId: it.contractorId, routeDays: 0, packages: 0, stops: 0, bonusCents: 0, payCents: 0, revenueCents: 0, marginCents: 0 };
-    l.routeDays++;
+    const l = byPayee.get(k) ?? { driverId: it.driverId, contractorId: it.contractorId, routeDays: 0, extraJobs: 0, packages: 0, stops: 0, bonusCents: 0, payCents: 0, revenueCents: 0, marginCents: 0 };
+    if (!it.extraJob) l.routeDays++;
+    else l.extraJobs++;
     l.packages += it.packages;
     l.stops += it.stops;
     l.bonusCents += it.bonusCents;
@@ -74,6 +79,7 @@ export function buildRun(input: RunInput) {
   const totals: PayrollTotals = {
     drivers: lines.length,
     routeDays: sum('routeDays'),
+    extraJobs: sum('extraJobs'),
     packages: sum('packages'),
     stops: sum('stops'),
     bonusCents: sum('bonusCents'),

@@ -90,11 +90,14 @@ async function computeTforce(tx: Tx, op: Operation, start: string) {
   if (period.start !== start) throw new RuleError('not_found');
   const ids = await serviceIds(tx, op.id);
   const rateRows = (await tx.select().from(rates).where(eq(rates.serviceTypeId, ids.ecommerce!))) as RateRow[];
-  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.serviceTypeId, ids.ecommerce!), gte(workRecords.date, period.start), lte(workRecords.date, period.end)));
+  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), gte(workRecords.date, period.start), lte(workRecords.date, period.end)));
   const paid = records.filter((w) => w.driverId || w.contractorId);
-  const priced = paid.map((w) => ({ w, r: rateFor(rateRows, ids.ecommerce!, null, { driverId: w.driverId, contractorId: w.contractorId }, w.date) }));
-  const items: RunItem[] = priced.map(({ w, r }) => ({
-    driverId: w.driverId, contractorId: w.contractorId, date: w.date, packages: w.pieces, stops: 0, bonusCents: 0,
+  // Report route-days use the e-commerce rate valid that day; extra jobs carry their agreed amounts.
+  const priced = paid.map((w) => w.source === 'tforce_report'
+    ? { w, extra: false, r: rateFor(rateRows, ids.ecommerce!, null, { driverId: w.driverId, contractorId: w.contractorId }, w.date) }
+    : { w, extra: true, r: { ok: true as const, rateId: '', clientCents: w.clientRateCents, driverCents: w.driverRateCents, effectiveFrom: w.date } });
+  const items: RunItem[] = priced.map(({ w, r, extra }) => ({
+    driverId: w.driverId, contractorId: w.contractorId, date: w.date, packages: extra ? 0 : w.pieces, stops: 0, bonusCents: 0, extraJob: extra,
     payCents: r.ok ? w.pieces * (r.driverCents ?? 0) : 0, revenueCents: r.ok ? w.pieces * (r.clientCents ?? 0) : 0, missingRate: !r.ok,
   }));
   const weeks = [period.start];
@@ -133,7 +136,7 @@ async function payeeInfo(tx: Tx, keys: string[]) {
   return map;
 }
 
-export interface RunLineView { key: string; driverId: string | null; contractorId: string | null; contractor: boolean; name: string; code: string; routeDays: number; packages: number; stops: number; bonusCents: number; payCents: number; marginCents: number | null }
+export interface RunLineView { key: string; driverId: string | null; contractorId: string | null; contractor: boolean; name: string; code: string; routeDays: number; extraJobs: number; packages: number; stops: number; bonusCents: number; payCents: number; marginCents: number | null }
 
 export async function loadRun(tx: Tx, actor: Actor, runId: string, now = new Date()) {
   assertCan(actor, 'payroll.view');
@@ -147,10 +150,10 @@ export async function loadRun(tx: Tx, actor: Actor, runId: string, now = new Dat
 
   let lines: RunLineView[];
   let totals: PayrollTotals;
-  const view = (l: { driverId: string | null; contractorId: string | null; routeDays: number; packages: number; stops: number; bonusCents: number; payCents: number; marginCents: number }, info: Awaited<ReturnType<typeof payeeInfo>>): RunLineView => {
+  const view = (l: { driverId: string | null; contractorId: string | null; routeDays: number; extraJobs?: number; packages: number; stops: number; bonusCents: number; payCents: number; marginCents: number }, info: Awaited<ReturnType<typeof payeeInfo>>): RunLineView => {
     const key = payeeKey(l);
     const p = info.get(key);
-    return { key, driverId: l.driverId, contractorId: l.contractorId, contractor: !!l.contractorId, name: p?.name ?? '', code: p?.code ?? '', routeDays: l.routeDays, packages: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents };
+    return { key, driverId: l.driverId, contractorId: l.contractorId, contractor: !!l.contractorId, name: p?.name ?? '', code: p?.code ?? '', routeDays: l.routeDays, extraJobs: l.extraJobs ?? 0, packages: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents };
   };
   if (frozen) {
     const rows = (await tx.select().from(payrollLines).where(eq(payrollLines.runId, run.id))).map((r) => ({ ...r, packages: r.pieces }));
@@ -241,7 +244,7 @@ export async function approveRun(tx: Tx, actor: Actor, runId: string, expectedPa
     [run] = await tx.insert(payrollRuns).values({ payPeriodId: periodRow!.id, ...runValues }).returning();
   }
   const inserted = await tx.insert(payrollLines).values(live.lines.map((l) => ({
-    runId: run!.id, driverId: l.driverId, contractorId: l.contractorId, routeDays: l.routeDays, pieces: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents,
+    runId: run!.id, driverId: l.driverId, contractorId: l.contractorId, routeDays: l.routeDays, extraJobs: l.extraJobs, pieces: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents,
   }))).returning();
   for (const l of inserted) log('payroll_lines', l.id, 'insert', null, l);
 

@@ -31,7 +31,7 @@ const groups: NavGroup[] = [
 
 const tabs: NavItem[] = [
   { to: '/tforce/today', label: 'tab.today', icon: 'calendar' },
-  { to: '/extra-jobs/new', label: 'tab.extraJobs', icon: 'plus' },
+  { to: '/extra-jobs', label: 'tab.extraJobs', icon: 'plus' },
   { to: '/exceptions', label: 'tab.exceptions', icon: 'diamond' },
   { to: '/week', label: 'tab.week', icon: 'chart' },
 ];

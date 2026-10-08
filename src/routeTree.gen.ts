@@ -23,6 +23,7 @@ import { Route as AuthDevRouteImport } from './routes/auth/dev'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as PayrollExportRunIdRouteImport } from './routes/payroll-export.$runId'
+import { Route as AppExtraJobsIndexRouteImport } from './routes/_app/extra-jobs/index'
 import { Route as AppExtraJobsNewRouteImport } from './routes/_app/extra-jobs/new'
 import { Route as AppHovershipIndexRouteImport } from './routes/_app/hovership/index'
 import { Route as AppPayrollIndexRouteImport } from './routes/_app/payroll/index'
@@ -104,6 +105,11 @@ const PayrollExportRunIdRoute = PayrollExportRunIdRouteImport.update({
   path: '/payroll-export/$runId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppExtraJobsIndexRoute = AppExtraJobsIndexRouteImport.update({
+  id: '/extra-jobs/',
+  path: '/extra-jobs/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppExtraJobsNewRoute = AppExtraJobsNewRouteImport.update({
   id: '/extra-jobs/new',
   path: '/extra-jobs/new',
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
+  '/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/hovership/': typeof AppHovershipIndexRoute
   '/payroll/': typeof AppPayrollIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
+  '/extra-jobs': typeof AppExtraJobsIndexRoute
   '/hovership': typeof AppHovershipIndexRoute
   '/payroll': typeof AppPayrollIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
@@ -234,6 +242,7 @@ export interface FileRoutesById {
   '/_app/settings/rates': typeof AppSettingsRatesRoute
   '/_app/settings/team': typeof AppSettingsTeamRoute
   '/_app/tforce/today': typeof AppTforceTodayRoute
+  '/_app/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/_app/hovership/': typeof AppHovershipIndexRoute
   '/_app/payroll/': typeof AppPayrollIndexRoute
   '/_app/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
@@ -262,6 +271,7 @@ export interface FileRouteTypes {
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
+    | '/extra-jobs/'
     | '/hovership/'
     | '/payroll/'
     | '/hovership/week/$weekId'
@@ -288,6 +298,7 @@ export interface FileRouteTypes {
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
+    | '/extra-jobs'
     | '/hovership'
     | '/payroll'
     | '/hovership/week/$weekId'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/_app/settings/rates'
     | '/_app/settings/team'
     | '/_app/tforce/today'
+    | '/_app/extra-jobs/'
     | '/_app/hovership/'
     | '/_app/payroll/'
     | '/_app/hovership/week/$weekId'
@@ -432,6 +444,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayrollExportRunIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/extra-jobs/': {
+      id: '/_app/extra-jobs/'
+      path: '/extra-jobs'
+      fullPath: '/extra-jobs/'
+      preLoaderRoute: typeof AppExtraJobsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/extra-jobs/new': {
       id: '/_app/extra-jobs/new'
       path: '/extra-jobs/new'
@@ -526,6 +545,7 @@ interface AppRouteChildren {
   AppSettingsRatesRoute: typeof AppSettingsRatesRoute
   AppSettingsTeamRoute: typeof AppSettingsTeamRoute
   AppTforceTodayRoute: typeof AppTforceTodayRoute
+  AppExtraJobsIndexRoute: typeof AppExtraJobsIndexRoute
   AppHovershipIndexRoute: typeof AppHovershipIndexRoute
   AppPayrollIndexRoute: typeof AppPayrollIndexRoute
   AppHovershipWeekWeekIdRoute: typeof AppHovershipWeekWeekIdRoute
@@ -547,6 +567,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRatesRoute: AppSettingsRatesRoute,
   AppSettingsTeamRoute: AppSettingsTeamRoute,
   AppTforceTodayRoute: AppTforceTodayRoute,
+  AppExtraJobsIndexRoute: AppExtraJobsIndexRoute,
   AppHovershipIndexRoute: AppHovershipIndexRoute,
   AppPayrollIndexRoute: AppPayrollIndexRoute,
   AppHovershipWeekWeekIdRoute: AppHovershipWeekWeekIdRoute,
