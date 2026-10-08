@@ -9,50 +9,309 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppExceptionsRouteImport } from './routes/_app/exceptions'
+import { Route as AppHovershipRouteImport } from './routes/_app/hovership'
+import { Route as AppPayrollRouteImport } from './routes/_app/payroll'
+import { Route as AppSettlementsRouteImport } from './routes/_app/settlements'
+import { Route as AppStyleguideRouteImport } from './routes/_app/styleguide'
+import { Route as AppWeekRouteImport } from './routes/_app/week'
+import { Route as AppExtraJobsNewRouteImport } from './routes/_app/extra-jobs/new'
+import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
+import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
+import { Route as AppTforceTodayRouteImport } from './routes/_app/tforce/today'
+import { Route as AppTforceWeekRouteImport } from './routes/_app/tforce/week'
 
-const IndexRoute = IndexRouteImport.update({
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExceptionsRoute = AppExceptionsRouteImport.update({
+  id: '/exceptions',
+  path: '/exceptions',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHovershipRoute = AppHovershipRouteImport.update({
+  id: '/hovership',
+  path: '/hovership',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPayrollRoute = AppPayrollRouteImport.update({
+  id: '/payroll',
+  path: '/payroll',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettlementsRoute = AppSettlementsRouteImport.update({
+  id: '/settlements',
+  path: '/settlements',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStyleguideRoute = AppStyleguideRouteImport.update({
+  id: '/styleguide',
+  path: '/styleguide',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWeekRoute = AppWeekRouteImport.update({
+  id: '/week',
+  path: '/week',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExtraJobsNewRoute = AppExtraJobsNewRouteImport.update({
+  id: '/extra-jobs/new',
+  path: '/extra-jobs/new',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRatesRoute = AppSettingsRatesRouteImport.update({
+  id: '/settings/rates',
+  path: '/settings/rates',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsTeamRoute = AppSettingsTeamRouteImport.update({
+  id: '/settings/team',
+  path: '/settings/team',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTforceTodayRoute = AppTforceTodayRouteImport.update({
+  id: '/tforce/today',
+  path: '/tforce/today',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTforceWeekRoute = AppTforceWeekRouteImport.update({
+  id: '/tforce/week',
+  path: '/tforce/week',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
+  '/exceptions': typeof AppExceptionsRoute
+  '/hovership': typeof AppHovershipRoute
+  '/payroll': typeof AppPayrollRoute
+  '/settlements': typeof AppSettlementsRoute
+  '/styleguide': typeof AppStyleguideRoute
+  '/week': typeof AppWeekRoute
+  '/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/settings/rates': typeof AppSettingsRatesRoute
+  '/settings/team': typeof AppSettingsTeamRoute
+  '/tforce/today': typeof AppTforceTodayRoute
+  '/tforce/week': typeof AppTforceWeekRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/exceptions': typeof AppExceptionsRoute
+  '/hovership': typeof AppHovershipRoute
+  '/payroll': typeof AppPayrollRoute
+  '/settlements': typeof AppSettlementsRoute
+  '/styleguide': typeof AppStyleguideRoute
+  '/week': typeof AppWeekRoute
+  '/': typeof AppIndexRoute
+  '/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/settings/rates': typeof AppSettingsRatesRoute
+  '/settings/team': typeof AppSettingsTeamRoute
+  '/tforce/today': typeof AppTforceTodayRoute
+  '/tforce/week': typeof AppTforceWeekRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/_app/exceptions': typeof AppExceptionsRoute
+  '/_app/hovership': typeof AppHovershipRoute
+  '/_app/payroll': typeof AppPayrollRoute
+  '/_app/settlements': typeof AppSettlementsRoute
+  '/_app/styleguide': typeof AppStyleguideRoute
+  '/_app/week': typeof AppWeekRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/_app/settings/rates': typeof AppSettingsRatesRoute
+  '/_app/settings/team': typeof AppSettingsTeamRoute
+  '/_app/tforce/today': typeof AppTforceTodayRoute
+  '/_app/tforce/week': typeof AppTforceWeekRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/exceptions'
+    | '/hovership'
+    | '/payroll'
+    | '/settlements'
+    | '/styleguide'
+    | '/week'
+    | '/extra-jobs/new'
+    | '/settings/rates'
+    | '/settings/team'
+    | '/tforce/today'
+    | '/tforce/week'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/exceptions'
+    | '/hovership'
+    | '/payroll'
+    | '/settlements'
+    | '/styleguide'
+    | '/week'
+    | '/'
+    | '/extra-jobs/new'
+    | '/settings/rates'
+    | '/settings/team'
+    | '/tforce/today'
+    | '/tforce/week'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/_app/exceptions'
+    | '/_app/hovership'
+    | '/_app/payroll'
+    | '/_app/settlements'
+    | '/_app/styleguide'
+    | '/_app/week'
+    | '/_app/'
+    | '/_app/extra-jobs/new'
+    | '/_app/settings/rates'
+    | '/_app/settings/team'
+    | '/_app/tforce/today'
+    | '/_app/tforce/week'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/exceptions': {
+      id: '/_app/exceptions'
+      path: '/exceptions'
+      fullPath: '/exceptions'
+      preLoaderRoute: typeof AppExceptionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/hovership': {
+      id: '/_app/hovership'
+      path: '/hovership'
+      fullPath: '/hovership'
+      preLoaderRoute: typeof AppHovershipRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/payroll': {
+      id: '/_app/payroll'
+      path: '/payroll'
+      fullPath: '/payroll'
+      preLoaderRoute: typeof AppPayrollRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settlements': {
+      id: '/_app/settlements'
+      path: '/settlements'
+      fullPath: '/settlements'
+      preLoaderRoute: typeof AppSettlementsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/styleguide': {
+      id: '/_app/styleguide'
+      path: '/styleguide'
+      fullPath: '/styleguide'
+      preLoaderRoute: typeof AppStyleguideRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/week': {
+      id: '/_app/week'
+      path: '/week'
+      fullPath: '/week'
+      preLoaderRoute: typeof AppWeekRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/extra-jobs/new': {
+      id: '/_app/extra-jobs/new'
+      path: '/extra-jobs/new'
+      fullPath: '/extra-jobs/new'
+      preLoaderRoute: typeof AppExtraJobsNewRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/rates': {
+      id: '/_app/settings/rates'
+      path: '/settings/rates'
+      fullPath: '/settings/rates'
+      preLoaderRoute: typeof AppSettingsRatesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings/team': {
+      id: '/_app/settings/team'
+      path: '/settings/team'
+      fullPath: '/settings/team'
+      preLoaderRoute: typeof AppSettingsTeamRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tforce/today': {
+      id: '/_app/tforce/today'
+      path: '/tforce/today'
+      fullPath: '/tforce/today'
+      preLoaderRoute: typeof AppTforceTodayRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tforce/week': {
+      id: '/_app/tforce/week'
+      path: '/tforce/week'
+      fullPath: '/tforce/week'
+      preLoaderRoute: typeof AppTforceWeekRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
+interface AppRouteChildren {
+  AppExceptionsRoute: typeof AppExceptionsRoute
+  AppHovershipRoute: typeof AppHovershipRoute
+  AppPayrollRoute: typeof AppPayrollRoute
+  AppSettlementsRoute: typeof AppSettlementsRoute
+  AppStyleguideRoute: typeof AppStyleguideRoute
+  AppWeekRoute: typeof AppWeekRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppExtraJobsNewRoute: typeof AppExtraJobsNewRoute
+  AppSettingsRatesRoute: typeof AppSettingsRatesRoute
+  AppSettingsTeamRoute: typeof AppSettingsTeamRoute
+  AppTforceTodayRoute: typeof AppTforceTodayRoute
+  AppTforceWeekRoute: typeof AppTforceWeekRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppExceptionsRoute: AppExceptionsRoute,
+  AppHovershipRoute: AppHovershipRoute,
+  AppPayrollRoute: AppPayrollRoute,
+  AppSettlementsRoute: AppSettlementsRoute,
+  AppStyleguideRoute: AppStyleguideRoute,
+  AppWeekRoute: AppWeekRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppExtraJobsNewRoute: AppExtraJobsNewRoute,
+  AppSettingsRatesRoute: AppSettingsRatesRoute,
+  AppSettingsTeamRoute: AppSettingsTeamRoute,
+  AppTforceTodayRoute: AppTforceTodayRoute,
+  AppTforceWeekRoute: AppTforceWeekRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

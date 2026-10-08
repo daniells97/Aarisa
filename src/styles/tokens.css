@@ -1,0 +1,39 @@
+/* Design tokens from docs/design-system.md. Change values here, never inline. */
+:root {
+  --ink: #1C2226;
+  --ink-2: #3A4449;
+  --ink-3: #4A5459;
+  --ink-4: #5F696E;
+  --base: #F3F4F2;
+  --surface: #FFFFFF;
+  --surface-hover: #F7F8F7;
+  --row-hover: #F8F9F8;
+  --line: #DADFDB;
+  --line-soft: #EEF0EE;
+  --control: #CDD3CF;
+  --muted-tint: #ECEEEC;
+  --green: #0D5C46;
+  --green-hover: #08402F;
+  --green-tint: #E3F0EA;
+  --green-ai: #F2F8F5;
+  --green-ai-line: #B9D7C9;
+  --chart-hovership: #3E9C78;
+  --amber: #F2A900;
+  --amber-tint: #FFF4D6;
+  --amber-wash: #FFF8E6;
+  --amber-ink: #6B4600;
+  --blue: #1F5FA8;
+  --blue-tint: #E6EEF8;
+  --red: #B42318;
+  --red-tint: #FDECEA;
+  --violet: #4B3F72;
+  --violet-tint: #EEEAF6;
+  --font: 'Barlow', system-ui, sans-serif;
+  --font-cond: 'Barlow Condensed', 'Barlow', sans-serif;
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-sheet: 24px;
+  --focus: 3px solid var(--blue);
+  --tabbar-h: 66px;
+}
