@@ -216,7 +216,7 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
 .change-log li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; font-size: 14px; }
 @media (max-width: 899px) {
   /* Phone: what needs you sits above the route list (Mobile-Today design). */
-  .today-layout { display: flex; flex-direction: column; }
+  .today-layout { display: flex; flex-direction: column; align-items: stretch; }
   .today-aside { display: contents; }
   .today-aside > :first-child { order: -1; }
   .today-list { order: 0; }
