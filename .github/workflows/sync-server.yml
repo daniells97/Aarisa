@@ -1,4 +1,7 @@
 name: Sync server
+# Brings the server checkout up to date when main changes on GitHub
+# (for example after merging a PR). Never discards work on the server:
+# if there are local changes or another branch is checked out, it only fetches.
 on:
   push:
     branches: [main]
@@ -13,7 +16,15 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -e
             cd ~/projects/aarisa-paqueteria/Aarisa
-            git fetch origin main
-            git reset --hard origin/main
+            git fetch origin
+            branch=$(git rev-parse --abbrev-ref HEAD)
+            if [ -n "$(git status --porcelain)" ]; then
+              echo "Uncommitted changes on the server ($branch). Fetched only."
+            elif [ "$branch" = "main" ]; then
+              git merge --ff-only origin/main
+            else
+              echo "Server is on branch $branch. Fetched only."
+            fi
             git log -1 --oneline
