@@ -12,9 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppDriversRouteImport } from './routes/_app/drivers'
 import { Route as AppExceptionsRouteImport } from './routes/_app/exceptions'
 import { Route as AppHovershipRouteImport } from './routes/_app/hovership'
 import { Route as AppPayrollRouteImport } from './routes/_app/payroll'
+import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppSettlementsRouteImport } from './routes/_app/settlements'
 import { Route as AppStyleguideRouteImport } from './routes/_app/styleguide'
 import { Route as AppWeekRouteImport } from './routes/_app/week'
@@ -42,6 +44,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDriversRoute = AppDriversRouteImport.update({
+  id: '/drivers',
+  path: '/drivers',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppExceptionsRoute = AppExceptionsRouteImport.update({
   id: '/exceptions',
   path: '/exceptions',
@@ -55,6 +62,11 @@ const AppHovershipRoute = AppHovershipRouteImport.update({
 const AppPayrollRoute = AppPayrollRouteImport.update({
   id: '/payroll',
   path: '/payroll',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppServicesRoute = AppServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettlementsRoute = AppSettlementsRouteImport.update({
@@ -121,9 +133,11 @@ const AppTforceWeekRoute = AppTforceWeekRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
   '/hovership': typeof AppHovershipRoute
   '/payroll': typeof AppPayrollRoute
+  '/services': typeof AppServicesRoute
   '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
@@ -139,9 +153,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
   '/hovership': typeof AppHovershipRoute
   '/payroll': typeof AppPayrollRoute
+  '/services': typeof AppServicesRoute
   '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
@@ -160,9 +176,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/drivers': typeof AppDriversRoute
   '/_app/exceptions': typeof AppExceptionsRoute
   '/_app/hovership': typeof AppHovershipRoute
   '/_app/payroll': typeof AppPayrollRoute
+  '/_app/services': typeof AppServicesRoute
   '/_app/settlements': typeof AppSettlementsRoute
   '/_app/styleguide': typeof AppStyleguideRoute
   '/_app/week': typeof AppWeekRoute
@@ -182,9 +200,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/drivers'
     | '/exceptions'
     | '/hovership'
     | '/payroll'
+    | '/services'
     | '/settlements'
     | '/styleguide'
     | '/week'
@@ -200,9 +220,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/drivers'
     | '/exceptions'
     | '/hovership'
     | '/payroll'
+    | '/services'
     | '/settlements'
     | '/styleguide'
     | '/week'
@@ -220,9 +242,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/login'
+    | '/_app/drivers'
     | '/_app/exceptions'
     | '/_app/hovership'
     | '/_app/payroll'
+    | '/_app/services'
     | '/_app/settlements'
     | '/_app/styleguide'
     | '/_app/week'
@@ -270,6 +294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/drivers': {
+      id: '/_app/drivers'
+      path: '/drivers'
+      fullPath: '/drivers'
+      preLoaderRoute: typeof AppDriversRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/exceptions': {
       id: '/_app/exceptions'
       path: '/exceptions'
@@ -289,6 +320,13 @@ declare module '@tanstack/react-router' {
       path: '/payroll'
       fullPath: '/payroll'
       preLoaderRoute: typeof AppPayrollRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/services': {
+      id: '/_app/services'
+      path: '/services'
+      fullPath: '/services'
+      preLoaderRoute: typeof AppServicesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settlements': {
@@ -379,9 +417,11 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppDriversRoute: typeof AppDriversRoute
   AppExceptionsRoute: typeof AppExceptionsRoute
   AppHovershipRoute: typeof AppHovershipRoute
   AppPayrollRoute: typeof AppPayrollRoute
+  AppServicesRoute: typeof AppServicesRoute
   AppSettlementsRoute: typeof AppSettlementsRoute
   AppStyleguideRoute: typeof AppStyleguideRoute
   AppWeekRoute: typeof AppWeekRoute
@@ -394,9 +434,11 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppDriversRoute: AppDriversRoute,
   AppExceptionsRoute: AppExceptionsRoute,
   AppHovershipRoute: AppHovershipRoute,
   AppPayrollRoute: AppPayrollRoute,
+  AppServicesRoute: AppServicesRoute,
   AppSettlementsRoute: AppSettlementsRoute,
   AppStyleguideRoute: AppStyleguideRoute,
   AppWeekRoute: AppWeekRoute,

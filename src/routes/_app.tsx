@@ -1,5 +1,6 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router';
 import { AppShell } from '~/ui';
+import { PageError } from '~/ui/PageError';
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: ({ context, location }) => {
@@ -8,6 +9,7 @@ export const Route = createFileRoute('/_app')({
     return { user };
   },
   component: AppLayout,
+  errorComponent: AppError,
 });
 
 function AppLayout() {
@@ -15,6 +17,15 @@ function AppLayout() {
   return (
     <AppShell user={user}>
       <Outlet />
+    </AppShell>
+  );
+}
+
+function AppError({ error }: { error: unknown }) {
+  const { user } = Route.useRouteContext();
+  return (
+    <AppShell user={user}>
+      <PageError error={error} />
     </AppShell>
   );
 }

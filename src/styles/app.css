@@ -141,3 +141,12 @@ tbody tr:hover td { background: var(--row-hover); }
   .login-brand h1 { font-size: 40px; }
   .login-form { padding: 28px 20px; }
 }
+
+/* ---------- tabs (links styled as a segmented row) ---------- */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; color: var(--ink-3); text-decoration: none; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tabs a[aria-current='page'] { color: var(--green); border-bottom-color: var(--green); font-weight: 600; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.sub { display: block; color: var(--ink-4); font-size: 13px; }
