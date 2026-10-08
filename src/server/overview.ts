@@ -4,10 +4,12 @@ import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { latestHovershipWeek, loadHovershipWeek } from './hovership';
 import { listRuns } from './payroll';
+import { loadTforceWeek } from './tforce';
 
-// Overview (spec 6.2), Phase 1: Hovership only. T-Force items join in Phase 2, late payments in Phase 3.
+// Overview (spec 6.2) for both operations. Late payments join with Settlements in Phase 3.
 
 export type NeedItem =
+  | { kind: 'tforce_exceptions'; count: number; week: string }
   | { kind: 'unknown_codes'; count: number; week: string }
   | { kind: 'run_ready'; runId: string; start: string; end: string; payCents: number }
   | { kind: 'run_blocked'; runId: string; start: string; end: string; reason: string }
@@ -18,17 +20,18 @@ export async function loadOverview(tx: Tx, actor: Actor, today: string, week?: s
   assertCan(actor, 'payroll.view');
   const showMoney = can(actor.role, 'money.view');
   const start = week ?? (await latestHovershipWeek(tx, today));
-  const [cur, prev, runs] = await Promise.all([
-    loadHovershipWeek(tx, actor, start),
-    loadHovershipWeek(tx, actor, addDays(start, -7)),
-    listRuns(tx, actor),
-  ]);
+  const cur = await loadHovershipWeek(tx, actor, start);
+  const prev = await loadHovershipWeek(tx, actor, addDays(start, -7));
+  const tf = await loadTforceWeek(tx, actor, start);
+  const runs = await listRuns(tx, actor);
+  const tfRun = runs.runs.find((r) => r.operation === 'tforce' && r.period.start === start);
 
   // Most urgent first: things that block payroll, then money already lost.
   const needs: NeedItem[] = [];
+  if (tf.summary.open) needs.push({ kind: 'tforce_exceptions', count: tf.summary.open, week: start });
   if (cur.unknownCodes.length) needs.push({ kind: 'unknown_codes', count: cur.unknownCodes.length, week: start });
   if (cur.missingRates) needs.push({ kind: 'missing_rates', count: cur.missingRates, week: start });
-  const run = runs.runs.find((r) => r.period.start <= start && r.period.end >= start);
+  const run = runs.runs.find((r) => r.operation === 'hovership' && r.period.start <= start && r.period.end >= start);
   if (run && (run.status === 'ready' || run.status === 'reopened') && can(actor.role, 'payroll.approve')) {
     needs.push({ kind: 'run_ready', runId: run.runId, start: run.period.start, end: run.period.end, payCents: run.payCents });
   } else if (run && run.status === 'draft' && run.blockers[0]) {
@@ -43,7 +46,9 @@ export async function loadOverview(tx: Tx, actor: Actor, today: string, week?: s
   const perDay = Array.from({ length: 7 }, (_, i) => addDays(start, i)).map((date) => ({
     date,
     hovership: cur.drivers.flatMap((d) => d.days).filter((x) => x.date === date).reduce((s, x) => s + x.t13 + x.t4, 0),
+    tforce: tf.days.includes(date) ? tf.dailyTotals[tf.days.indexOf(date)] ?? 0 : 0,
   }));
+  const tfPay = tfRun && !tfRun.blockers.some((b) => b.kind === 'missing_rates') ? tfRun.payCents : 0;
   const change = (a: number | null, b: number | null) => (a == null || b == null || b === 0 ? null : Math.round(((a - b) / Math.abs(b)) * 100));
 
   return {
@@ -51,9 +56,13 @@ export async function loadOverview(tx: Tx, actor: Actor, today: string, week?: s
     showMoney,
     needs,
     figures: {
-      packages: (cur.totals.t13 ?? 0) + (cur.totals.t4 ?? 0),
-      routeDays: cur.totals.rows ?? 0,
-      owedCents: cur.totals.driverPayCents ?? 0,
+      packages: (cur.totals.t13 ?? 0) + (cur.totals.t4 ?? 0) + tf.summary.pieces,
+      hovershipPackages: (cur.totals.t13 ?? 0) + (cur.totals.t4 ?? 0),
+      tforcePieces: tf.summary.pieces,
+      routeDays: (cur.totals.rows ?? 0) + tf.summary.routeDays,
+      hovershipRouteDays: cur.totals.rows ?? 0,
+      tforceRouteDays: tf.summary.routeDays,
+      owedCents: (cur.totals.driverPayCents ?? 0) + tfPay,
       profitCents: cur.totals.operationProfitCents,
       profitChangePct: showMoney ? change(cur.totals.operationProfitCents, prev.totals.operationProfitCents) : null,
     },
@@ -64,6 +73,14 @@ export async function loadOverview(tx: Tx, actor: Actor, today: string, week?: s
       driversCents: cur.totals.driverPayCents ?? 0,
       profitCents: cur.totals.operationProfitCents,
       hasData: cur.drivers.length > 0,
+    },
+    tforce: {
+      payCycle: runs.payCycles.tforce,
+      pieces: tf.summary.pieces,
+      routeDays: tf.summary.routeDays,
+      open: tf.summary.open,
+      payCents: tfPay || null,
+      ratesMissing: !!tfRun?.blockers.some((b) => b.kind === 'missing_rates'),
     },
   };
 }

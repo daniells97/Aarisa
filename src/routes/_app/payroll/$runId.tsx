@@ -3,7 +3,7 @@ import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import { approve, getRun, markPaid, reopen } from '~/server/payroll-fns';
 import { Button, Dialog, Figures, Icon, PageHead, Panel, Pill, WarningDiamond, buttonClass, useFormat, useToast } from '~/ui';
-import { blockerText, rangeText, statusTone } from '~/ui/payroll-text';
+import { blockerText, opName, rangeText, statusTone } from '~/ui/payroll-text';
 
 type Run = Awaited<ReturnType<typeof getRun>>;
 
@@ -20,6 +20,10 @@ function RunPage() {
   const toast = useToast();
   const [approving, setApproving] = useState(false);
   const range = rangeText(run.period, t, f);
+  const tforce = run.operation === 'tforce';
+  // Without a rate the amounts are unknown, not zero.
+  const noRate = run.blockers.some((b) => b.kind === 'missing_rates');
+  const money = (c: number | null) => (noRate ? '–' : f.money(c));
   const frozen = run.status === 'approved' || run.status === 'paid';
 
   const act = async (fn: () => Promise<{ ok: true } | { ok: false; code: string }>, okMessage: MessageKey) => {
@@ -36,7 +40,7 @@ function RunPage() {
   return (
     <>
       <PageHead
-        title={t('pay.runTitle', { operation: 'Hovership', range })}
+        title={t('pay.runTitle', { operation: opName(run.operation), range })}
         lead={<span className="row" style={{ gap: 8 }}>
           <Pill tone={statusTone[run.status]}>{t(`pay.status.${run.status}`)}</Pill>
           {run.approvedAt && <span>{t('pay.approvedOn', { when: f.dateTime(run.approvedAt), who: run.approvedBy ?? '' })}</span>}
@@ -66,14 +70,15 @@ function RunPage() {
       {frozen && run.liveDiffersCents !== 0 && (
         <p className="notice" role="alert" style={{ margin: 0 }}><WarningDiamond size={22} />{t('pay.liveDiffers', { amount: f.money(run.liveDiffersCents) })}</p>
       )}
+      {noRate && <p className="notice" style={{ margin: 0 }}><WarningDiamond size={22} />{t('pay.noRateNote')}</p>}
       <Panel>
         <Figures items={[
           { label: t('pay.drivers'), value: f.number(run.totals.drivers) },
           { label: t('pay.routeDays'), value: f.number(run.totals.routeDays) },
-          { label: t('pay.packages'), value: f.number(run.totals.packages) },
-          { label: t('pay.bonuses'), value: f.money(run.totals.bonusCents) },
-          { label: t('pay.toPay'), value: f.money(run.totals.payCents) },
-          ...(run.showMoney ? [{ label: t('pay.profit'), value: f.money(run.totals.profitCents) }] : []),
+          { label: t(tforce ? 'pay.pieces' : 'pay.packages'), value: f.number(run.totals.packages) },
+          ...(tforce ? [] : [{ label: t('pay.bonuses'), value: f.money(run.totals.bonusCents) }]),
+          { label: t('pay.toPay'), value: money(run.totals.payCents), note: noRate ? t('pay.noRate') : undefined },
+          ...(run.showMoney ? [{ label: t('pay.profit'), value: money(run.totals.profitCents) }] : []),
         ]} />
       </Panel>
       <Panel title={t('pay.drivers')} id="lines">
@@ -81,23 +86,24 @@ function RunPage() {
           <table>
             <thead>
               <tr>
-                <th scope="col">{t('hs.driver')}</th><th scope="col" className="r">{t('pay.routeDays')}</th><th scope="col" className="r">{t('pay.packages')}</th>
-                <th scope="col" className="r">{t('pay.stops')}</th><th scope="col" className="r">{t('pay.bonuses')}</th><th scope="col" className="r">{t('pay.pay')}</th>
+                <th scope="col">{t('hs.driver')}</th><th scope="col" className="r">{t('pay.routeDays')}</th><th scope="col" className="r">{t(tforce ? 'pay.pieces' : 'pay.packages')}</th>
+                {!tforce && <><th scope="col" className="r">{t('pay.stops')}</th><th scope="col" className="r">{t('pay.bonuses')}</th></>}<th scope="col" className="r">{t('pay.pay')}</th>
                 {run.showMoney && <th scope="col" className="r">{t('pay.margin')}</th>}
               </tr>
             </thead>
             <tbody>
               {run.lines.map((l) => (
-                <tr key={l.driverId}>
-                  <td><strong>{l.name}</strong><span className="sub">{l.code}</span></td>
-                  <td className="r num">{l.routeDays}</td><td className="r num">{f.number(l.packages)}</td><td className="r num">{l.stops}</td>
-                  <td className="r num">{f.money(l.bonusCents)}</td><td className="r num"><strong>{f.money(l.payCents)}</strong></td>
-                  {run.showMoney && <td className={`r num${(l.marginCents ?? 0) < 0 ? ' neg' : ''}`}>{f.money(l.marginCents)}</td>}
+                <tr key={l.key}>
+                  <td><strong>{l.name}</strong>{l.contractor ? <> <Pill tone="contractor">{t('pill.contractor')}</Pill></> : !tforce && <span className="sub">{l.code}</span>}</td>
+                  <td className="r num">{l.routeDays}</td><td className="r num">{f.number(l.packages)}</td>
+                  {!tforce && <><td className="r num">{l.stops}</td><td className="r num">{f.money(l.bonusCents)}</td></>}
+                  <td className="r num"><strong>{money(l.payCents)}</strong></td>
+                  {run.showMoney && <td className={`r num${(l.marginCents ?? 0) < 0 ? ' neg' : ''}`}>{money(l.marginCents)}</td>}
                 </tr>
               ))}
               <tr className="total-row">
                 <td>{t('hs.total')}</td><td className="r num">{run.totals.routeDays}</td><td className="r num">{f.number(run.totals.packages)}</td>
-                <td className="r num">{run.totals.stops}</td><td className="r num">{f.money(run.totals.bonusCents)}</td><td className="r num">{f.money(run.totals.payCents)}</td>
+                {!tforce && <><td className="r num">{run.totals.stops}</td><td className="r num">{f.money(run.totals.bonusCents)}</td></>}<td className="r num">{money(run.totals.payCents)}</td>
                 {run.showMoney && <td />}
               </tr>
             </tbody>
@@ -138,7 +144,7 @@ function ApproveDialog({ run, range, onClose }: { run: Run; range: string; onClo
         <Button onClick={onClose}>{t('ap.goBack')}</Button>
         <Button variant="primary" onClick={submit} disabled={busy}>{t('ap.approve', { amount })}</Button>
       </>}>
-      <p className="muted" style={{ margin: 0 }}>{t('pay.runTitle', { operation: 'Hovership', range })}</p>
+      <p className="muted" style={{ margin: 0 }}>{t('pay.runTitle', { operation: opName(run.operation), range })}</p>
       <div className="big-figures">
         <div><div className="figure-label">{t('ap.driversPaid')}</div><div className="figure-value">{run.totals.drivers}</div></div>
         <div><div className="figure-label">{t('ap.bonusesIncluded')}</div><div className="figure-value">{f.money(run.totals.bonusCents)}</div></div>
@@ -148,7 +154,7 @@ function ApproveDialog({ run, range, onClose }: { run: Run; range: string; onClo
         <h3 id="checks-h" style={{ fontSize: 20 }}>{t('ap.checks')}</h3>
         <ul className="checks">
           {run.weeks.map((wk) => <li key={wk.start}><span className="check-ok" aria-hidden="true">✓</span>{t('pay.weekRead', { date: f.date(wk.start, { month: 'long', day: 'numeric' }) })}</li>)}
-          <li><span className="check-ok" aria-hidden="true">✓</span>{t('ap.checkCodes')}</li>
+          <li><span className="check-ok" aria-hidden="true">✓</span>{t(run.operation === 'tforce' ? 'ap.checkExceptions' : 'ap.checkCodes')}</li>
           <li><span className="check-ok" aria-hidden="true">✓</span>{t('ap.checkRates')}</li>
         </ul>
       </section>

@@ -25,7 +25,7 @@ describe('payroll runs (server)', () => {
       expect(run.period).toEqual({ start: '2026-06-08', end: '2026-06-21' });
       expect(run.totals).toMatchObject({ drivers: 20, routeDays: 90, packages: 4_626, stops: 43, bonusCents: 1_684_75, payCents: 13_389_00, otherRevenueCents: 1_495_00, profitCents: 2_313_00 });
       const list = await listRuns(tx, owner);
-      expect(list.runs.map((r) => r.period.start)).toEqual(['2026-07-06', '2026-06-22', '2026-06-08', '2026-05-25']);
+      expect(list.runs.filter((r) => r.operation === 'hovership').map((r) => r.period.start)).toEqual(['2026-07-06', '2026-06-22', '2026-06-08', '2026-05-25']);
     }));
 
   it('only the owner approves, with the exact amount shown, and approval locks the run', () =>

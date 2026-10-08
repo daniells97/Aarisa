@@ -24,7 +24,7 @@ export const ALL_ROLES: Role[] = ['owner', 'dispatcher', 'finance', 'viewer'];
 
 import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
-import { exceptions, operationRevenue, operations, payPeriods, payrollLines, payrollRuns, reportImports, workRecords } from '~/db/schema';
+import { exceptions, operationRevenue, operations, payPeriods, payrollLines, payrollRuns, reportImports, settlementLines, workRecords } from '~/db/schema';
 
 export const HOVERSHIP_CSV = readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8');
 
@@ -41,6 +41,25 @@ export async function clearHovership(tx: Tx) {
   await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
   await tx.delete(workRecords).where(eq(workRecords.operationId, op!.id));
   await tx.delete(operationRevenue).where(eq(operationRevenue.operationId, op!.id));
+  await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
+  return op!;
+}
+
+export const TFORCE_CSV = readFileSync(new URL('../../docs/seed/tforce_pieces_jun2026.csv', import.meta.url), 'utf8');
+
+/** Inside a rolled-back test transaction: remove T-Force report data but keep routes and the daily list. */
+export async function clearTforceReports(tx: Tx) {
+  const [op] = await tx.select().from(operations).where(eq(operations.code, 'tforce'));
+  const periods = await tx.select({ id: payPeriods.id }).from(payPeriods).where(eq(payPeriods.operationId, op!.id));
+  for (const p of periods) {
+    const runs = await tx.select({ id: payrollRuns.id }).from(payrollRuns).where(eq(payrollRuns.payPeriodId, p.id));
+    for (const r of runs) await tx.delete(payrollLines).where(eq(payrollLines.runId, r.id));
+    await tx.delete(payrollRuns).where(eq(payrollRuns.payPeriodId, p.id));
+  }
+  await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
+  await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
+  await tx.delete(settlementLines).where(eq(settlementLines.operationId, op!.id));
+  await tx.delete(workRecords).where(eq(workRecords.operationId, op!.id));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;
 }

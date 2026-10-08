@@ -199,3 +199,60 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
 .op-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; margin: 0; }
 .op-figures dt { font-size: 13px; color: var(--ink-4); }
 .op-figures dd { margin: 0; font: 600 22px var(--font-cond); }
+
+/* ---------- today's drivers ---------- */
+.today-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+@media (max-width: 1100px) { .today-layout { grid-template-columns: 1fr; } }
+.route-select { min-width: 220px; max-width: 100%; }
+.route-select[data-state='changed'] { border-color: var(--green); background: var(--green-tint); }
+.route-select[data-state='missing'] { border-color: var(--amber); background: var(--amber-wash); }
+.phone-only { display: none; }
+.route-cards { list-style: none; margin: 0; padding: 0; }
+.route-cards li { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--line-soft); }
+.route-cards li:first-child { border-top: 0; }
+.route-cards .route-select { width: 100%; }
+@media (max-width: 899px) { .desktop-only { display: none; } .phone-only { display: block; } }
+.change-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.change-log li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; font-size: 14px; }
+@media (max-width: 899px) {
+  /* Phone: what needs you sits above the route list (Mobile-Today design). */
+  .today-layout { display: flex; flex-direction: column; align-items: stretch; }
+  .today-aside { display: contents; }
+  .today-aside > :first-child { order: -1; }
+  .today-list { order: 0; }
+  .today-aside > :not(:first-child) { order: 1; }
+}
+
+/* ---------- weekly check ---------- */
+.ex-list { list-style: none; margin: 0; padding: 0; }
+.ex-card { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--line-soft); }
+.ex-actions { padding-left: 36px; }
+@media (max-width: 899px) { .ex-actions { padding-left: 0; } .ex-actions .btn { flex: 1 1 140px; } }
+.grid-table td.cell, .grid-table th.cell { text-align: right; font-variant-numeric: tabular-nums lining-nums; }
+.grid-table td.empty { color: var(--ink-4); }
+.grid-table td.flag { background: var(--amber-wash); box-shadow: inset 0 0 0 2px var(--amber); font-weight: 600; }
+.grid-table tbody tr:hover td.flag { background: var(--amber-tint); }
+.legend-flag { width: 14px; height: 14px; background: var(--amber-wash); box-shadow: inset 0 0 0 2px var(--amber); border-radius: 3px; }
+.resolved { padding: 12px 20px; border-top: 1px solid var(--line-soft); }
+.resolved summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 500; }
+.resolved ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.week-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1200px) { .week-layout { grid-template-columns: 1fr; } }
+.bar-col .bar + .bar-tforce { margin-top: 0; }
+.bar-tforce { background: var(--ink); }
+.swatch-tforce { background: var(--ink); }
+.bar-col { gap: 0; }
+.bar-col .bar-label { margin-bottom: 6px; }
+.bar-col .bar-day { margin-top: 6px; }
+
+/* ---------- extra jobs ---------- */
+.job-list { list-style: none; margin: 0; padding: 0; }
+.job-card { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--line-soft); }
+.job-card:first-child { border-top: 0; }
+.xj-form { max-width: 640px; }
+.svc-toggles { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.svc-toggles legend { font-size: 14px; font-weight: 500; color: var(--ink-2); margin-bottom: 8px; padding: 0; }
+.svc-toggles button { min-height: 56px; border: 1px solid var(--control); border-radius: var(--r-md); background: var(--surface); font: 600 16px var(--font); color: var(--ink); cursor: pointer; }
+.svc-toggles button[aria-pressed='true'] { background: var(--green); border-color: var(--green); color: #fff; }
+@media (min-width: 900px) { .svc-toggles { grid-template-columns: repeat(4, 1fr); } }
+.svc-toggles button.ai-picked { box-shadow: 0 0 0 3px var(--green-ai-line); }

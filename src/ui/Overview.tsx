@@ -27,7 +27,7 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
   const lead = n === 0 ? t('ov.leadClear', { range }) : n === 1 ? t('ov.leadOne', { range }) : t('ov.leadNeeds', { range, count: n });
   const first = userName.split(' ')[0] ?? userName;
   const pct = data.figures.profitChangePct;
-  const max = Math.max(1, ...data.perDay.map((d) => d.hovership));
+  const max = Math.max(1, ...data.perDay.map((d) => d.hovership + d.tforce));
   return (
     <>
       <PageHead title={t(greeting(hourLA), { name: first })} lead={lead}
@@ -49,9 +49,9 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
 
       <Panel>
         <Figures items={[
-          { label: t('ov.packages'), value: f.number(data.figures.packages), note: t('ov.packagesNote') },
-          { label: t('ov.routeDays'), value: f.number(data.figures.routeDays) },
-          { label: t('ov.owed'), value: f.money(data.figures.owedCents), note: t('ov.owedNote') },
+          { label: t('ov.packages'), value: f.number(data.figures.packages), note: t('ov.packagesSplit', { tforce: f.number(data.figures.tforcePieces), hovership: f.number(data.figures.hovershipPackages) }) },
+          { label: t('ov.routeDays'), value: f.number(data.figures.routeDays), note: t('ov.routeDaysSplit', { tforce: data.figures.tforceRouteDays, hovership: data.figures.hovershipRouteDays }) },
+          { label: t('ov.owed'), value: f.money(data.figures.owedCents), note: data.tforce.payCents ? t('ov.owedNote') : t('ov.owedNoteBoth') },
           ...(data.showMoney ? [{
             label: t('ov.profit'),
             value: <span className={(data.figures.profitCents ?? 0) < 0 ? 'neg' : undefined}>{f.money(data.figures.profitCents)}</span>,
@@ -66,17 +66,18 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
             <div className="bars" aria-hidden="true">
               {data.perDay.map((d) => (
                 <div key={d.date} className="bar-col">
-                  <span className="num bar-label">{d.hovership ? f.number(d.hovership) : ''}</span>
-                  <span className="bar" style={{ height: `${Math.round((d.hovership / max) * 150)}px` }} />
+                  <span className="num bar-label">{d.hovership + d.tforce ? f.number(d.hovership + d.tforce) : ''}</span>
+                  <span className="bar" style={{ height: `${Math.round((d.hovership / max) * 150)}px`, borderRadius: d.tforce ? '3px 3px 0 0' : undefined }} />
+                  {d.tforce > 0 && <span className="bar bar-tforce" style={{ height: `${Math.round((d.tforce / max) * 150)}px`, borderRadius: d.hovership ? '0 0 3px 3px' : '3px' }} />}
                   <span className="bar-day">{f.date(d.date, { weekday: 'short' })}</span>
                 </div>
               ))}
             </div>
-            <p className="legend"><span className="swatch" aria-hidden="true" />Hovership</p>
+            <p className="legend"><span className="swatch swatch-tforce" aria-hidden="true" />T-Force <span className="swatch" aria-hidden="true" style={{ marginLeft: 12 }} />Hovership</p>
             <table className="visually-hidden">
               <caption>{t('ov.byDayCaption')}</caption>
-              <thead><tr><th scope="col">{t('ov.day')}</th><th scope="col">Hovership</th></tr></thead>
-              <tbody>{data.perDay.map((d) => <tr key={d.date}><th scope="row">{f.date(d.date, { weekday: 'long', month: 'long', day: 'numeric' })}</th><td>{d.hovership}</td></tr>)}</tbody>
+              <thead><tr><th scope="col">{t('ov.day')}</th><th scope="col">T-Force</th><th scope="col">Hovership</th></tr></thead>
+              <tbody>{data.perDay.map((d) => <tr key={d.date}><th scope="row">{f.date(d.date, { weekday: 'long', month: 'long', day: 'numeric' })}</th><td>{d.tforce}</td><td>{d.hovership}</td></tr>)}</tbody>
             </table>
           </div>
         </Panel>
@@ -92,7 +93,12 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
           </div>
           <div className="op-block">
             <div className="row" style={{ justifyContent: 'space-between' }}><strong>T-Force</strong><span className="muted">{t('ov.weekly')}</span></div>
-            <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('ov.tforceLater')} {t('ov.tforceTerms')}</p>
+            <dl className="op-figures">
+              <div><dt>{t('ov.pieces')}</dt><dd className="num">{f.number(data.tforce.pieces)}</dd></div>
+              <div><dt>{t('ov.routeDays')}</dt><dd className="num">{f.number(data.tforce.routeDays)}</dd></div>
+              <div><dt>{t('ov.driversCost')}</dt><dd className="num">{data.tforce.payCents ? f.money(data.tforce.payCents) : <span className="muted" style={{ font: '400 14px var(--font)' }}>{t('ov.tforceProfitLater')}</span>}</dd></div>
+            </dl>
+            <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('ov.tforceTerms')}</p>
           </div>
         </Panel>
       </div>
@@ -105,6 +111,11 @@ function Need({ item }: { item: NeedItem }) {
   const f = useFormat();
   let title: ReactNode, body: ReactNode, action: ReactNode;
   switch (item.kind) {
+    case 'tforce_exceptions':
+      title = t('ov.tforceExceptions', { count: item.count });
+      body = t('ov.tforceExceptionsBody');
+      action = <Link className={buttonClass('primary', 'sm')} to="/tforce/week/$weekId" params={{ weekId: item.week }}>{t('ov.review')}</Link>;
+      break;
     case 'unknown_codes':
       title = t('ov.unknownCodes', { count: item.count });
       body = t('ov.unknownCodesBody');

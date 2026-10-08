@@ -15,6 +15,13 @@
       "when": 1791474479921,
       "tag": "0001_payroll_line_stops",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791487859858,
+      "tag": "0002_payroll_line_extra_jobs",
+      "breakpoints": true
     }
   ]
 }

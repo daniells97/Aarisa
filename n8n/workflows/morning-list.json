@@ -1,0 +1,188 @@
+{
+  "name": "Aarisa - morning list",
+  "nodes": [
+    {
+      "id": "6-30-am-monday-to-saturday",
+      "name": "6:30 AM Monday to Saturday",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 6 * * 1-6"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "get-morning-list",
+      "name": "Get morning list",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/morning-list",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Aarisa portal service token"
+        }
+      }
+    },
+    {
+      "id": "one-message-per-recipient",
+      "name": "One message per recipient",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// WhatsApp template parameters can't contain line breaks, so routes are joined with \"; \".\nconst list = $input.first().json;\nconst routes = list.routes.map((r) => r.route + ' ' + (r.driver ?? '?')).join('; ');\nreturn list.recipients.map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: p.locale === 'es' ? 'es' : 'en_US', date: list.date, routes } }));"
+      }
+    },
+    {
+      "id": "send-morning-template",
+      "name": "Send morning template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'morning_list', language: { code: $json.lang },\n    components: [{ type: 'body', parameters: [{ type: 'text', text: $json.date }, { type: 'text', text: $json.routes }] }] } }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "WhatsApp Cloud API token"
+        }
+      }
+    },
+    {
+      "id": "log-sent-message",
+      "name": "Log sent message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ direction: 'out', phone: $('One message per recipient').item.json.phone, type: 'template', body: 'morning_list ' + $('One message per recipient').item.json.date,\n    waMessageId: $json.messages?.[0]?.id ?? null, relatedDate: $('One message per recipient').item.json.date }) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Aarisa portal service token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "6:30 AM Monday to Saturday": {
+      "main": [
+        [
+          {
+            "node": "Get morning list",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get morning list": {
+      "main": [
+        [
+          {
+            "node": "One message per recipient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One message per recipient": {
+      "main": [
+        [
+          {
+            "node": "Send morning template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send morning template": {
+      "main": [
+        [
+          {
+            "node": "Log sent message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "America/Los_Angeles",
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "meta": {
+    "builtBy": "scripts/build-n8n.mjs"
+  }
+}

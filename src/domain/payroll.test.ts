@@ -38,6 +38,7 @@ describe('Hovership payroll run June 8 to 21 (spec §9)', () => {
     const p = run('2026-06-08', '2026-06-21', { previousDriverIds: ['DUB061'] });
     expect(p.warnings.newDrivers).toHaveLength(19);
     expect(p.warnings.negativeDays.length).toBeGreaterThan(0);
+    expect(p.warnings.negativeDays[0]!.marginCents).toBeLessThan(0);
   });
 });
 
