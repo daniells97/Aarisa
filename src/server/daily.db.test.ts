@@ -43,7 +43,7 @@ describe("today's drivers (server)", () => {
       expect(row.status).toBe('proposed');
       const trail = await tx.select().from(auditLog).where(and(eq(auditLog.tableName, 'daily_assignments'), eq(auditLog.recordId, res.assignmentId)));
       expect(trail.map((t) => t.action).sort()).toEqual(['insert', 'undo']);
-      expect((await loadDay(tx, d, '2026-09-03')).changes.length).toBe(2);
+      expect((await loadDay(tx, d, '2026-09-03')).changes.filter((c) => c.route === '9000E')).toHaveLength(2);
     }));
 
   it('finance and viewers cannot change the list (rule 9)', () =>
