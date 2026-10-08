@@ -14,7 +14,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppDriversRouteImport } from './routes/_app/drivers'
 import { Route as AppExceptionsRouteImport } from './routes/_app/exceptions'
-import { Route as AppHovershipRouteImport } from './routes/_app/hovership'
 import { Route as AppPayrollRouteImport } from './routes/_app/payroll'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppSettlementsRouteImport } from './routes/_app/settlements'
@@ -25,10 +24,12 @@ import { Route as AuthDevRouteImport } from './routes/auth/dev'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AppExtraJobsNewRouteImport } from './routes/_app/extra-jobs/new'
+import { Route as AppHovershipIndexRouteImport } from './routes/_app/hovership/index'
 import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
 import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
 import { Route as AppTforceTodayRouteImport } from './routes/_app/tforce/today'
 import { Route as AppTforceWeekRouteImport } from './routes/_app/tforce/week'
+import { Route as AppHovershipWeekWeekIdRouteImport } from './routes/_app/hovership/week/$weekId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -52,11 +53,6 @@ const AppDriversRoute = AppDriversRouteImport.update({
 const AppExceptionsRoute = AppExceptionsRouteImport.update({
   id: '/exceptions',
   path: '/exceptions',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppHovershipRoute = AppHovershipRouteImport.update({
-  id: '/hovership',
-  path: '/hovership',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPayrollRoute = AppPayrollRouteImport.update({
@@ -109,6 +105,11 @@ const AppExtraJobsNewRoute = AppExtraJobsNewRouteImport.update({
   path: '/extra-jobs/new',
   getParentRoute: () => AppRoute,
 } as any)
+const AppHovershipIndexRoute = AppHovershipIndexRouteImport.update({
+  id: '/hovership/',
+  path: '/hovership/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRatesRoute = AppSettingsRatesRouteImport.update({
   id: '/settings/rates',
   path: '/settings/rates',
@@ -129,13 +130,17 @@ const AppTforceWeekRoute = AppTforceWeekRouteImport.update({
   path: '/tforce/week',
   getParentRoute: () => AppRoute,
 } as any)
+const AppHovershipWeekWeekIdRoute = AppHovershipWeekWeekIdRouteImport.update({
+  id: '/hovership/week/$weekId',
+  path: '/hovership/week/$weekId',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
-  '/hovership': typeof AppHovershipRoute
   '/payroll': typeof AppPayrollRoute
   '/services': typeof AppServicesRoute
   '/settlements': typeof AppSettlementsRoute
@@ -150,12 +155,13 @@ export interface FileRoutesByFullPath {
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
   '/tforce/week': typeof AppTforceWeekRoute
+  '/hovership/': typeof AppHovershipIndexRoute
+  '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
-  '/hovership': typeof AppHovershipRoute
   '/payroll': typeof AppPayrollRoute
   '/services': typeof AppServicesRoute
   '/settlements': typeof AppSettlementsRoute
@@ -171,6 +177,8 @@ export interface FileRoutesByTo {
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
   '/tforce/week': typeof AppTforceWeekRoute
+  '/hovership': typeof AppHovershipIndexRoute
+  '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -178,7 +186,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/drivers': typeof AppDriversRoute
   '/_app/exceptions': typeof AppExceptionsRoute
-  '/_app/hovership': typeof AppHovershipRoute
   '/_app/payroll': typeof AppPayrollRoute
   '/_app/services': typeof AppServicesRoute
   '/_app/settlements': typeof AppSettlementsRoute
@@ -194,6 +201,8 @@ export interface FileRoutesById {
   '/_app/settings/team': typeof AppSettingsTeamRoute
   '/_app/tforce/today': typeof AppTforceTodayRoute
   '/_app/tforce/week': typeof AppTforceWeekRoute
+  '/_app/hovership/': typeof AppHovershipIndexRoute
+  '/_app/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -202,7 +211,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/drivers'
     | '/exceptions'
-    | '/hovership'
     | '/payroll'
     | '/services'
     | '/settlements'
@@ -217,12 +225,13 @@ export interface FileRouteTypes {
     | '/settings/team'
     | '/tforce/today'
     | '/tforce/week'
+    | '/hovership/'
+    | '/hovership/week/$weekId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/drivers'
     | '/exceptions'
-    | '/hovership'
     | '/payroll'
     | '/services'
     | '/settlements'
@@ -238,13 +247,14 @@ export interface FileRouteTypes {
     | '/settings/team'
     | '/tforce/today'
     | '/tforce/week'
+    | '/hovership'
+    | '/hovership/week/$weekId'
   id:
     | '__root__'
     | '/_app'
     | '/login'
     | '/_app/drivers'
     | '/_app/exceptions'
-    | '/_app/hovership'
     | '/_app/payroll'
     | '/_app/services'
     | '/_app/settlements'
@@ -260,6 +270,8 @@ export interface FileRouteTypes {
     | '/_app/settings/team'
     | '/_app/tforce/today'
     | '/_app/tforce/week'
+    | '/_app/hovership/'
+    | '/_app/hovership/week/$weekId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -306,13 +318,6 @@ declare module '@tanstack/react-router' {
       path: '/exceptions'
       fullPath: '/exceptions'
       preLoaderRoute: typeof AppExceptionsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/hovership': {
-      id: '/_app/hovership'
-      path: '/hovership'
-      fullPath: '/hovership'
-      preLoaderRoute: typeof AppHovershipRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/payroll': {
@@ -385,6 +390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppExtraJobsNewRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/hovership/': {
+      id: '/_app/hovership/'
+      path: '/hovership'
+      fullPath: '/hovership/'
+      preLoaderRoute: typeof AppHovershipIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/rates': {
       id: '/_app/settings/rates'
       path: '/settings/rates'
@@ -413,13 +425,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTforceWeekRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/hovership/week/$weekId': {
+      id: '/_app/hovership/week/$weekId'
+      path: '/hovership/week/$weekId'
+      fullPath: '/hovership/week/$weekId'
+      preLoaderRoute: typeof AppHovershipWeekWeekIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
   AppDriversRoute: typeof AppDriversRoute
   AppExceptionsRoute: typeof AppExceptionsRoute
-  AppHovershipRoute: typeof AppHovershipRoute
   AppPayrollRoute: typeof AppPayrollRoute
   AppServicesRoute: typeof AppServicesRoute
   AppSettlementsRoute: typeof AppSettlementsRoute
@@ -431,12 +449,13 @@ interface AppRouteChildren {
   AppSettingsTeamRoute: typeof AppSettingsTeamRoute
   AppTforceTodayRoute: typeof AppTforceTodayRoute
   AppTforceWeekRoute: typeof AppTforceWeekRoute
+  AppHovershipIndexRoute: typeof AppHovershipIndexRoute
+  AppHovershipWeekWeekIdRoute: typeof AppHovershipWeekWeekIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDriversRoute: AppDriversRoute,
   AppExceptionsRoute: AppExceptionsRoute,
-  AppHovershipRoute: AppHovershipRoute,
   AppPayrollRoute: AppPayrollRoute,
   AppServicesRoute: AppServicesRoute,
   AppSettlementsRoute: AppSettlementsRoute,
@@ -448,6 +467,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsTeamRoute: AppSettingsTeamRoute,
   AppTforceTodayRoute: AppTforceTodayRoute,
   AppTforceWeekRoute: AppTforceWeekRoute,
+  AppHovershipIndexRoute: AppHovershipIndexRoute,
+  AppHovershipWeekWeekIdRoute: AppHovershipWeekWeekIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

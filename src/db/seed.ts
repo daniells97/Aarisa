@@ -6,6 +6,8 @@ import { contractors, drivers, operations, rates, serviceTypes } from './schema'
 import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TYPES } from './seed-data';
 import { parseCsvObjects } from '~/integrations/csv';
 import { audit, type AuditEntry } from '~/server/audit';
+import { SYSTEM_ACTOR } from '~/server/actor';
+import { importHovership } from '~/server/hovership';
 
 /** Idempotent: running twice inserts nothing new. Every insert is audited as `system`. */
 export async function seedMasterData(database = createDb()) {
@@ -69,7 +71,22 @@ export async function seedMasterData(database = createDb()) {
   return database;
 }
 
+/** Loads the June 2026 Hovership sample through the same import the portal uses. Skips if already loaded. */
+export async function seedHovershipSample(database: ReturnType<typeof createDb>) {
+  const text = readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8');
+  await database.transaction(async (tx) => {
+    try {
+      const out = await importHovership(tx, SYSTEM_ACTOR, { fileName: 'hovership_details_jun2026.csv', text });
+      console.log(`Hovership sample: ${out.status}${'rows' in out ? `, ${out.rows} rows` : ''}`);
+    } catch (e) {
+      if ((e as { code?: string }).code === 'already_imported') console.log('Hovership sample: already loaded');
+      else throw e;
+    }
+  });
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const database = await seedMasterData();
+  await seedHovershipSample(database);
   await database.$client.end();
 }

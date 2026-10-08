@@ -150,3 +150,25 @@ tbody tr:hover td { background: var(--row-hover); }
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
 .sub { display: block; color: var(--ink-4); font-size: 13px; }
+
+/* ---------- import states ---------- */
+.dot { width: 14px; height: 14px; border-radius: 50%; flex: none; margin-top: 6px; }
+.dot-ok { background: var(--green); }
+.dot-info { background: var(--blue); }
+.steps { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.steps li { display: flex; align-items: center; gap: 10px; color: var(--ink-4); }
+.steps li::before { content: ''; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--control); flex: none; }
+.steps li[data-state='done'] { color: var(--ink-2); }
+.steps li[data-state='done']::before { background: var(--green); border-color: var(--green); }
+.steps li[data-state='now'] { color: var(--ink); font-weight: 600; }
+.steps li[data-state='now']::before { border-color: var(--blue); background: var(--blue-tint); }
+.code-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.week-nav { display: inline-flex; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.week-nav a { width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-sm); color: var(--ink); }
+.week-nav a:hover { background: var(--base); }
+.week-nav span { padding: 0 8px; font-weight: 500; }
+.money-input { width: 96px; text-align: right; }
+tr.day-row td { background: #FBFBFA; font-size: 14px; }
+tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
+.lost { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.linklike { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }

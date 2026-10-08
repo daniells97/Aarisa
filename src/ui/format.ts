@@ -1,5 +1,5 @@
 import { formatCents } from '~/domain/money';
-import { formatDate } from '~/domain/dates';
+import { TZ, formatDate } from '~/domain/dates';
 import { useLocale } from '~/i18n';
 
 /** Locale-aware formatters for the edge of the UI. */
@@ -10,6 +10,8 @@ export function useFormat() {
     money: (c: number | null | undefined) => (c == null ? '–' : formatCents(c, tag)),
     number: (n: number) => new Intl.NumberFormat(tag).format(n),
     date: (d: string, opts?: Intl.DateTimeFormatOptions) => formatDate(d, tag, opts),
+    // Timestamps always in Aarisa's time zone, so server and browser render the same text.
+    dateTime: (iso: string) => new Intl.DateTimeFormat(tag, { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)),
   };
 }
 
