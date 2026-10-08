@@ -1,7 +1,8 @@
-import { expect, test } from './fixtures';
+import { expect, signInAs, test } from './fixtures';
+
+test.beforeEach(async ({ page }) => signInAs(page, 'owner', '/styleguide'));
 
 test('shell shows the sidebar on desktop and the tab bar on phones', async ({ page, isMobile }) => {
-  await page.goto('/styleguide');
   await expect(page.getByRole('heading', { name: 'Components', level: 1 })).toBeVisible();
   const navs = page.getByRole('navigation', { name: 'Main' });
   if (isMobile) {
@@ -14,7 +15,6 @@ test('shell shows the sidebar on desktop and the tab bar on phones', async ({ pa
 });
 
 test('toast offers undo and a disabled button explains why', async ({ page }) => {
-  await page.goto('/styleguide');
   await page.getByRole('button', { name: 'Show a toast' }).click();
   await expect(page.getByRole('status')).toContainText('Route 9000E changed');
   await page.getByRole('button', { name: 'Undo' }).click();
@@ -25,7 +25,6 @@ test('toast offers undo and a disabled button explains why', async ({ page }) =>
 });
 
 test('dialog closes with Escape', async ({ page }) => {
-  await page.goto('/styleguide');
   await page.getByRole('button', { name: 'Open dialog' }).click();
   await expect(page.getByRole('dialog', { name: 'Approve payroll' })).toBeVisible();
   await page.keyboard.press('Escape');

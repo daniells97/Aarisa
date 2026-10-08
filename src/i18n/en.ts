@@ -35,6 +35,23 @@ export const en = {
   'pill.contractor': 'Contractor',
   'pill.inactive': 'Inactive',
   'pill.negative': 'Negative',
+  'login.title': 'Sign in',
+  'login.tagline1': 'Who drove it.',
+  'login.tagline2': 'What it paid.',
+  'login.tagline3': "What's still owed.",
+  'login.lead': 'Payroll and client settlements for every Aarisa route in the Bay Area, Hovership and T-Force in one place.',
+  'login.builtBy': 'Built for Aarisa by Leanova Consulting',
+  'login.hint': 'Use the email your invite was sent to.',
+  'login.button': 'Sign in',
+  'login.noAccount': 'No account yet? Ask the owner to invite you from Team access.',
+  'login.dev': 'Development sign-in',
+  'login.devAs': 'Sign in as {role}',
+  'login.error.no_role': 'Your account has no role in the Aarisa portal yet. Ask the owner to give you one.',
+  'login.error.state': 'The sign-in link expired. Try again.',
+  'login.error.provider': 'Sign-in failed at the identity provider. Try again in a minute.',
+  'login.error.inactive': 'Your access was turned off. Ask the owner.',
+  'login.error.not_configured': 'Sign-in is not configured on this server yet.',
+  'lang.label': 'Language',
 } as const;
 
 export type MessageKey = keyof typeof en;

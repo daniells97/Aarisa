@@ -121,3 +121,23 @@ tbody tr:hover td { background: var(--row-hover); }
   .sheet { margin: auto 0 0; width: 100vw; max-width: 100vw; max-height: calc(100vh - 56px); border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
   .sheet::before { content: ''; align-self: center; flex: none; width: 40px; height: 5px; border-radius: 3px; background: var(--control); margin-top: 8px; }
 }
+
+/* ---------- segmented control ---------- */
+.seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.seg button { min-height: 38px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-3); font: 500 14px var(--font); cursor: pointer; }
+.seg button[aria-pressed='true'] { background: var(--green-tint); color: var(--green); font-weight: 600; }
+
+/* ---------- sign in ---------- */
+.login { min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--surface); }
+.login-brand { flex: 1 1 520px; background: var(--ink); color: #fff; padding: 44px 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; }
+.login-brand h1 { font-size: 64px; line-height: .98; max-width: 560px; }
+.login-brand p { margin: 0; font-size: 17px; line-height: 1.5; color: #C9D1CD; max-width: 460px; }
+.login-plates { display: flex; flex-wrap: wrap; gap: 10px; max-width: 520px; }
+.login-form { flex: 1 1 420px; padding: 44px 56px; display: flex; flex-direction: column; gap: 32px; }
+.login-card { width: min(400px, 100%); margin: auto; display: flex; flex-direction: column; gap: 18px; }
+.login-card h2 { font-size: 40px; }
+@media (max-width: 899px) {
+  .login-brand { padding: 28px 20px; gap: 24px; }
+  .login-brand h1 { font-size: 40px; }
+  .login-form { padding: 28px 20px; }
+}

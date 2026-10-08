@@ -3,9 +3,11 @@ import { useEffect, type ReactNode } from 'react';
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
 import appCss from '~/styles/app.css?url';
 import { I18nProvider, type Locale } from '~/i18n';
+import { getSession } from '~/server/session-fns';
 import { ToastProvider } from '~/ui';
 
 export const Route = createRootRoute({
+  beforeLoad: async () => ({ session: await getSession() }),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -24,10 +26,9 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
-  // Locale comes from the signed-in user once auth is wired (step 3).
-  const locale: Locale = 'en';
+  const { session } = Route.useRouteContext();
   return (
-    <RootDocument locale={locale}>
+    <RootDocument locale={session.locale}>
       <Outlet />
     </RootDocument>
   );

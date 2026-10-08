@@ -33,4 +33,5 @@ Claude Code: when you hit one of these, build behind a setting or a placeholder 
 | 17 | File storage: local volume or S3-compatible bucket. |
 | 18 | Teams integration later (phase 4) or not at all. |
 | 22 | The client process documents ("Document 1 -TFORCE Process", "Document 2 Tforce", "TFORCE Process", "Propuesta_Nomina_Aarisa") were not on the server during Phase 1, so they haven't been checked against the spec yet. |
+| 24 | Design gap: `Login.dc.html` shows email, password, "keep me signed in" and "email me a code" on the portal's own page. The spec uses Zitadel OIDC + PKCE, so the portal shows one "Sign in" button and Zitadel's hosted login asks for the credentials (passwordless and OTP are configured in Zitadel). Branding the Zitadel login with the Aarisa colors is a Zitadel setting. |
 | 23 | Zitadel on the shared VPS has no admin service account that Claude Code can use. Creating the "Aarisa" project, roles and PKCE app needs a PAT from an IAM or org owner, or a person doing it in the console. |

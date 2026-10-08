@@ -1,4 +1,5 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import type { Role } from '../../src/domain/permissions';
 
 /** `page.goto` that also waits for React hydration, so clicks reach real handlers. */
 export const test = base.extend({
@@ -12,4 +13,10 @@ export const test = base.extend({
     await use(page);
   },
 });
+
+/** Signs in with the development login (needs DEV_LOGIN=1 on the dev server). */
+export async function signInAs(page: Page, role: Role, returnTo = '/', lang: 'en' | 'es' = 'en') {
+  await page.goto(`/auth/dev?role=${role}&lang=${lang}&returnTo=${encodeURIComponent(returnTo)}`);
+}
+
 export { expect };

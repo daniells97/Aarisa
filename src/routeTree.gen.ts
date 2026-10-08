@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppExceptionsRouteImport } from './routes/_app/exceptions'
 import { Route as AppHovershipRouteImport } from './routes/_app/hovership'
@@ -17,6 +18,10 @@ import { Route as AppPayrollRouteImport } from './routes/_app/payroll'
 import { Route as AppSettlementsRouteImport } from './routes/_app/settlements'
 import { Route as AppStyleguideRouteImport } from './routes/_app/styleguide'
 import { Route as AppWeekRouteImport } from './routes/_app/week'
+import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
+import { Route as AuthDevRouteImport } from './routes/auth/dev'
+import { Route as AuthLoginRouteImport } from './routes/auth/login'
+import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AppExtraJobsNewRouteImport } from './routes/_app/extra-jobs/new'
 import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
 import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
@@ -25,6 +30,11 @@ import { Route as AppTforceWeekRouteImport } from './routes/_app/tforce/week'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -62,6 +72,26 @@ const AppWeekRoute = AppWeekRouteImport.update({
   path: '/week',
   getParentRoute: () => AppRoute,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthDevRoute = AuthDevRouteImport.update({
+  id: '/auth/dev',
+  path: '/auth/dev',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/auth/login',
+  path: '/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLogoutRoute = AuthLogoutRouteImport.update({
+  id: '/auth/logout',
+  path: '/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppExtraJobsNewRoute = AppExtraJobsNewRouteImport.update({
   id: '/extra-jobs/new',
   path: '/extra-jobs/new',
@@ -90,12 +120,17 @@ const AppTforceWeekRoute = AppTforceWeekRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
   '/exceptions': typeof AppExceptionsRoute
   '/hovership': typeof AppHovershipRoute
   '/payroll': typeof AppPayrollRoute
   '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/auth/dev': typeof AuthDevRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/logout': typeof AuthLogoutRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
@@ -103,12 +138,17 @@ export interface FileRoutesByFullPath {
   '/tforce/week': typeof AppTforceWeekRoute
 }
 export interface FileRoutesByTo {
+  '/login': typeof LoginRoute
   '/exceptions': typeof AppExceptionsRoute
   '/hovership': typeof AppHovershipRoute
   '/payroll': typeof AppPayrollRoute
   '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/auth/dev': typeof AuthDevRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/logout': typeof AuthLogoutRoute
   '/': typeof AppIndexRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
   '/settings/rates': typeof AppSettingsRatesRoute
@@ -119,12 +159,17 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
   '/_app/exceptions': typeof AppExceptionsRoute
   '/_app/hovership': typeof AppHovershipRoute
   '/_app/payroll': typeof AppPayrollRoute
   '/_app/settlements': typeof AppSettlementsRoute
   '/_app/styleguide': typeof AppStyleguideRoute
   '/_app/week': typeof AppWeekRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/auth/dev': typeof AuthDevRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/logout': typeof AuthLogoutRoute
   '/_app/': typeof AppIndexRoute
   '/_app/extra-jobs/new': typeof AppExtraJobsNewRoute
   '/_app/settings/rates': typeof AppSettingsRatesRoute
@@ -136,12 +181,17 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
     | '/exceptions'
     | '/hovership'
     | '/payroll'
     | '/settlements'
     | '/styleguide'
     | '/week'
+    | '/auth/callback'
+    | '/auth/dev'
+    | '/auth/login'
+    | '/auth/logout'
     | '/extra-jobs/new'
     | '/settings/rates'
     | '/settings/team'
@@ -149,12 +199,17 @@ export interface FileRouteTypes {
     | '/tforce/week'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/login'
     | '/exceptions'
     | '/hovership'
     | '/payroll'
     | '/settlements'
     | '/styleguide'
     | '/week'
+    | '/auth/callback'
+    | '/auth/dev'
+    | '/auth/login'
+    | '/auth/logout'
     | '/'
     | '/extra-jobs/new'
     | '/settings/rates'
@@ -164,12 +219,17 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/login'
     | '/_app/exceptions'
     | '/_app/hovership'
     | '/_app/payroll'
     | '/_app/settlements'
     | '/_app/styleguide'
     | '/_app/week'
+    | '/auth/callback'
+    | '/auth/dev'
+    | '/auth/login'
+    | '/auth/logout'
     | '/_app/'
     | '/_app/extra-jobs/new'
     | '/_app/settings/rates'
@@ -180,6 +240,11 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
+  AuthDevRoute: typeof AuthDevRoute
+  AuthLoginRoute: typeof AuthLoginRoute
+  AuthLogoutRoute: typeof AuthLogoutRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -189,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -239,6 +311,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/week'
       preLoaderRoute: typeof AppWeekRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/dev': {
+      id: '/auth/dev'
+      path: '/auth/dev'
+      fullPath: '/auth/dev'
+      preLoaderRoute: typeof AuthDevRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/login': {
+      id: '/auth/login'
+      path: '/auth/login'
+      fullPath: '/auth/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/logout': {
+      id: '/auth/logout'
+      path: '/auth/logout'
+      fullPath: '/auth/logout'
+      preLoaderRoute: typeof AuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/extra-jobs/new': {
       id: '/_app/extra-jobs/new'
@@ -312,6 +412,11 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
+  AuthDevRoute: AuthDevRoute,
+  AuthLoginRoute: AuthLoginRoute,
+  AuthLogoutRoute: AuthLogoutRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
