@@ -12,6 +12,12 @@ const table: [Permission, Record<Role, boolean>][] = [
   ['settlements.record', { owner: true, dispatcher: false, finance: true, viewer: false }],
   ['setup.edit', { owner: true, dispatcher: false, finance: false, viewer: false }],
   ['team.manage', { owner: true, dispatcher: false, finance: false, viewer: false }],
+  // Phase 1 additions (open questions 27 and 29).
+  ['hovership.import', { owner: true, dispatcher: false, finance: true, viewer: false }],
+  ['payroll.reopen', { owner: true, dispatcher: false, finance: false, viewer: false }],
+  ['payroll.view', { owner: true, dispatcher: true, finance: true, viewer: true }],
+  ['payroll.export', { owner: true, dispatcher: false, finance: true, viewer: true }],
+  ['audit.view', { owner: true, dispatcher: false, finance: true, viewer: true }],
 ];
 
 describe('permission matrix (spec §2)', () => {
