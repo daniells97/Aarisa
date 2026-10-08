@@ -1,5 +1,4 @@
 // Drizzle schema draft for the Aarisa portal.
-// Starting point for Phase 1. Move to src/db/schema.ts when scaffolding.
 // Money is integer cents. Dates of work are `date`; events are `timestamptz`.
 
 import {
@@ -22,6 +21,8 @@ export const tierEnum = pgEnum('tier', ['t1_3', 't4']);
 export const sourceEnum = pgEnum('source', [
   'hovership_report', 'tforce_report', 'daily_list', 'extra_job', 'manual', 'whatsapp', 'system',
 ]);
+// Who or what made a change, for the audit log (CLAUDE.md rule 4).
+export const auditSourceEnum = pgEnum('audit_source', ['portal', 'whatsapp', 'email-import', 'system']);
 export const importStatusEnum = pgEnum('import_status', [
   'waiting', 'reading', 'layout_changed', 'partial', 'done', 'failed',
 ]);
@@ -347,6 +348,6 @@ export const auditLog = pgTable('audit_log', {
   before: jsonb('before'),
   after: jsonb('after'),
   userId: uuid('user_id').references(() => users.id),
-  source: sourceEnum('source').notNull(),
+  source: auditSourceEnum('source').notNull(),
   at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('audit_record').on(t.tableName, t.recordId)]);
