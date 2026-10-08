@@ -15,7 +15,6 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppDriversRouteImport } from './routes/_app/drivers'
 import { Route as AppExceptionsRouteImport } from './routes/_app/exceptions'
 import { Route as AppServicesRouteImport } from './routes/_app/services'
-import { Route as AppSettlementsRouteImport } from './routes/_app/settlements'
 import { Route as AppStyleguideRouteImport } from './routes/_app/styleguide'
 import { Route as AppWeekRouteImport } from './routes/_app/week'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
@@ -31,6 +30,7 @@ import { Route as AppPayrollRunIdRouteImport } from './routes/_app/payroll/$runI
 import { Route as AppSettingsAuditRouteImport } from './routes/_app/settings/audit'
 import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
 import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
+import { Route as AppSettlementsIndexRouteImport } from './routes/_app/settlements/index'
 import { Route as AppTforceTodayRouteImport } from './routes/_app/tforce/today'
 import { Route as ApiIntegrationsContextRouteImport } from './routes/api/integrations/context'
 import { Route as ApiIntegrationsDailyChangesRouteImport } from './routes/api/integrations/daily-changes'
@@ -40,6 +40,7 @@ import { Route as ApiIntegrationsMessagesRouteImport } from './routes/api/integr
 import { Route as ApiIntegrationsMorningListRouteImport } from './routes/api/integrations/morning-list'
 import { Route as ApiIntegrationsRemindersRouteImport } from './routes/api/integrations/reminders'
 import { Route as AppHovershipWeekWeekIdRouteImport } from './routes/_app/hovership/week/$weekId'
+import { Route as AppSettlementsClaimLineIdRouteImport } from './routes/_app/settlements/claim.$lineId'
 import { Route as AppTforceWeekIndexRouteImport } from './routes/_app/tforce/week/index'
 import { Route as AppTforceWeekWeekIdRouteImport } from './routes/_app/tforce/week/$weekId'
 
@@ -70,11 +71,6 @@ const AppExceptionsRoute = AppExceptionsRouteImport.update({
 const AppServicesRoute = AppServicesRouteImport.update({
   id: '/services',
   path: '/services',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettlementsRoute = AppSettlementsRouteImport.update({
-  id: '/settlements',
-  path: '/settlements',
   getParentRoute: () => AppRoute,
 } as any)
 const AppStyleguideRoute = AppStyleguideRouteImport.update({
@@ -152,6 +148,11 @@ const AppSettingsTeamRoute = AppSettingsTeamRouteImport.update({
   path: '/settings/team',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettlementsIndexRoute = AppSettlementsIndexRouteImport.update({
+  id: '/settlements/',
+  path: '/settlements/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppTforceTodayRoute = AppTforceTodayRouteImport.update({
   id: '/tforce/today',
   path: '/tforce/today',
@@ -201,6 +202,12 @@ const AppHovershipWeekWeekIdRoute = AppHovershipWeekWeekIdRouteImport.update({
   path: '/hovership/week/$weekId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettlementsClaimLineIdRoute =
+  AppSettlementsClaimLineIdRouteImport.update({
+    id: '/settlements/claim/$lineId',
+    path: '/settlements/claim/$lineId',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppTforceWeekIndexRoute = AppTforceWeekIndexRouteImport.update({
   id: '/tforce/week/',
   path: '/tforce/week/',
@@ -218,7 +225,6 @@ export interface FileRoutesByFullPath {
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
   '/services': typeof AppServicesRoute
-  '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -242,7 +248,9 @@ export interface FileRoutesByFullPath {
   '/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/hovership/': typeof AppHovershipIndexRoute
   '/payroll/': typeof AppPayrollIndexRoute
+  '/settlements/': typeof AppSettlementsIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
+  '/settlements/claim/$lineId': typeof AppSettlementsClaimLineIdRoute
   '/tforce/week/$weekId': typeof AppTforceWeekWeekIdRoute
   '/tforce/week/': typeof AppTforceWeekIndexRoute
 }
@@ -251,7 +259,6 @@ export interface FileRoutesByTo {
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
   '/services': typeof AppServicesRoute
-  '/settlements': typeof AppSettlementsRoute
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -276,7 +283,9 @@ export interface FileRoutesByTo {
   '/extra-jobs': typeof AppExtraJobsIndexRoute
   '/hovership': typeof AppHovershipIndexRoute
   '/payroll': typeof AppPayrollIndexRoute
+  '/settlements': typeof AppSettlementsIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
+  '/settlements/claim/$lineId': typeof AppSettlementsClaimLineIdRoute
   '/tforce/week/$weekId': typeof AppTforceWeekWeekIdRoute
   '/tforce/week': typeof AppTforceWeekIndexRoute
 }
@@ -287,7 +296,6 @@ export interface FileRoutesById {
   '/_app/drivers': typeof AppDriversRoute
   '/_app/exceptions': typeof AppExceptionsRoute
   '/_app/services': typeof AppServicesRoute
-  '/_app/settlements': typeof AppSettlementsRoute
   '/_app/styleguide': typeof AppStyleguideRoute
   '/_app/week': typeof AppWeekRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -312,7 +320,9 @@ export interface FileRoutesById {
   '/_app/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/_app/hovership/': typeof AppHovershipIndexRoute
   '/_app/payroll/': typeof AppPayrollIndexRoute
+  '/_app/settlements/': typeof AppSettlementsIndexRoute
   '/_app/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
+  '/_app/settlements/claim/$lineId': typeof AppSettlementsClaimLineIdRoute
   '/_app/tforce/week/$weekId': typeof AppTforceWeekWeekIdRoute
   '/_app/tforce/week/': typeof AppTforceWeekIndexRoute
 }
@@ -324,7 +334,6 @@ export interface FileRouteTypes {
     | '/drivers'
     | '/exceptions'
     | '/services'
-    | '/settlements'
     | '/styleguide'
     | '/week'
     | '/auth/callback'
@@ -348,7 +357,9 @@ export interface FileRouteTypes {
     | '/extra-jobs/'
     | '/hovership/'
     | '/payroll/'
+    | '/settlements/'
     | '/hovership/week/$weekId'
+    | '/settlements/claim/$lineId'
     | '/tforce/week/$weekId'
     | '/tforce/week/'
   fileRoutesByTo: FileRoutesByTo
@@ -357,7 +368,6 @@ export interface FileRouteTypes {
     | '/drivers'
     | '/exceptions'
     | '/services'
-    | '/settlements'
     | '/styleguide'
     | '/week'
     | '/auth/callback'
@@ -382,7 +392,9 @@ export interface FileRouteTypes {
     | '/extra-jobs'
     | '/hovership'
     | '/payroll'
+    | '/settlements'
     | '/hovership/week/$weekId'
+    | '/settlements/claim/$lineId'
     | '/tforce/week/$weekId'
     | '/tforce/week'
   id:
@@ -392,7 +404,6 @@ export interface FileRouteTypes {
     | '/_app/drivers'
     | '/_app/exceptions'
     | '/_app/services'
-    | '/_app/settlements'
     | '/_app/styleguide'
     | '/_app/week'
     | '/auth/callback'
@@ -417,7 +428,9 @@ export interface FileRouteTypes {
     | '/_app/extra-jobs/'
     | '/_app/hovership/'
     | '/_app/payroll/'
+    | '/_app/settlements/'
     | '/_app/hovership/week/$weekId'
+    | '/_app/settlements/claim/$lineId'
     | '/_app/tforce/week/$weekId'
     | '/_app/tforce/week/'
   fileRoutesById: FileRoutesById
@@ -481,13 +494,6 @@ declare module '@tanstack/react-router' {
       path: '/services'
       fullPath: '/services'
       preLoaderRoute: typeof AppServicesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/settlements': {
-      id: '/_app/settlements'
-      path: '/settlements'
-      fullPath: '/settlements'
-      preLoaderRoute: typeof AppSettlementsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/styleguide': {
@@ -595,6 +601,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsTeamRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settlements/': {
+      id: '/_app/settlements/'
+      path: '/settlements'
+      fullPath: '/settlements/'
+      preLoaderRoute: typeof AppSettlementsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tforce/today': {
       id: '/_app/tforce/today'
       path: '/tforce/today'
@@ -658,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHovershipWeekWeekIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settlements/claim/$lineId': {
+      id: '/_app/settlements/claim/$lineId'
+      path: '/settlements/claim/$lineId'
+      fullPath: '/settlements/claim/$lineId'
+      preLoaderRoute: typeof AppSettlementsClaimLineIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/tforce/week/': {
       id: '/_app/tforce/week/'
       path: '/tforce/week'
@@ -679,7 +699,6 @@ interface AppRouteChildren {
   AppDriversRoute: typeof AppDriversRoute
   AppExceptionsRoute: typeof AppExceptionsRoute
   AppServicesRoute: typeof AppServicesRoute
-  AppSettlementsRoute: typeof AppSettlementsRoute
   AppStyleguideRoute: typeof AppStyleguideRoute
   AppWeekRoute: typeof AppWeekRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -692,7 +711,9 @@ interface AppRouteChildren {
   AppExtraJobsIndexRoute: typeof AppExtraJobsIndexRoute
   AppHovershipIndexRoute: typeof AppHovershipIndexRoute
   AppPayrollIndexRoute: typeof AppPayrollIndexRoute
+  AppSettlementsIndexRoute: typeof AppSettlementsIndexRoute
   AppHovershipWeekWeekIdRoute: typeof AppHovershipWeekWeekIdRoute
+  AppSettlementsClaimLineIdRoute: typeof AppSettlementsClaimLineIdRoute
   AppTforceWeekWeekIdRoute: typeof AppTforceWeekWeekIdRoute
   AppTforceWeekIndexRoute: typeof AppTforceWeekIndexRoute
 }
@@ -701,7 +722,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppDriversRoute: AppDriversRoute,
   AppExceptionsRoute: AppExceptionsRoute,
   AppServicesRoute: AppServicesRoute,
-  AppSettlementsRoute: AppSettlementsRoute,
   AppStyleguideRoute: AppStyleguideRoute,
   AppWeekRoute: AppWeekRoute,
   AppIndexRoute: AppIndexRoute,
@@ -714,7 +734,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppExtraJobsIndexRoute: AppExtraJobsIndexRoute,
   AppHovershipIndexRoute: AppHovershipIndexRoute,
   AppPayrollIndexRoute: AppPayrollIndexRoute,
+  AppSettlementsIndexRoute: AppSettlementsIndexRoute,
   AppHovershipWeekWeekIdRoute: AppHovershipWeekWeekIdRoute,
+  AppSettlementsClaimLineIdRoute: AppSettlementsClaimLineIdRoute,
   AppTforceWeekWeekIdRoute: AppTforceWeekWeekIdRoute,
   AppTforceWeekIndexRoute: AppTforceWeekIndexRoute,
 }

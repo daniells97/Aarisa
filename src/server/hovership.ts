@@ -12,6 +12,7 @@ import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation, hovershipRateFn, lockedPeriodStarts, serviceIds } from './ops';
 import { saveImportFile } from './storage';
+import { refreshWeeklyLines } from './settlements';
 
 export type ImportOutcome =
   | { status: 'layout_changed'; importId: string; missing: Field[]; suggestions: { field: Field; header: string | null }[]; header: string[] }
@@ -123,6 +124,7 @@ export async function importHovership(tx: Tx, actor: Actor, input: { fileName: s
     await audit(tx, { table: 'exceptions', recordId: ex!.id, action: 'insert', after: ex, userId: actor.userId, source: 'system' });
   }
 
+  await refreshWeeklyLines(tx, actor, 'hovership', [...new Set(dates.map(weekStart))]);
   return {
     status, importId: row.id, rows: parsed.rows.length, badLines: parsed.problems, totalsMismatch,
     unknownCodes: [...unknown].map(([code, rows]) => ({ code, name: rows.find((r) => r.driverName)?.driverName ?? '', days: rows.length, packages: rows.reduce((s, r) => s + r.t1 + r.t2 + r.t3 + r.t4, 0) })),
@@ -167,6 +169,7 @@ export async function resolveUnknownCode(tx: Tx, actor: Actor, exceptionId: stri
     .where(eq(exceptions.id, ex.id)).returning();
   await audit(tx, { table: 'exceptions', recordId: ex.id, action: 'update', before: ex, after, userId: actor.userId, source: actor.source });
   await refreshImportStatus(tx, actor, details.importId);
+  await refreshWeeklyLines(tx, actor, 'hovership', [...new Set(details.rows.map((r) => weekStart(r.date)))]);
   return { driverId };
 }
 

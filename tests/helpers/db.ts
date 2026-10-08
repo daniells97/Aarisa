@@ -24,7 +24,7 @@ export const ALL_ROLES: Role[] = ['owner', 'dispatcher', 'finance', 'viewer'];
 
 import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
-import { exceptions, operationRevenue, operations, payPeriods, payrollLines, payrollRuns, reportImports, settlementLines, workRecords } from '~/db/schema';
+import { claims, exceptions, operationRevenue, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, settlementLines, workRecords } from '~/db/schema';
 
 export const HOVERSHIP_CSV = readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8');
 
@@ -39,6 +39,7 @@ export async function clearHovership(tx: Tx) {
   }
   await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
   await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
+  await clearSettlements(tx, op!.id);
   await tx.delete(workRecords).where(eq(workRecords.operationId, op!.id));
   await tx.delete(operationRevenue).where(eq(operationRevenue.operationId, op!.id));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
@@ -58,8 +59,19 @@ export async function clearTforceReports(tx: Tx) {
   }
   await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
   await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
-  await tx.delete(settlementLines).where(eq(settlementLines.operationId, op!.id));
+  await clearSettlements(tx, op!.id);
   await tx.delete(workRecords).where(eq(workRecords.operationId, op!.id));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;
+}
+
+/** Settlement lines, their claims and the payments allocated to them, for one operation. */
+async function clearSettlements(tx: Tx, operationId: string) {
+  const lines = await tx.select({ id: settlementLines.id }).from(settlementLines).where(eq(settlementLines.operationId, operationId));
+  for (const l of lines) {
+    await tx.delete(paymentAllocations).where(eq(paymentAllocations.settlementLineId, l.id));
+    await tx.delete(claims).where(eq(claims.settlementLineId, l.id));
+  }
+  await tx.delete(settlementLines).where(eq(settlementLines.operationId, operationId));
+  await tx.delete(paymentsReceived).where(eq(paymentsReceived.operationId, operationId));
 }

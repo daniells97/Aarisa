@@ -256,3 +256,23 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
 .svc-toggles button[aria-pressed='true'] { background: var(--green); border-color: var(--green); color: #fff; }
 @media (min-width: 900px) { .svc-toggles { grid-template-columns: repeat(4, 1fr); } }
 .svc-toggles button.ai-picked { box-shadow: 0 0 0 3px var(--green-ai-line); }
+
+/* ---------- settlements ---------- */
+tr.row-selected td { background: var(--green-tint); }
+.claim-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; }
+.claim-facts dt { font-size: 13px; color: var(--ink-4); }
+.claim-facts dd { margin: 2px 0 0; font-weight: 500; }
+.agreement { margin: 0; padding: 10px 14px; border-left: 3px solid var(--green-ai-line); background: var(--green-ai); border-radius: 0 var(--r-sm) var(--r-sm) 0; font-size: 14px; }
+.alloc { border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; margin: 0; }
+.alloc legend { font-size: 14px; font-weight: 500; padding: 0 4px; }
+.alloc-row { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line-soft); padding: 4px 0; }
+.alloc-row:first-of-type { border-top: 0; }
+.claim-doc { max-width: 760px; display: flex; flex-direction: column; gap: 20px; background: var(--surface); padding: 32px; border: 1px solid var(--line); border-radius: var(--r-lg); }
+.claim-doc h1 { font-size: 34px; margin-top: 4px; }
+.claim-doc table th { width: 40%; color: var(--ink-3); font-weight: 500; font-size: 14.5px; border-bottom: 1px solid var(--line-soft); }
+@media print {
+  .side, .tabbar, .toasts, .no-print { display: none !important; }
+  body { background: #fff; }
+  .content { padding: 0; max-width: none; }
+  .claim-doc { border: 0; padding: 0; }
+}

@@ -12,6 +12,7 @@ import { assignRoute, type PayeeInput } from './daily';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation, lockedPeriodStarts, serviceIds } from './ops';
 import { saveImportFile } from './storage';
+import { refreshWeeklyLines } from './settlements';
 import type { ImportProblems } from './hovership';
 
 // T-Force weekly check (spec §5.3, 6.4). Report rows become e-commerce work records; the check joins
@@ -80,6 +81,7 @@ export async function importTforce(tx: Tx, actor: Actor, input: { fileName: stri
   const weeks = [...new Set(dates.map(weekStart))];
   let open = 0;
   for (const w of weeks) open += (await runWeeklyCheck(tx, actor, w)).open;
+  await refreshWeeklyLines(tx, actor, 'tforce', weeks);
   return { status, importId: imp.id, rows: parsed.rows.length, pieces: parsed.rows.reduce((s, r) => s + r.pieces, 0), weeks, newRoutes, badLines: parsed.problems, openExceptions: open };
 }
 
@@ -215,6 +217,7 @@ export async function resolveTforceException(tx: Tx, actor: Actor, exceptionId: 
     details: { ...(ex.details as object), ...(claimId ? { settlementLineId: claimId } : {}), ...(r.action === 'ask_client' && r.note ? { note: r.note } : {}) },
   }).where(eq(exceptions.id, ex.id)).returning();
   await audit(tx, { table: 'exceptions', recordId: ex.id, action: 'update', before: ex, after, userId: actor.userId, source: actor.source });
+  if (r.action === 'not_ours') await refreshWeeklyLines(tx, actor, 'tforce', [ex.periodStart]); // not billed any more
   return after!;
 }
 

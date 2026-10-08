@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { createDb } from './client';
-import { contractors, dailyAssignments, drivers, operations, rates, routes, serviceTypes } from './schema';
+import { contractors, dailyAssignments, drivers, operations, paymentsReceived, rates, routes, serviceTypes, settlementLines } from './schema';
 import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TYPES } from './seed-data';
 import { parseCsvObjects } from '~/integrations/csv';
 import { audit, type AuditEntry } from '~/server/audit';
@@ -11,6 +11,7 @@ import { importHovership } from '~/server/hovership';
 import { setAssignment, setUnknownName } from '~/server/daily';
 import { importTforce } from '~/server/tforce';
 import { createExtraJob } from '~/server/extra-jobs';
+import { recordPayment, refreshWeeklyLines } from '~/server/settlements';
 
 /** Idempotent: running twice inserts nothing new. Every insert is audited as `system`. */
 export async function seedMasterData(database = createDb()) {
@@ -160,10 +161,29 @@ export async function seedExtraJobs(database: ReturnType<typeof createDb>) {
   });
 }
 
+/** Expected lines for the loaded reports, and two illustrative Hovership payments (ACH) so the screen shows paid, late and open. */
+export async function seedSettlements(database: ReturnType<typeof createDb>) {
+  await database.transaction(async (tx) => {
+    await refreshWeeklyLines(tx, SYSTEM_ACTOR, 'hovership');
+    await refreshWeeklyLines(tx, SYSTEM_ACTOR, 'tforce');
+    const [op] = await tx.select().from(operations).where(eq(operations.code, 'hovership'));
+    const existing = await tx.select({ id: paymentsReceived.id }).from(paymentsReceived).where(eq(paymentsReceived.operationId, op!.id)).limit(1);
+    if (existing.length) return console.log('Settlements: payments already loaded');
+    const lines = await tx.select().from(settlementLines).where(and(eq(settlementLines.operationId, op!.id), eq(settlementLines.kind, 'hovership_invoice')));
+    for (const [start, paidOn] of [['2026-06-01', '2026-06-26'], ['2026-06-08', '2026-07-02']] as const) {
+      const line = lines.find((l) => l.periodStart === start);
+      if (!line?.expectedCents) continue;
+      await recordPayment(tx, SYSTEM_ACTOR, { operation: 'hovership', receivedOn: paidOn, amountCents: line.expectedCents, method: 'ACH', reference: `Sample ACH ${start}`, note: 'Illustrative sample payment', allocations: [{ lineId: line.id, amountCents: line.expectedCents }] });
+    }
+    console.log(`Settlements: ${lines.length} Hovership weeks, 2 sample payments`);
+  });
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const database = await seedMasterData();
   await seedHovershipSample(database);
   await seedTforceSample(database);
   await seedExtraJobs(database);
+  await seedSettlements(database);
   await database.$client.end();
 }

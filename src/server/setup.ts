@@ -6,6 +6,7 @@ import { currentGeneralRates, type RateRow } from '~/domain/rates';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
+import { refreshWeeklyLines } from './settlements';
 
 // Drivers, contractors, services and rates (spec 6.10). Anyone signed in can read;
 // only the owner edits; client rates are stripped for roles without money.view.
@@ -83,6 +84,9 @@ export async function addRate(tx: Tx, actor: Actor, input: NewRate) {
   if (clash.length) throw new RuleError('rate_exists_on_date');
   const [row] = await tx.insert(rates).values({ ...input, createdBy: actor.userId }).returning();
   await audit(tx, { table: 'rates', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
+  // A new rate changes what clients are expected to pay for weeks not yet paid.
+  const [op] = await tx.select({ code: operations.code }).from(operations).where(eq(operations.id, service.operationId));
+  await refreshWeeklyLines(tx, actor, op!.code as 'hovership' | 'tforce');
   return row!;
 }
 
