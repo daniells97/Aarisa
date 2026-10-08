@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa · Sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#FFFFFF;font-family:'Barlow',system-ui,sans-serif;color:#1C2226;font-size:15px}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.plate{display:inline-flex;align-items:center;height:34px;padding:0 12px;border-radius:6px;background:#0D5C46;color:#FFFFFF;font:700 20px/1 'Barlow Condensed',sans-serif;letter-spacing:.03em;box-shadow:inset 0 0 0 2px #0D5C46,inset 0 0 0 4px rgba(255,255,255,.8);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:6px;font-size:14.5px;font-weight:500;color:#3A4449}
+.fld input{min-height:48px;padding:0 14px;border-radius:10px;border:1px solid #CDD3CF;font:400 16px 'Barlow',sans-serif;color:#1C2226;background:#FFFFFF;box-sizing:border-box;width:100%}
+.fld input:hover{border-color:#8E9893}
+.lang{min-height:36px;padding:0 14px;border-radius:8px;border:0;font:500 14px 'Barlow',sans-serif;cursor:pointer;background:transparent;color:#C9D1CD}
+.lang.on{background:#FFFFFF;color:#1C2226;font-weight:600}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #FFFFFF">
+<section style="flex: 1 1 520px; background: #1C2226; color: #FFFFFF; padding: 44px 56px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; position: relative; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 12px">
+<span class="plate" style="height: 34px; font-size: 20px">A</span>
+<span class="cond" style="font-size: 28px; font-weight: 700">Aarisa</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 28px">
+<p class="cond" style="margin: 0; font-size: 64px; line-height: 0.98; font-weight: 600; max-width: 560px">Who drove it.<br>What it paid.<br>What's still owed.</p>
+<div aria-hidden="true" style="display: flex; flex-wrap: wrap; gap: 10px; max-width: 520px">
+<span class="plate">9000A</span><span class="plate">9000B</span><span class="plate">9000E</span><span class="plate">9000K</span><span class="plate">9000N</span><span class="plate">DUB1</span>
+<span class="plate" style="background: #F2A900; color: #1C2226; box-shadow: inset 0 0 0 2px #F2A900, inset 0 0 0 4px rgba(28,34,38,.8)">9000Z</span>
+</div>
+<p style="margin: 0; font-size: 17px; line-height: 1.5; color: #C9D1CD; max-width: 460px">Payroll and client settlements for every Aarisa route in the Bay Area, Hovership and T-Force in one place.</p>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap">
+<span style="font-size: 14px; color: #9AA5A0">Built for Aarisa by Leanova Consulting</span>
+<div role="group" aria-label="Language" style="display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #2E373C">
+<button class="lang on" type="button" aria-pressed="true">English</button>
+<button class="lang" type="button" aria-pressed="false">Español</button>
+</div>
+</div>
+</section>
+
+<section style="flex: 1 1 440px; padding: 48px 32px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; background: #FFFFFF">
+<form style="width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 class="cond" style="margin: 0; font-size: 38px; font-weight: 600; line-height: 1.05">Sign in</h1>
+<p style="margin: 0; font-size: 16px; color: #4A5459">Use the email your invite was sent to.</p>
+</div>
+<label class="fld">Email<input type="email" value="aaron@aarisa.com" autocomplete="email"></label>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><label for="pw" style="font-size: 14.5px; font-weight: 500; color: #3A4449">Password</label><a href="Login.dc.html" style="font-size: 14px; font-weight: 500">Forgot password</a></div>
+<div class="fld"><input id="pw" type="password" value="••••••••••" autocomplete="current-password"></div>
+</div>
+<label style="display: flex; gap: 10px; align-items: center; font-size: 14.5px; color: #3A4449; min-height: 32px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #0D5C46; margin: 0">Keep me signed in on this computer</label>
+<a href="Main.dc.html" style="min-height: 48px; border-radius: 10px; background: #0D5C46; color: #FFFFFF; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">Sign in</a>
+<div style="display: flex; align-items: center; gap: 12px; font-size: 14px; color: #5F696E"><span style="flex: 1; height: 1px; background: #DADFDB"></span>or<span style="flex: 1; height: 1px; background: #DADFDB"></span></div>
+<a href="Main.dc.html" style="min-height: 48px; border-radius: 10px; border: 1px solid #CDD3CF; color: #1C2226; font-size: 15.5px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none"><svg viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg>Email me a sign-in code</a>
+<p style="margin: 0; font-size: 14px; color: #4A5459; line-height: 1.5">No account yet? Ask the owner to invite you from Team access.</p>
+</form>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

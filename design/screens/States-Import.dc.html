@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa · Report import states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border-radius:8px;border:1px solid #CDD3CF;background:#FFFFFF;color:#1C2226;font:500 15px 'Barlow',sans-serif;cursor:pointer;text-decoration:none;box-sizing:border-box;white-space:nowrap}
+.btn.pri{background:#0D5C46;border-color:#0D5C46;color:#FFFFFF}
+.btn.sm{min-height:34px;padding:0 12px;font-size:14px}
+.st{background:#FFFFFF;border:1px solid #DADFDB;border-radius:12px;padding:26px;display:flex;flex-direction:column;gap:16px;box-sizing:border-box}
+.cap{font-size:14px;color:#4A5459;font-weight:500}
+.ic{width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.step{display:flex;align-items:center;gap:12px;font-size:15px;min-height:28px}
+.dot{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;box-sizing:border-box}
+.sk{height:12px;border-radius:6px;background:#ECEEEC}
+code{font:500 14px 'Barlow',sans-serif;background:#F3F4F2;border:1px solid #DADFDB;padding:1px 6px;border-radius:5px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 40px 48px; background: #F3F4F2; font-family: 'Barlow', sans-serif; color: #1C2226; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 4px; max-width: 760px">
+<h1 class="cond" style="margin: 0; font-size: 34px; font-weight: 600">When a client report is late, loading or wrong</h1>
+<p style="margin: 0; font-size: 16px; color: #4A5459">The same four states appear for Hovership and T-Force reports.</p>
+</div>
+<div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+
+<section class="st" aria-label="Waiting">
+<span class="cap">Waiting</span>
+<div style="display: flex; gap: 16px; align-items: flex-start">
+<span class="ic" style="background: #E6EEF8; color: #1F5FA8"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg></span>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 class="cond" style="margin: 0; font-size: 24px; font-weight: 600; line-height: 1.15">Hovership's report for June 15 to 21 hasn't arrived</h2>
+<p style="margin: 0; font-size: 15px; color: #3A4449; line-height: 1.5">It usually lands Monday morning. The portal reads it as soon as it arrives and lets you know.</p>
+</div>
+</div>
+<span style="font-size: 14px; color: #5F696E">Last one arrived Monday, June 15 at 8:14 AM</span>
+<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto"><button class="btn pri" type="button">Upload it yourself</button><button class="btn" type="button">Tell me when it arrives</button></div>
+</section>
+
+<section class="st" aria-label="Reading">
+<span class="cap">Reading</span>
+<div style="display: flex; gap: 16px; align-items: flex-start">
+<span class="ic" style="background: #E3F0EA; color: #0D5C46"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"></path></svg></span>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 class="cond" style="margin: 0; font-size: 24px; font-weight: 600; line-height: 1.15">Reading T-Force's report for June 15</h2>
+<p style="margin: 0; font-size: 15px; color: #3A4449">About 20 seconds. It keeps going if you leave this page.</p>
+</div>
+</div>
+<ol role="status" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px">
+<li class="step"><span class="dot" style="background: #0D5C46; color: #FFFFFF"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round"><path d="M5 12l5 5 9-10"></path></svg></span>File received by email</li>
+<li class="step"><span class="dot" style="background: #0D5C46; color: #FFFFFF"><svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round"><path d="M5 12l5 5 9-10"></path></svg></span><span><span class="num">74</span> rows, <span class="num">4,910</span> pieces</span></li>
+<li class="step" style="font-weight: 600"><span class="dot" style="border: 3px solid #DADFDB; border-top-color: #0D5C46"></span>Matching routes to today's drivers lists</li>
+<li class="step" style="color: #5F696E"><span class="dot" style="border: 2px solid #DADFDB"></span>Applying rates</li>
+</ol>
+<div aria-hidden="true" style="display: flex; flex-direction: column; gap: 10px; margin-top: auto"><div class="sk" style="width: 90%"></div><div class="sk" style="width: 74%"></div></div>
+</section>
+
+<section class="st" aria-label="Layout changed" style="border-color: #F2C860">
+<span class="cap" style="color: #6B4600">Layout changed</span>
+<div style="display: flex; gap: 16px; align-items: flex-start">
+<svg viewBox="0 0 24 24" aria-hidden="true" style="width: 44px; height: 44px; flex: none"><path d="M12 1.5 22.5 12 12 22.5 1.5 12z" fill="#F2A900" stroke="#1C2226" stroke-width="1.2" stroke-linejoin="round"></path><path d="M12 7.5v5.5M12 16v.4" stroke="#1C2226" stroke-width="2" stroke-linecap="round"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 class="cond" style="margin: 0; font-size: 24px; font-weight: 600; line-height: 1.15">This report isn't laid out like last week's</h2>
+<p style="margin: 0; font-size: 15px; color: #3A4449; line-height: 1.55">The column <code>Paid Driver #</code> is missing. There's a column called <code>Driver #</code> that looks like the same thing.</p>
+</div>
+</div>
+<div style="display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 10px; background: #F3F4F2; font-size: 14.5px; color: #3A4449">
+<svg viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px; flex: none; fill: none; stroke: #0D5C46; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"></path></svg>
+Nothing was saved. Last week's numbers are untouched.
+</div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto"><button class="btn pri" type="button">Use Driver # and continue</button><button class="btn" type="button">Upload a different file</button></div>
+</section>
+
+<section class="st" aria-label="Partly read">
+<span class="cap">Partly read</span>
+<div style="display: flex; gap: 16px; align-items: flex-start">
+<span class="ic" style="background: #FFF4D6; color: #6B4600"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"></path><path d="M19 8v5M19 16v.5"></path></svg></span>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h2 class="cond" style="margin: 0; font-size: 24px; font-weight: 600; line-height: 1.15">49 of 51 rows in. Two driver codes are new.</h2>
+<p style="margin: 0; font-size: 15px; color: #3A4449">Say who they are and those rows join payroll.</p>
+</div>
+</div>
+<div style="display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid #EEF0EE"><span style="font-weight: 600; width: 84px">[CODE 1]</span><span style="flex: 1; font-size: 14.5px; color: #4A5459">3 days, 112 packages</span><button class="btn sm" type="button">Add new driver</button></div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid #EEF0EE; border-bottom: 1px solid #EEF0EE"><span style="font-weight: 600; width: 84px">[CODE 2]</span><span style="flex: 1; font-size: 14.5px; color: #4A5459">1 day, 38 packages</span><button class="btn sm" type="button">Match to a driver</button></div>
+</div>
+</section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

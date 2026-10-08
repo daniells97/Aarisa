@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa · T-Force weekly check</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#F3F4F2;font-family:'Barlow',system-ui,sans-serif;color:#1C2226;font-size:15px}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.side a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;border-radius:8px;color:#3A4449;text-decoration:none;font-size:15px;font-weight:500}
+.side a:hover{background:#F3F4F2;color:#1C2226}
+.side a.on{background:#E3F0EA;color:#0D5C46;font-weight:600}
+.side svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.grp{font-size:13px;color:#5F696E;font-weight:500;padding:14px 12px 4px}
+.badge{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:11px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;background:#F2A900;color:#1C2226}
+.plate{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:5px;background:#0D5C46;color:#FFFFFF;font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.03em;box-shadow:inset 0 0 0 2px #0D5C46,inset 0 0 0 3px rgba(255,255,255,.75);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;font-size:13px;font-weight:500;white-space:nowrap}
+.pill::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.ok{background:#E3F0EA;color:#0D5C46}.warn{background:#FFF4D6;color:#6B4600}.mute{background:#ECEEEC;color:#4A5459}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border-radius:8px;border:1px solid #CDD3CF;background:#FFFFFF;color:#1C2226;font:500 15px 'Barlow',sans-serif;cursor:pointer;text-decoration:none;box-sizing:border-box;white-space:nowrap}
+.btn:hover{background:#F7F8F7;color:#1C2226}
+.btn.pri{background:#0D5C46;border-color:#0D5C46;color:#FFFFFF}
+.btn.pri:hover{background:#08402F;color:#FFFFFF}
+.btn.sm{min-height:34px;padding:0 12px;font-size:14px}
+.btn[disabled]{background:#ECEEEC;border-color:#ECEEEC;color:#5F696E;cursor:not-allowed}
+.ib{width:34px;height:34px;border:0;border-radius:7px;background:transparent;color:#1C2226;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.ib svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.panel{background:#FFFFFF;border:1px solid #DADFDB;border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th{text-align:left;font-weight:500;color:#5F696E;font-size:13px;padding:10px 12px;border-bottom:1px solid #DADFDB;white-space:nowrap}
+td{padding:7px 12px;border-bottom:1px solid #EEF0EE;vertical-align:middle}
+tbody tr:hover td{background:#F8F9F8}
+.c{text-align:center}
+.r{text-align:right}
+.cell{text-align:center;font-variant-numeric:tabular-nums;font-size:14.5px}
+.cell.empty{color:#AEB5B1}
+.cell.flag{background:#FFF4D6;color:#6B4600;font-weight:600;box-shadow:inset 0 0 0 2px #F2A900}
+.exc{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-top:1px solid #EEF0EE}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F3F4F2">
+<aside class="side" style="flex: 1 1 248px; max-width: 300px; background: #FFFFFF; border-right: 1px solid #DADFDB; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<span class="plate" style="height: 30px; font-size: 18px; padding: 0 9px">A</span>
+<span class="cond" style="font-size: 25px; font-weight: 700">Aarisa</span>
+</div>
+<button type="button" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #DADFDB; background: #F7F8F7; color: #5F696E; font: 400 14.5px 'Barlow', sans-serif; cursor: pointer"><svg viewBox="0 0 24 24" style="width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Search drivers or routes<kbd style="margin-left: auto; font: 500 12px 'Barlow', sans-serif; padding: 2px 6px; border: 1px solid #CDD3CF; border-radius: 5px; background: #FFFFFF; color: #4A5459">⌘K</kbd></button>
+<nav aria-label="Main" style="display: flex; flex-direction: column; gap: 2px">
+<a href="Main.dc.html"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Overview</a>
+<div class="grp">T-Force</div>
+<a href="TForce-Daily.dc.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Today's drivers</a>
+<a href="TForce-Weekly.dc.html" class="on" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 7h13l-3-3M20 17H7l3 3"></path></svg>Weekly check<span class="badge">3</span></a>
+<div class="grp">Hovership</div>
+<a href="Hovership.dc.html"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6M8 13h8M8 17h5"></path></svg>Weekly report</a>
+<div class="grp">Money</div>
+<a href="Payroll.dc.html"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"></rect><circle cx="12" cy="12.5" r="2.5"></circle></svg>Payroll</a>
+<a href="Settlements.dc.html"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"></path><path d="M9 8h6M9 12h6"></path></svg>Settlements<span class="badge">2</span></a>
+<div class="grp">Settings</div>
+<a href="Setup.dc.html"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h4M12 12h8M4 18h12"></path><circle cx="17" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Drivers and rates</a>
+<a href="Users.dc.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"></path><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.4 3.5 5.2"></path></svg>Team access</a>
+</nav>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #E8EBE9">
+<span style="width: 34px; height: 34px; border-radius: 50%; background: #1C2226; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex: none">AF</span>
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 14.5px">Aaron Fitzpatrick</span><span style="font-size: 13px; color: #5F696E">Owner</span></span>
+<a href="Login.dc.html" aria-label="Sign out" style="width: 36px; padding: 0; justify-content: center"><svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"></path></svg></a>
+</div>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 32px 40px 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; max-width: 1240px">
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px; max-width: 640px">
+<h1 class="cond" style="margin: 0; font-size: 40px; font-weight: 600; line-height: 1.05">Weekly check</h1>
+<p style="margin: 0; color: #4A5459; font-size: 16px; line-height: 1.45">T-Force's report for June 15 to 20 arrived Monday by email and was matched against the daily driver list.</p>
+</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+<div style="display: flex; gap: 10px; flex-wrap: wrap">
+<button class="btn" type="button">Download report</button>
+<button class="btn" type="button" disabled aria-describedby="why">Approve for payroll</button>
+</div>
+<span id="why" style="font-size: 13.5px; color: #6B4600">Clear the 3 exceptions to approve</span>
+</div>
+</header>
+
+<section class="panel" aria-label="Match summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr))">
+<div style="padding: 16px 20px; border-right: 1px solid #EEF0EE"><div style="font-size: 14px; color: #4A5459">Pieces in report</div><div class="cond num" style="font-size: 34px; font-weight: 600; line-height: 1.15">4,910</div><div style="font-size: 13.5px; color: #5F696E">19 routes, 74 route-days</div></div>
+<div style="padding: 16px 20px; border-right: 1px solid #EEF0EE"><div style="font-size: 14px; color: #4A5459">Matched to a driver</div><div class="cond num" style="font-size: 34px; font-weight: 600; line-height: 1.15; color: #0D5C46">71 of 74</div><div style="font-size: 13.5px; color: #5F696E">From today's drivers lists</div></div>
+<div style="padding: 16px 20px; border-right: 1px solid #EEF0EE"><div style="font-size: 14px; color: #4A5459">Puma route-days</div><div class="cond num" style="font-size: 34px; font-weight: 600; line-height: 1.15">10</div><div style="font-size: 13.5px; color: #5F696E">Routes 9000R and 9000S</div></div>
+<div style="padding: 16px 20px; background: #FFF8E6; border-radius: 0 12px 12px 0"><div style="font-size: 14px; color: #6B4600">Exceptions</div><div class="cond num" style="font-size: 34px; font-weight: 600; line-height: 1.15; color: #6B4600">3</div><div style="font-size: 13.5px; color: #6B4600">Payroll waits until these are cleared</div></div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<section class="panel" aria-labelledby="grid-h" style="flex: 3 1 600px; min-width: 0; overflow: hidden">
+<div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px">
+<h2 id="grid-h" class="cond" style="margin: 0; font-size: 22px; font-weight: 600">Pieces by route and day</h2>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #4A5459"><span style="width: 14px; height: 14px; border-radius: 3px; background: #FFF4D6; box-shadow: inset 0 0 0 2px #F2A900"></span>Doesn't match the daily list</span>
+</div>
+<div style="overflow-x: auto">
+<table>
+<thead><tr><th scope="col">Route</th><th scope="col">Driver</th><th scope="col" class="c">Mon</th><th scope="col" class="c">Tue</th><th scope="col" class="c">Wed</th><th scope="col" class="c">Thu</th><th scope="col" class="c">Fri</th><th scope="col" class="c">Sat</th><th scope="col" class="r">Week</th></tr></thead>
+<tbody>
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="19">
+<tr>
+<td><span class="plate">{{row.code}}</span></td>
+<td style="font-size: 14px; color: #3A4449; white-space: nowrap">{{row.driver}}</td>
+<sc-for list="{{row.cells}}" as="c" hint-placeholder-count="6">
+<td class="{{c.cls}}">{{c.v}}</td>
+</sc-for>
+<td class="r num" style="font-weight: 600">{{row.total}}</td>
+</tr>
+</sc-for>
+<tr>
+<td style="font-weight: 600">Total</td><td></td>
+<td class="cell" style="font-weight: 600">1,112</td><td class="cell" style="font-weight: 600">870</td><td class="cell" style="font-weight: 600">774</td><td class="cell" style="font-weight: 600">796</td><td class="cell" style="font-weight: 600">740</td><td class="cell" style="font-weight: 600">618</td>
+<td class="r num" style="font-weight: 600">4,910</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="panel" aria-labelledby="exc-h" style="flex: 2 1 320px; min-width: 0; overflow: hidden">
+<div style="padding: 16px 18px 12px; display: flex; justify-content: space-between; align-items: center">
+<h2 id="exc-h" class="cond" style="margin: 0; font-size: 22px; font-weight: 600">Exceptions</h2>
+<span class="pill warn">3 open</span>
+</div>
+<div class="exc">
+<div style="display: flex; gap: 10px; align-items: center"><svg viewBox="0 0 24 24" aria-hidden="true" style="width: 24px; height: 24px; flex: none"><path d="M12 1.5 22.5 12 12 22.5 1.5 12z" fill="#F2A900" stroke="#1C2226" stroke-width="1.4" stroke-linejoin="round"></path><path d="M12 7.5v5.5M12 16v.4" stroke="#1C2226" stroke-width="2.2" stroke-linecap="round"></path></svg><span class="plate">9000Z</span><span style="font-weight: 600">Thursday, no driver</span></div>
+<div style="font-size: 14.5px; color: #3A4449; line-height: 1.45">34 pieces were delivered, but the daily list only says “the new guy from Puma”.</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap"><button class="btn pri sm" type="button">Assign driver</button><button class="btn sm" type="button">Not our route</button></div>
+</div>
+<div class="exc">
+<div style="display: flex; gap: 10px; align-items: center"><svg viewBox="0 0 24 24" aria-hidden="true" style="width: 24px; height: 24px; flex: none"><path d="M12 1.5 22.5 12 12 22.5 1.5 12z" fill="#F2A900" stroke="#1C2226" stroke-width="1.4" stroke-linejoin="round"></path><path d="M12 7.5v5.5M12 16v.4" stroke="#1C2226" stroke-width="2.2" stroke-linecap="round"></path></svg><span class="plate">9000W</span><span style="font-weight: 600">Thursday, 1 piece</span></div>
+<div style="font-size: 14.5px; color: #3A4449; line-height: 1.45">Karandeep Kaur drove it. This route normally runs 69 to 95 pieces.</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap"><button class="btn pri sm" type="button">Pay as reported</button><button class="btn sm" type="button">Ask T-Force</button></div>
+</div>
+<div class="exc">
+<div style="display: flex; gap: 10px; align-items: center"><svg viewBox="0 0 24 24" aria-hidden="true" style="width: 24px; height: 24px; flex: none"><path d="M12 1.5 22.5 12 12 22.5 1.5 12z" fill="#F2A900" stroke="#1C2226" stroke-width="1.4" stroke-linejoin="round"></path><path d="M12 7.5v5.5M12 16v.4" stroke="#1C2226" stroke-width="2.2" stroke-linecap="round"></path></svg><span class="plate">9000Z</span><span style="font-weight: 600">Friday, 1 piece</span></div>
+<div style="font-size: 14.5px; color: #3A4449; line-height: 1.45">The same route had 34 the day before and 94 the day after.</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap"><button class="btn pri sm" type="button">Pay as reported</button><button class="btn sm" type="button">Ask T-Force</button></div>
+</div>
+<div style="padding: 14px 18px; border-top: 1px solid #EEF0EE; font-size: 13.5px; color: #4A5459; line-height: 1.45">“Ask T-Force” adds the day to Settlements, so it's ready for the next client meeting.</div>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var data = [
+      ['9000A','Robert Arteaga',[45,48,35,40,36,39]],
+      ['9000B','Leonardo Vicentini',[108,108,94,82,null,105]],
+      ['9000D','Nayibi Perez',[49,54,45,null,null,null]],
+      ['9000E','Two drivers',[100,null,null,72,59,null]],
+      ['9000F','Jaime Andres',[44,118,null,108,null,null]],
+      ['9000G','Adolfo Mora',[null,30,58,59,58,null]],
+      ['9000H','Two drivers',[null,null,54,61,53,43]],
+      ['9000I','Bruna Elias',[75,null,57,null,null,null]],
+      ['9000J','Vivy Hollanda',[99,93,15,null,141,116]],
+      ['9000K','Marvin Geovanni',[77,57,55,62,47,52]],
+      ['9000L','Manuel Ramirez',[82,54,null,null,45,null]],
+      ['9000M','Thiago Dub',[null,35,null,null,null,null]],
+      ['9000N','Diana Arvelo',[103,66,79,91,95,92]],
+      ['9000R','Puma',[90,78,47,71,70,null]],
+      ['9000S','Puma',[null,60,61,65,66,77]],
+      ['9000V','William Joseph',[63,null,null,null,null,null]],
+      ['9000W','Karandeep Kaur',[95,69,73,1,null,null]],
+      ['9000Y','Marcus Dub',[82,null,65,50,69,null]],
+      ['9000Z','Missing on Thursday',[null,null,36,34,1,94]]
+    ];
+    var flags = { '9000Z-3': 1, '9000W-3': 1, '9000Z-4': 1 };
+    return {
+      rows: data.map(function (d) {
+        var total = 0;
+        var cells = d[2].map(function (v, i) {
+          if (v !== null) total += v;
+          var cls = 'cell';
+          if (v === null) cls += ' empty';
+          if (flags[d[0] + '-' + i]) cls += ' flag';
+          return { v: v === null ? '–' : String(v), cls: cls };
+        });
+        return { code: d[0], driver: d[1], cells: cells, total: total.toLocaleString('en-US') };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

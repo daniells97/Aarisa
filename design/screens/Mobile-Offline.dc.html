@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa mobile · No signal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.plate{display:inline-flex;align-items:center;height:22px;padding:0 6px;border-radius:5px;background:#0D5C46;color:#FFFFFF;font:700 14px/1 'Barlow Condensed',sans-serif;letter-spacing:.03em;box-shadow:inset 0 0 0 2px #0D5C46,inset 0 0 0 3px rgba(255,255,255,.75);white-space:nowrap}
+.job{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-top:1px solid #EEF0EE}
+.q{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;font-size:13px;font-weight:500;background:#ECEEEC;color:#3A4449;white-space:nowrap}
+.tabbar a{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;font-size:12px;font-weight:500;color:#5F696E;text-decoration:none}
+.tabbar a.on{color:#0D5C46;font-weight:600}
+.tabbar svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #F3F4F2; font-family: 'Barlow', sans-serif; color: #1C2226; overflow: hidden; position: relative">
+<div role="status" style="background: #1C2226; color: #FFFFFF; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start">
+<svg viewBox="0 0 24 24" aria-hidden="true" style="width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19v.5M3 3l18 18"></path></svg>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 15.5px; font-weight: 600">No signal. Keep working.</span>
+<span style="font-size: 14px; color: #C9D1CD; line-height: 1.4">Jobs you save wait on this phone and send themselves when you're back online.</span>
+</div>
+</div>
+<header style="padding: 18px 16px 12px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 15px; color: #4A5459; font-weight: 500">T-Force</span>
+<h1 class="cond" style="margin: 0; font-size: 36px; font-weight: 600; line-height: 1">Extra jobs today</h1>
+</header>
+
+<div style="flex: 1 1 auto; overflow-y: auto; padding: 0 16px 150px; display: flex; flex-direction: column; gap: 12px">
+<section aria-label="Waiting to send" style="background: #FFFFFF; border-radius: 16px; overflow: hidden">
+<div style="padding: 14px 16px 10px; font-size: 15px; font-weight: 600">On this phone, waiting to send</div>
+<div class="job">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 16px; font-weight: 600">Recovery route</span><span class="q"><svg viewBox="0 0 24 24" aria-hidden="true" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Waiting</span></div>
+<span style="font-size: 14.5px; color: #3A4449; display: flex; align-items: center; gap: 6px; flex-wrap: wrap">Puma, near <span class="plate">9000R</span>, order TF-55821</span>
+<span style="font-size: 13.5px; color: #5F696E">Saved 2:44 PM</span>
+</div>
+<div class="job">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 16px; font-weight: 600">Grainger pickup</span><span class="q"><svg viewBox="0 0 24 24" aria-hidden="true" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>Waiting</span></div>
+<span style="font-size: 14.5px; color: #3A4449">Robert Arteaga, order [ORDER #]</span>
+<span style="font-size: 13.5px; color: #5F696E">Saved 3:40 PM</span>
+</div>
+</section>
+<p style="margin: 0; padding: 12px 14px; border-radius: 12px; border: 1px dashed #B7BEBA; font-size: 14px; color: #3A4449; line-height: 1.45">Confirming drivers and clearing exceptions need a connection. They'll be here when the signal is. Last update 2:58 PM.</p>
+</div>
+
+<a href="Mobile-ExtraJob.dc.html" style="position: absolute; left: 16px; right: 16px; bottom: 80px; min-height: 54px; border-radius: 16px; background: #0D5C46; color: #FFFFFF; font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none">
+<svg viewBox="0 0 24 24" aria-hidden="true" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round"><path d="M12 5v14M5 12h14"></path></svg>Log another job</a>
+
+<nav class="tabbar" aria-label="Main" style="position: absolute; left: 0; right: 0; bottom: 0; height: 66px; background: #FFFFFF; border-top: 1px solid #DADFDB; display: flex; padding: 0 8px">
+<a href="Mobile-Today.dc.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Today</a>
+<a href="Mobile-Offline.dc.html" class="on" aria-current="page"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>Extra jobs</a>
+<a href="Mobile-Exceptions.dc.html"><svg viewBox="0 0 24 24"><path d="M12 2.5 21.5 12 12 21.5 2.5 12z"></path><path d="M12 8.5v4M12 15.5v.3"></path></svg>Exceptions</a>
+<a href="Mobile-Overview.dc.html"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg>Week</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

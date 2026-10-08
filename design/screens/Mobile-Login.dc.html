@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa mobile · Sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.plate{display:inline-flex;align-items:center;height:30px;padding:0 9px;border-radius:6px;background:#0D5C46;color:#FFFFFF;font:700 17px/1 'Barlow Condensed',sans-serif;letter-spacing:.03em;box-shadow:inset 0 0 0 2px #0D5C46,inset 0 0 0 3px rgba(255,255,255,.8);white-space:nowrap}
+.fld{display:flex;flex-direction:column;gap:6px;font-size:14.5px;font-weight:500;color:#3A4449}
+.fld input{min-height:52px;padding:0 14px;border-radius:12px;border:1px solid #CDD3CF;font:400 16.5px 'Barlow',sans-serif;color:#1C2226;background:#FFFFFF;box-sizing:border-box;width:100%}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #FFFFFF; font-family: 'Barlow', sans-serif; color: #1C2226; overflow: hidden">
+<header style="background: #1C2226; color: #FFFFFF; padding: 36px 24px 28px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; align-items: center; gap: 10px">
+<span class="plate">A</span>
+<span class="cond" style="font-size: 26px; font-weight: 700; flex: 1">Aarisa</span>
+<button type="button" aria-label="Switch to Spanish" style="min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid #4A5459; background: transparent; color: #FFFFFF; font: 600 14px 'Barlow', sans-serif">Español</button>
+</div>
+<p class="cond" style="margin: 0; font-size: 40px; line-height: 1; font-weight: 600">Who drove it.<br>What it paid.<br>What's still owed.</p>
+<div aria-hidden="true" style="display: flex; gap: 8px; flex-wrap: wrap"><span class="plate">9000A</span><span class="plate">9000N</span><span class="plate">DUB1</span><span class="plate" style="background: #F2A900; color: #1C2226; box-shadow: inset 0 0 0 2px #F2A900, inset 0 0 0 3px rgba(28,34,38,.8)">9000Z</span></div>
+</header>
+
+<form style="flex: 1 1 auto; padding: 26px 24px 24px; display: flex; flex-direction: column; gap: 16px">
+<h1 class="cond" style="margin: 0; font-size: 30px; font-weight: 600">Sign in</h1>
+<label class="fld">Email<input type="email" value="aaron@aarisa.com" autocomplete="email"></label>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><label for="mpw" style="font-size: 14.5px; font-weight: 500; color: #3A4449">Password</label><a href="Mobile-Login.dc.html" style="font-size: 14px; font-weight: 500; min-height: 24px">Forgot password</a></div>
+<div class="fld"><input id="mpw" type="password" value="••••••••••" autocomplete="current-password"></div>
+</div>
+<a href="Mobile-Today.dc.html" style="min-height: 54px; border-radius: 16px; background: #0D5C46; color: #FFFFFF; font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none; margin-top: 4px">Sign in</a>
+<a href="Mobile-Today.dc.html" style="min-height: 54px; border-radius: 16px; border: 1px solid #CDD3CF; color: #1C2226; font-size: 16px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none">Email me a sign-in code</a>
+<p style="margin: auto 0 0; padding: 14px; border-radius: 12px; background: #F3F4F2; font-size: 14px; color: #3A4449; line-height: 1.45">Add Aarisa to your home screen from the browser's share menu and it opens like an app.</p>
+</form>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa mobile · Log extra job</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.lbl{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:500;color:#3A4449}
+.lbl input,.lbl select{min-height:50px;padding:0 14px;border-radius:12px;border:1px solid #CDD3CF;font:500 16.5px 'Barlow',sans-serif;color:#1C2226;background:#FFFFFF;box-sizing:border-box;width:100%;font-variant-numeric:tabular-nums}
+.lbl.ai input,.lbl.ai select{background:#F2F8F5;border-color:#B9D7C9}
+.seg{min-height:48px;border-radius:12px;border:1px solid #CDD3CF;background:#FFFFFF;font:500 15.5px 'Barlow',sans-serif;color:#1C2226;cursor:pointer}
+.seg.on{border:2px solid #0D5C46;background:#E3F0EA;color:#0D5C46;font-weight:600}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: #F3F4F2; font-family: 'Barlow', sans-serif; color: #1C2226">
+<div aria-hidden="true" style="padding: 22px 16px; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 15px; color: #4A5459">T-Force</span>
+<span class="cond" style="font-size: 36px; font-weight: 600">Thursday, June 18</span>
+</div>
+<div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(28, 34, 38, 0.5)"></div>
+
+<section role="dialog" aria-modal="true" aria-labelledby="sheet-h" style="position: absolute; left: 0; right: 0; bottom: 0; top: 56px; background: #FFFFFF; border-radius: 24px 24px 0 0; display: flex; flex-direction: column">
+<div style="padding: 10px 0 0; display: flex; justify-content: center"><div style="width: 40px; height: 5px; border-radius: 3px; background: #CDD3CF"></div></div>
+<div style="padding: 10px 20px 12px; display: flex; justify-content: space-between; align-items: center">
+<h1 id="sheet-h" class="cond" style="margin: 0; font-size: 30px; font-weight: 600">Extra job</h1>
+<a href="Mobile-Today.dc.html" aria-label="Close" style="width: 44px; height: 44px; border-radius: 50%; background: #F3F4F2; color: #1C2226; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+</div>
+
+<div style="margin: 0 20px; padding: 12px 14px; border-radius: 12px; background: #F2F8F5; display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; color: #1C2226; line-height: 1.45">
+<svg viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px; flex: none; margin-top: 2px; fill: none; stroke: #0D5C46; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"></path></svg>
+<span>Filled in from your WhatsApp voice note at 2:40 PM. Check the green fields, then save.</span>
+</div>
+
+<div style="flex: 1 1 auto; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 16px">
+<fieldset style="border: 0; margin: 0; padding: 0">
+<legend style="font-size: 14px; font-weight: 500; color: #3A4449; padding: 0; margin-bottom: 8px">Service</legend>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{services}}" as="s" hint-placeholder-count="4">
+<button type="button" class="{{s.cls}}" aria-pressed="{{s.pressed}}" onClick="{{s.pick}}">{{s.label}}</button>
+</sc-for>
+</div>
+</fieldset>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<label class="lbl">Date<input type="date" value="2026-06-18"></label>
+<label class="lbl ai">Near route<input type="text" value="9000R"></label>
+</div>
+<label class="lbl ai">Done by<select><option>Puma (contractor)</option><option>Robert Arteaga</option><option>Leonardo Vicentini</option></select></label>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<label class="lbl ai">T-Force pays<input type="text" inputmode="decimal" value="$180.00"></label>
+<label class="lbl ai">Puma gets<input type="text" inputmode="decimal" value="$140.00"></label>
+</div>
+<label class="lbl ai">T-Force order number<input type="text" value="TF-55821"></label>
+<p style="margin: 0; font-size: 14px; color: #4A5459; line-height: 1.45">The order number is what lets us claim this job if it's missing from T-Force's settlement.</p>
+</div>
+
+<div style="padding: 12px 20px 24px; border-top: 1px solid #EEF0EE">
+<a href="Mobile-Synced.dc.html" style="min-height: 54px; border-radius: 16px; background: #0D5C46; color: #FFFFFF; font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; text-decoration: none">Save extra job</a>
+</div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: 'Recovery route' };
+  }
+  renderVals() {
+    var self = this;
+    var labels = ['Recovery route', 'Pickup', 'Grainger', 'Other'];
+    return {
+      services: labels.map(function (l) {
+        var on = self.state.picked === l;
+        return { label: l, cls: on ? 'seg on' : 'seg', pressed: on ? 'true' : 'false', pick: function () { self.setState({ picked: l }); } };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

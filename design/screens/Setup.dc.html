@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa · Drivers and rates</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#F3F4F2;font-family:'Barlow',system-ui,sans-serif;color:#1C2226;font-size:15px}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.side a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;border-radius:8px;color:#3A4449;text-decoration:none;font-size:15px;font-weight:500}
+.side a:hover{background:#F3F4F2;color:#1C2226}
+.side a.on{background:#E3F0EA;color:#0D5C46;font-weight:600}
+.side svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.grp{font-size:13px;color:#5F696E;font-weight:500;padding:14px 12px 4px}
+.badge{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:11px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;background:#F2A900;color:#1C2226}
+.plate{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:5px;background:#0D5C46;color:#FFFFFF;font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.03em;box-shadow:inset 0 0 0 2px #0D5C46,inset 0 0 0 3px rgba(255,255,255,.75);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;font-size:13px;font-weight:500;white-space:nowrap}
+.pill::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.ok{background:#E3F0EA;color:#0D5C46}.wait{background:#E6EEF8;color:#1F5FA8}.warn{background:#FFF4D6;color:#6B4600}.pv{background:#EEEAF6;color:#4B3F72}.mute{background:#ECEEEC;color:#4A5459}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border-radius:8px;border:1px solid #CDD3CF;background:#FFFFFF;color:#1C2226;font:500 15px 'Barlow',sans-serif;cursor:pointer;text-decoration:none;box-sizing:border-box;white-space:nowrap}
+.btn:hover{background:#F7F8F7;color:#1C2226}
+.btn.pri{background:#0D5C46;border-color:#0D5C46;color:#FFFFFF}
+.btn.pri:hover{background:#08402F;color:#FFFFFF}
+.btn.sm{min-height:34px;padding:0 12px;font-size:14px}
+.tab{min-height:44px;padding:0 4px;margin-right:24px;border:0;border-bottom:3px solid transparent;background:transparent;font:500 16px 'Barlow',sans-serif;color:#4A5459;cursor:pointer}
+.tab.on{border-bottom-color:#0D5C46;color:#1C2226;font-weight:600}
+.panel{background:#FFFFFF;border:1px solid #DADFDB;border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th{text-align:left;font-weight:500;color:#5F696E;font-size:13px;padding:10px 16px;border-bottom:1px solid #DADFDB;white-space:nowrap}
+td{padding:11px 16px;border-bottom:1px solid #EEF0EE;vertical-align:middle}
+tbody tr:hover td{background:#F8F9F8}
+.r{text-align:right}
+.svc{display:flex;flex-direction:column;gap:2px;padding:12px 0;border-top:1px solid #EEF0EE}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F3F4F2">
+<aside class="side" style="flex: 1 1 248px; max-width: 300px; background: #FFFFFF; border-right: 1px solid #DADFDB; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<span class="plate" style="height: 30px; font-size: 18px; padding: 0 9px">A</span>
+<span class="cond" style="font-size: 25px; font-weight: 700">Aarisa</span>
+</div>
+<button type="button" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #DADFDB; background: #F7F8F7; color: #5F696E; font: 400 14.5px 'Barlow', sans-serif; cursor: pointer"><svg viewBox="0 0 24 24" style="width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Search drivers or routes<kbd style="margin-left: auto; font: 500 12px 'Barlow', sans-serif; padding: 2px 6px; border: 1px solid #CDD3CF; border-radius: 5px; background: #FFFFFF; color: #4A5459">⌘K</kbd></button>
+<nav aria-label="Main" style="display: flex; flex-direction: column; gap: 2px">
+<a href="Main.dc.html"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Overview</a>
+<div class="grp">T-Force</div>
+<a href="TForce-Daily.dc.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Today's drivers</a>
+<a href="TForce-Weekly.dc.html"><svg viewBox="0 0 24 24"><path d="M4 7h13l-3-3M20 17H7l3 3"></path></svg>Weekly check<span class="badge">3</span></a>
+<div class="grp">Hovership</div>
+<a href="Hovership.dc.html"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6M8 13h8M8 17h5"></path></svg>Weekly report</a>
+<div class="grp">Money</div>
+<a href="Payroll.dc.html"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"></rect><circle cx="12" cy="12.5" r="2.5"></circle></svg>Payroll</a>
+<a href="Settlements.dc.html"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"></path><path d="M9 8h6M9 12h6"></path></svg>Settlements<span class="badge">2</span></a>
+<div class="grp">Settings</div>
+<a href="Setup.dc.html" class="on" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h4M12 12h8M4 18h12"></path><circle cx="17" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Drivers and rates</a>
+<a href="Users.dc.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"></path><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.4 3.5 5.2"></path></svg>Team access</a>
+</nav>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #E8EBE9">
+<span style="width: 34px; height: 34px; border-radius: 50%; background: #1C2226; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex: none">AF</span>
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 14.5px">Aaron Fitzpatrick</span><span style="font-size: 13px; color: #5F696E">Owner</span></span>
+<a href="Login.dc.html" aria-label="Sign out" style="width: 36px; padding: 0; justify-content: center"><svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"></path></svg></a>
+</div>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 32px 40px 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; max-width: 1240px">
+<header style="display: flex; flex-direction: column; gap: 4px; max-width: 640px">
+<h1 class="cond" style="margin: 0; font-size: 40px; font-weight: 600; line-height: 1.05">Drivers and rates</h1>
+<p style="margin: 0; color: #4A5459; font-size: 16px; line-height: 1.45">Everything the portal checks against: who drives, what kinds of work exist, and what each one pays.</p>
+</header>
+
+<div role="tablist" aria-label="Setup sections" style="display: flex; border-bottom: 1px solid #DADFDB">
+<button class="tab on" type="button" role="tab" aria-selected="true">Rates</button>
+<button class="tab" type="button" role="tab" aria-selected="false">Drivers</button>
+<button class="tab" type="button" role="tab" aria-selected="false">Services</button>
+</div>
+
+<section class="panel" aria-labelledby="rates-h" style="overflow: hidden">
+<div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<h2 id="rates-h" class="cond" style="margin: 0; font-size: 22px; font-weight: 600">Rates</h2>
+<span style="font-size: 14px; color: #4A5459">A new rate starts on a date you choose. Past weeks keep the rate they were paid with.</span>
+</div>
+<button class="btn pri" type="button">Add rate</button>
+</div>
+<div style="overflow-x: auto">
+<table>
+<thead><tr><th scope="col">Client</th><th scope="col">Service</th><th scope="col">Paid per</th><th scope="col" class="r">Client pays</th><th scope="col" class="r">Driver gets</th><th scope="col" class="r">Aarisa keeps</th><th scope="col">Starts</th><th scope="col">Status</th></tr></thead>
+<tbody>
+<tr><td style="font-weight: 600">Hovership</td><td>Tier 1 to 3</td><td>Package</td><td class="r num">$3.00</td><td class="r num">$2.50</td><td class="r num">$0.50</td><td>[DATE]</td><td><span class="pill ok">Active</span></td></tr>
+<tr><td style="font-weight: 600">Hovership</td><td>Tier 4</td><td>Package</td><td class="r num">$2.00</td><td class="r num">$1.75</td><td class="r num">$0.25</td><td>[DATE]</td><td><span class="pill ok">Active</span></td></tr>
+<tr><td style="font-weight: 600">Hovership</td><td>Stat</td><td>Stop</td><td class="r num">$10.00</td><td class="r"><button class="btn sm" type="button">Add rate</button></td><td class="r" style="color: #5F696E">–</td><td>[DATE]</td><td><span class="pill warn">Driver rate missing</span></td></tr>
+<tr><td style="font-weight: 600">Hovership</td><td>Pharma pickup</td><td>Pickup</td><td class="r num">$50.00</td><td class="r"><button class="btn sm" type="button">Add rate</button></td><td class="r" style="color: #5F696E">–</td><td>[DATE]</td><td><span class="pill warn">Driver rate missing</span></td></tr>
+<tr><td style="font-weight: 600">T-Force</td><td>E-commerce</td><td>Piece</td><td class="r"><button class="btn sm" type="button">Add rate</button></td><td class="r"><button class="btn sm" type="button">Add rate</button></td><td class="r" style="color: #5F696E">–</td><td>–</td><td><span class="pill warn">To load</span></td></tr>
+<tr><td style="font-weight: 600">T-Force</td><td>Pickup, Grainger, recovery</td><td>Job</td><td class="r" style="color: #4A5459">Agreed each time</td><td class="r" style="color: #4A5459">Agreed each time</td><td class="r" style="color: #5F696E">–</td><td>–</td><td><span class="pill wait">Logged per job</span></td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<section class="panel" aria-labelledby="drv-h" style="flex: 3 1 560px; min-width: 0; overflow: hidden">
+<div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px">
+<h2 id="drv-h" class="cond" style="margin: 0; font-size: 22px; font-weight: 600">Drivers</h2>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<input type="search" aria-label="Search drivers" placeholder="Name or code" style="min-height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #CDD3CF; font: 400 14.5px 'Barlow', sans-serif; width: 180px">
+<button class="btn sm pri" type="button">Add driver</button>
+</div>
+</div>
+<div style="overflow-x: auto">
+<table>
+<thead><tr><th scope="col">Name</th><th scope="col">Drives for</th><th scope="col">Works for</th><th scope="col">Usual T-Force route</th><th scope="col">Status</th></tr></thead>
+<tbody>
+<tr><td><div style="font-weight: 600">Robert Arteaga</div><div style="font-size: 13px; color: #5F696E">DUB061</div></td><td>Hovership, T-Force</td><td><span class="pill mute">Aarisa</span></td><td><span class="plate">9000A</span></td><td><span class="pill ok">Active</span></td></tr>
+<tr><td><div style="font-weight: 600">Leonardo Vicentini</div><div style="font-size: 13px; color: #5F696E">DUB010</div></td><td>Hovership, T-Force</td><td><span class="pill mute">Aarisa</span></td><td><span class="plate">9000B</span></td><td><span class="pill ok">Active</span></td></tr>
+<tr><td><div style="font-weight: 600">Diana Arvelo</div><div style="font-size: 13px; color: #5F696E">DUB1</div></td><td>Hovership, T-Force</td><td><span class="pill mute">Aarisa</span></td><td><span class="plate">9000N</span></td><td><span class="pill ok">Active</span></td></tr>
+<tr><td><div style="font-weight: 600">Norwin Saloman</div><div style="font-size: 13px; color: #5F696E">DUB085</div></td><td>Hovership</td><td><span class="pill mute">Aarisa</span></td><td style="color: #5F696E">None</td><td><span class="pill ok">Active</span></td></tr>
+<tr><td><div style="font-weight: 600">Puma</div><div style="font-size: 13px; color: #5F696E">Contractor</div></td><td>T-Force</td><td><span class="pill pv">Contractor</span></td><td><span style="display: inline-flex; gap: 6px"><span class="plate">9000R</span><span class="plate">9000S</span></span></td><td><span class="pill ok">Active</span></td></tr>
+<tr><td><div style="font-weight: 600; color: #4A5459">New Puma driver</div><div style="font-size: 13px; color: #5F696E">Added from WhatsApp</div></td><td>T-Force</td><td><span class="pill pv">Puma</span></td><td style="color: #5F696E">None</td><td><span class="pill warn">Finish setup</span></td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section class="panel" aria-labelledby="svc-h" style="flex: 2 1 300px; min-width: 0; padding: 18px 20px 6px">
+<h2 id="svc-h" class="cond" style="margin: 0; font-size: 22px; font-weight: 600">Services</h2>
+<p style="margin: 4px 0 8px; font-size: 14px; color: #4A5459">A fixed list, so every job is labelled the same way.</p>
+<div class="svc"><span style="font-weight: 600">E-commerce</span><span style="font-size: 14px; color: #4A5459">T-Force, from the weekly report</span></div>
+<div class="svc"><span style="font-weight: 600">Tier 1 to 4 packages and Stat</span><span style="font-size: 14px; color: #4A5459">Hovership, from the weekly report</span></div>
+<div class="svc"><span style="font-weight: 600">Pickup and Grainger</span><span style="font-size: 14px; color: #4A5459">T-Force, logged when agreed</span></div>
+<div class="svc"><span style="font-weight: 600">Recovery route</span><span style="font-size: 14px; color: #4A5459">T-Force, needs an order number</span></div>
+<div class="svc"><span style="font-weight: 600">Pharma pickup</span><span style="font-size: 14px; color: #4A5459">Hovership</span></div>
+<div class="svc"><span style="font-weight: 600">Other</span><span style="font-size: 14px; color: #4A5459">Needs a short note</span></div>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

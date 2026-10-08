@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aarisa · Hovership weekly report</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#F3F4F2;font-family:'Barlow',system-ui,sans-serif;color:#1C2226;font-size:15px}
+a{color:#0D5C46}a:hover{color:#08402F}
+:focus-visible{outline:3px solid #1F5FA8;outline-offset:2px}
+.cond{font-family:'Barlow Condensed','Barlow',sans-serif}
+.num{font-variant-numeric:tabular-nums lining-nums}
+.side a{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;border-radius:8px;color:#3A4449;text-decoration:none;font-size:15px;font-weight:500}
+.side a:hover{background:#F3F4F2;color:#1C2226}
+.side a.on{background:#E3F0EA;color:#0D5C46;font-weight:600}
+.side svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.grp{font-size:13px;color:#5F696E;font-weight:500;padding:14px 12px 4px}
+.badge{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:11px;font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;background:#F2A900;color:#1C2226}
+.plate{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:5px;background:#0D5C46;color:#FFFFFF;font:700 15px/1 'Barlow Condensed',sans-serif;letter-spacing:.03em;box-shadow:inset 0 0 0 2px #0D5C46,inset 0 0 0 3px rgba(255,255,255,.75);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:13px;font-size:13px;font-weight:500;white-space:nowrap}
+.pill::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.ok{background:#E3F0EA;color:#0D5C46}.warn{background:#FFF4D6;color:#6B4600}.bad{background:#FDECEA;color:#B42318}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border-radius:8px;border:1px solid #CDD3CF;background:#FFFFFF;color:#1C2226;font:500 15px 'Barlow',sans-serif;cursor:pointer;text-decoration:none;box-sizing:border-box;white-space:nowrap}
+.btn:hover{background:#F7F8F7;color:#1C2226}
+.btn.pri{background:#0D5C46;border-color:#0D5C46;color:#FFFFFF}
+.btn.pri:hover{background:#08402F;color:#FFFFFF}
+.panel{background:#FFFFFF;border:1px solid #DADFDB;border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th{text-align:left;font-weight:500;color:#5F696E;font-size:13px;padding:10px 14px;border-bottom:1px solid #DADFDB;white-space:nowrap}
+td{padding:7px 14px;border-bottom:1px solid #EEF0EE;vertical-align:middle}
+tbody tr:hover td{background:#F8F9F8}
+.r{text-align:right}
+.neg{color:#B42318;font-weight:600}
+.bonus{width:92px;min-height:34px;padding:0 10px;border-radius:7px;border:1px solid #CDD3CF;font:500 14.5px 'Barlow',sans-serif;font-variant-numeric:tabular-nums;text-align:right;color:#1C2226;background:#FFFFFF;box-sizing:border-box}
+.bonus:hover{border-color:#8E9893}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F3F4F2">
+<aside class="side" style="flex: 1 1 248px; max-width: 300px; background: #FFFFFF; border-right: 1px solid #DADFDB; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+<span class="plate" style="height: 30px; font-size: 18px; padding: 0 9px">A</span>
+<span class="cond" style="font-size: 25px; font-weight: 700">Aarisa</span>
+</div>
+<button type="button" style="display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid #DADFDB; background: #F7F8F7; color: #5F696E; font: 400 14.5px 'Barlow', sans-serif; cursor: pointer"><svg viewBox="0 0 24 24" style="width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>Search drivers or routes<kbd style="margin-left: auto; font: 500 12px 'Barlow', sans-serif; padding: 2px 6px; border: 1px solid #CDD3CF; border-radius: 5px; background: #FFFFFF; color: #4A5459">⌘K</kbd></button>
+<nav aria-label="Main" style="display: flex; flex-direction: column; gap: 2px">
+<a href="Main.dc.html"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg>Overview</a>
+<div class="grp">T-Force</div>
+<a href="TForce-Daily.dc.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>Today's drivers</a>
+<a href="TForce-Weekly.dc.html"><svg viewBox="0 0 24 24"><path d="M4 7h13l-3-3M20 17H7l3 3"></path></svg>Weekly check<span class="badge">3</span></a>
+<div class="grp">Hovership</div>
+<a href="Hovership.dc.html" class="on" aria-current="page"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6M8 13h8M8 17h5"></path></svg>Weekly report</a>
+<div class="grp">Money</div>
+<a href="Payroll.dc.html"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"></rect><circle cx="12" cy="12.5" r="2.5"></circle></svg>Payroll</a>
+<a href="Settlements.dc.html"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"></path><path d="M9 8h6M9 12h6"></path></svg>Settlements<span class="badge">2</span></a>
+<div class="grp">Settings</div>
+<a href="Setup.dc.html"><svg viewBox="0 0 24 24"><path d="M4 6h10M4 12h4M12 12h8M4 18h12"></path><circle cx="17" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Drivers and rates</a>
+<a href="Users.dc.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"></path><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.4 3.5 5.2"></path></svg>Team access</a>
+</nav>
+<div style="margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid #E8EBE9">
+<span style="width: 34px; height: 34px; border-radius: 50%; background: #1C2226; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex: none">AF</span>
+<span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 600; font-size: 14.5px">Aaron Fitzpatrick</span><span style="font-size: 13px; color: #5F696E">Owner</span></span>
+<a href="Login.dc.html" aria-label="Sign out" style="width: 36px; padding: 0; justify-content: center"><svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"></path></svg></a>
+</div>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 32px 40px 56px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; max-width: 1240px">
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 4px; max-width: 640px">
+<h1 class="cond" style="margin: 0; font-size: 40px; font-weight: 600; line-height: 1.05">Hovership weekly report</h1>
+<p style="margin: 0; color: #4A5459; font-size: 16px; line-height: 1.45">Station DUB1, June 15 to 21. Second week of the June 8 pay period.</p>
+</div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap">
+<button class="btn" type="button">Upload a report</button>
+<a class="btn pri" href="Payroll.dc.html">Add to payroll</a>
+</div>
+</header>
+
+<section class="panel" aria-label="Import result" style="display: flex; flex-wrap: wrap; align-items: stretch">
+<div style="flex: 1 1 300px; padding: 16px 20px; display: flex; gap: 14px; align-items: center; border-right: 1px solid #EEF0EE">
+<span style="width: 40px; height: 40px; border-radius: 10px; background: #E3F0EA; color: #0D5C46; display: flex; align-items: center; justify-content: center; flex: none"><svg viewBox="0 0 24 24" style="width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M5 12l5 5 9-10"></path></svg></span>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">Read from Monday's email</span><span style="font-size: 14px; color: #4A5459">51 rows, all 17 driver codes recognised</span></div>
+</div>
+<div style="padding: 16px 20px; border-right: 1px solid #EEF0EE"><div style="font-size: 13.5px; color: #4A5459">Tier 1 to 3</div><div class="cond num" style="font-size: 28px; font-weight: 600">2,496</div></div>
+<div style="padding: 16px 20px; border-right: 1px solid #EEF0EE"><div style="font-size: 13.5px; color: #4A5459">Tier 4</div><div class="cond num" style="font-size: 28px; font-weight: 600">57</div></div>
+<div style="padding: 16px 20px; border-right: 1px solid #EEF0EE"><div style="font-size: 13.5px; color: #4A5459">Stat stops</div><div class="cond num" style="font-size: 28px; font-weight: 600">19</div></div>
+<div style="padding: 16px 20px; border-right: 1px solid #EEF0EE"><div style="font-size: 13.5px; color: #4A5459">Bonuses</div><div class="cond num" style="font-size: 28px; font-weight: 600">$909.75</div></div>
+<div style="padding: 16px 20px"><div style="font-size: 13.5px; color: #4A5459">Profit</div><div class="cond num" style="font-size: 28px; font-weight: 600; color: #0D5C46">$1,222.50</div></div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<section class="panel" aria-labelledby="drv-h" style="flex: 3 1 640px; min-width: 0; overflow: hidden">
+<div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px">
+<h2 id="drv-h" class="cond" style="margin: 0; font-size: 22px; font-weight: 600">17 drivers this week</h2>
+<span style="font-size: 14px; color: #4A5459">Bonus is the only number you type</span>
+</div>
+<div style="overflow-x: auto">
+<table>
+<thead><tr><th scope="col">Driver</th><th scope="col" class="r">Days</th><th scope="col" class="r">Tier 1–3</th><th scope="col" class="r">Tier 4</th><th scope="col" class="r">Stat</th><th scope="col" class="r">Route pay</th><th scope="col" class="r">Bonus</th><th scope="col" class="r">Driver total</th><th scope="col" class="r">Profit</th></tr></thead>
+<tbody>
+<sc-for list="{{drivers}}" as="d" hint-placeholder-count="17">
+<tr>
+<td><div style="font-weight: 600">{{d.name}}</div><div style="font-size: 13px; color: #5F696E">{{d.code}}</div></td>
+<td class="r num">{{d.days}}</td>
+<td class="r num">{{d.t13}}</td>
+<td class="r num">{{d.t4}}</td>
+<td class="r num">{{d.stat}}</td>
+<td class="r num">{{d.route}}</td>
+<td class="r"><input class="bonus" type="text" inputmode="decimal" value="{{d.bonus}}" aria-label="Bonus for {{d.name}}"></td>
+<td class="r num" style="font-weight: 600">{{d.total}}</td>
+<td class="{{d.mcls}}">{{d.margin}}</td>
+</tr>
+</sc-for>
+<tr>
+<td style="font-weight: 600">Total</td><td class="r num">51</td><td class="r num">2,496</td><td class="r num">57</td><td class="r num">19</td><td class="r num">$6,434.75</td><td class="r num" style="padding-right: 24px">$909.75</td><td class="r num" style="font-weight: 600">$7,344.50</td><td class="r num" style="font-weight: 600; color: #0D5C46">$1,222.50</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<div style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<section class="panel" aria-labelledby="watch-h" style="padding: 18px; display: flex; flex-direction: column; gap: 10px; border-color: #F0B9B3">
+<div style="display: flex; justify-content: space-between; align-items: center"><h2 id="watch-h" class="cond" style="margin: 0; font-size: 22px; font-weight: 600">Lost money</h2><span class="pill bad">1 day</span></div>
+<div style="font-size: 14.5px; color: #3A4449; line-height: 1.5">Thiago Dub delivered 15 packages with a $12.50 bonus. The day ended at <span class="num" style="font-weight: 600; color: #B42318">−$5.00</span>.</div>
+<div style="font-size: 14px; color: #4A5459; line-height: 1.5">Tier 4 leaves $0.25 a package, so bonuses on Tier 4 days turn negative quickly.</div>
+</section>
+<section class="panel" aria-labelledby="rate-h" style="padding: 18px 18px 8px">
+<h2 id="rate-h" class="cond" style="margin: 0 0 8px; font-size: 22px; font-weight: 600">Rates used</h2>
+<table style="font-size: 14px">
+<thead><tr><th scope="col" style="padding-left: 0">Item</th><th scope="col" class="r">Client</th><th scope="col" class="r" style="padding-right: 0">Driver</th></tr></thead>
+<tbody>
+<tr><td style="padding-left: 0">Tier 1–3 package</td><td class="r num">$3.00</td><td class="r num" style="padding-right: 0">$2.50</td></tr>
+<tr><td style="padding-left: 0">Tier 4 package</td><td class="r num">$2.00</td><td class="r num" style="padding-right: 0">$1.75</td></tr>
+<tr><td style="padding-left: 0; border-bottom: 0">Stat stop</td><td class="r num" style="border-bottom: 0">$10.00</td><td class="r" style="padding-right: 0; border-bottom: 0"><span class="pill warn">Missing</span></td></tr>
+</tbody>
+</table>
+<a href="Setup.dc.html" style="display: inline-flex; min-height: 40px; align-items: center; font-size: 14.5px; font-weight: 500">Edit rates</a>
+</section>
+</div>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var money = function (n) { return (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    var rows = [
+      ['DUB061','Robert Arteaga',5,320,7,1,200,1017.25,126.75],
+      ['DUB067','Jaime Andres',5,302,9,2,200,980.75,163.25],
+      ['DUB010','Leonardo Vicentini',5,325,4,1,0,824.50,168.50],
+      ['DUB1','Diana Arvelo',4,216,3,5,125,695.25,38.75],
+      ['DUB085','Norwin Saloman',5,264,8,3,0,689.00,149.00],
+      ['DUB014','Adolfo Mora',4,210,11,0,35,579.25,142.75],
+      ['DUB006','Nayibi Perez',5,212,4,2,20,567.00,192.00],
+      ['DUB088','Naira Rivera',4,126,2,0,86.5,405.00,37.00],
+      ['DUB066','Marvin Geovanni',2,94,1,1,75,316.75,7.25],
+      ['DUB090','Marcus Dub',2,107,1,1,25.75,300.00,43.00],
+      ['DUB020','Gabriela Cifuentes',2,100,0,0,0,250.00,50.00],
+      ['DUB089','Karandeep Kaur',2,79,0,1,10,212.50,34.50],
+      ['DUB012','Bruna Elias',1,51,3,1,40,177.75,31.25],
+      ['DUB079','Vivy Hollanda',1,38,3,0,40,140.25,19.75],
+      ['DUB087','Manuel Ramirez',1,34,1,0,40,126.75,17.25],
+      ['DUB091','Thiago Dub',1,15,0,0,12.5,50.00,-5.00],
+      ['DUB27','Barbara Fitzpatrick',2,3,0,1,0,12.50,6.50]
+    ];
+    return {
+      drivers: rows.map(function (r) {
+        return {
+          code: r[0], name: r[1], days: r[2], t13: r[3], t4: r[4], stat: r[5],
+          bonus: r[6].toFixed(2),
+          route: money(r[7] - r[6]), total: money(r[7]), margin: money(r[8]),
+          mcls: r[8] < 0 ? 'r num neg' : 'r num'
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
