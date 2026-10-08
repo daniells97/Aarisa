@@ -7,7 +7,7 @@ export type Permission =
   | 'extra_jobs.log'
   | 'exceptions.clear'
   | 'hovership.enter_bonus'
-  | 'hovership.import'
+  | 'reports.import'
   | 'payroll.approve'
   | 'payroll.reopen'
   | 'payroll.view'
@@ -24,7 +24,7 @@ const matrix: Record<Permission, Role[]> = {
   'exceptions.clear': ['owner', 'dispatcher', 'finance'],
   'hovership.enter_bonus': ['owner', 'finance'],
   // Uploading a report is the same trust level as entering bonuses (open question: confirm).
-  'hovership.import': ['owner', 'finance'],
+  'reports.import': ['owner', 'finance'],
   'payroll.approve': ['owner'],
   'payroll.reopen': ['owner'],
   // Dispatchers see driver pay but never client rates, revenue or profit.

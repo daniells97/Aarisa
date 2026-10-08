@@ -50,7 +50,7 @@ async function writeRows(tx: Tx, actor: Actor, ctx: { operationId: string; impor
 }
 
 export async function importHovership(tx: Tx, actor: Actor, input: { fileName: string; text: string; columnOverride?: Partial<Record<Field, string>>; channel?: 'upload' | 'email' }): Promise<ImportOutcome> {
-  assertCan(actor, 'hovership.import');
+  assertCan(actor, 'reports.import');
   const op = await getOperation(tx, 'hovership');
   const sha = createHash('sha256').update(input.text).digest('hex');
   const [previous] = await tx.select().from(reportImports).where(and(eq(reportImports.operationId, op.id), eq(reportImports.fileSha256, sha)));
@@ -249,7 +249,7 @@ export async function loadHovershipWeek(tx: Tx, actor: Actor, start: string) {
   return {
     week: { start, end }, period, locked, showMoney,
     canEditBonus: can(actor.role, 'hovership.enter_bonus') && !locked,
-    canImport: can(actor.role, 'hovership.import'),
+    canImport: can(actor.role, 'reports.import'),
     canResolve: can(actor.role, 'exceptions.clear'),
     importState: imports[0] ? { id: imports[0].id, status: imports[0].status, fileName: imports[0].fileName, rowCount: imports[0].rowCount, receivedAt: imports[0].receivedAt?.toISOString() ?? null, channel: imports[0].channel, problems: (imports[0].problems ?? {}) as ImportProblems } : null,
     lastImportAt: lastImport?.receivedAt?.toISOString() ?? null,

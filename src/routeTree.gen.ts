@@ -31,8 +31,9 @@ import { Route as AppSettingsAuditRouteImport } from './routes/_app/settings/aud
 import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
 import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
 import { Route as AppTforceTodayRouteImport } from './routes/_app/tforce/today'
-import { Route as AppTforceWeekRouteImport } from './routes/_app/tforce/week'
 import { Route as AppHovershipWeekWeekIdRouteImport } from './routes/_app/hovership/week/$weekId'
+import { Route as AppTforceWeekIndexRouteImport } from './routes/_app/tforce/week/index'
+import { Route as AppTforceWeekWeekIdRouteImport } from './routes/_app/tforce/week/$weekId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -143,14 +144,19 @@ const AppTforceTodayRoute = AppTforceTodayRouteImport.update({
   path: '/tforce/today',
   getParentRoute: () => AppRoute,
 } as any)
-const AppTforceWeekRoute = AppTforceWeekRouteImport.update({
-  id: '/tforce/week',
-  path: '/tforce/week',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppHovershipWeekWeekIdRoute = AppHovershipWeekWeekIdRouteImport.update({
   id: '/hovership/week/$weekId',
   path: '/hovership/week/$weekId',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTforceWeekIndexRoute = AppTforceWeekIndexRouteImport.update({
+  id: '/tforce/week/',
+  path: '/tforce/week/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTforceWeekWeekIdRoute = AppTforceWeekWeekIdRouteImport.update({
+  id: '/tforce/week/$weekId',
+  path: '/tforce/week/$weekId',
   getParentRoute: () => AppRoute,
 } as any)
 
@@ -174,10 +180,11 @@ export interface FileRoutesByFullPath {
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
-  '/tforce/week': typeof AppTforceWeekRoute
   '/hovership/': typeof AppHovershipIndexRoute
   '/payroll/': typeof AppPayrollIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
+  '/tforce/week/$weekId': typeof AppTforceWeekWeekIdRoute
+  '/tforce/week/': typeof AppTforceWeekIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -199,10 +206,11 @@ export interface FileRoutesByTo {
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
-  '/tforce/week': typeof AppTforceWeekRoute
   '/hovership': typeof AppHovershipIndexRoute
   '/payroll': typeof AppPayrollIndexRoute
   '/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
+  '/tforce/week/$weekId': typeof AppTforceWeekWeekIdRoute
+  '/tforce/week': typeof AppTforceWeekIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -226,10 +234,11 @@ export interface FileRoutesById {
   '/_app/settings/rates': typeof AppSettingsRatesRoute
   '/_app/settings/team': typeof AppSettingsTeamRoute
   '/_app/tforce/today': typeof AppTforceTodayRoute
-  '/_app/tforce/week': typeof AppTforceWeekRoute
   '/_app/hovership/': typeof AppHovershipIndexRoute
   '/_app/payroll/': typeof AppPayrollIndexRoute
   '/_app/hovership/week/$weekId': typeof AppHovershipWeekWeekIdRoute
+  '/_app/tforce/week/$weekId': typeof AppTforceWeekWeekIdRoute
+  '/_app/tforce/week/': typeof AppTforceWeekIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -253,10 +262,11 @@ export interface FileRouteTypes {
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
-    | '/tforce/week'
     | '/hovership/'
     | '/payroll/'
     | '/hovership/week/$weekId'
+    | '/tforce/week/$weekId'
+    | '/tforce/week/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -278,10 +288,11 @@ export interface FileRouteTypes {
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
-    | '/tforce/week'
     | '/hovership'
     | '/payroll'
     | '/hovership/week/$weekId'
+    | '/tforce/week/$weekId'
+    | '/tforce/week'
   id:
     | '__root__'
     | '/_app'
@@ -304,10 +315,11 @@ export interface FileRouteTypes {
     | '/_app/settings/rates'
     | '/_app/settings/team'
     | '/_app/tforce/today'
-    | '/_app/tforce/week'
     | '/_app/hovership/'
     | '/_app/payroll/'
     | '/_app/hovership/week/$weekId'
+    | '/_app/tforce/week/$weekId'
+    | '/_app/tforce/week/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -476,18 +488,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTforceTodayRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/tforce/week': {
-      id: '/_app/tforce/week'
-      path: '/tforce/week'
-      fullPath: '/tforce/week'
-      preLoaderRoute: typeof AppTforceWeekRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/hovership/week/$weekId': {
       id: '/_app/hovership/week/$weekId'
       path: '/hovership/week/$weekId'
       fullPath: '/hovership/week/$weekId'
       preLoaderRoute: typeof AppHovershipWeekWeekIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tforce/week/': {
+      id: '/_app/tforce/week/'
+      path: '/tforce/week'
+      fullPath: '/tforce/week/'
+      preLoaderRoute: typeof AppTforceWeekIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/tforce/week/$weekId': {
+      id: '/_app/tforce/week/$weekId'
+      path: '/tforce/week/$weekId'
+      fullPath: '/tforce/week/$weekId'
+      preLoaderRoute: typeof AppTforceWeekWeekIdRouteImport
       parentRoute: typeof AppRoute
     }
   }
@@ -507,10 +526,11 @@ interface AppRouteChildren {
   AppSettingsRatesRoute: typeof AppSettingsRatesRoute
   AppSettingsTeamRoute: typeof AppSettingsTeamRoute
   AppTforceTodayRoute: typeof AppTforceTodayRoute
-  AppTforceWeekRoute: typeof AppTforceWeekRoute
   AppHovershipIndexRoute: typeof AppHovershipIndexRoute
   AppPayrollIndexRoute: typeof AppPayrollIndexRoute
   AppHovershipWeekWeekIdRoute: typeof AppHovershipWeekWeekIdRoute
+  AppTforceWeekWeekIdRoute: typeof AppTforceWeekWeekIdRoute
+  AppTforceWeekIndexRoute: typeof AppTforceWeekIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -527,10 +547,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRatesRoute: AppSettingsRatesRoute,
   AppSettingsTeamRoute: AppSettingsTeamRoute,
   AppTforceTodayRoute: AppTforceTodayRoute,
-  AppTforceWeekRoute: AppTforceWeekRoute,
   AppHovershipIndexRoute: AppHovershipIndexRoute,
   AppPayrollIndexRoute: AppPayrollIndexRoute,
   AppHovershipWeekWeekIdRoute: AppHovershipWeekWeekIdRoute,
+  AppTforceWeekWeekIdRoute: AppTforceWeekWeekIdRoute,
+  AppTforceWeekIndexRoute: AppTforceWeekIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

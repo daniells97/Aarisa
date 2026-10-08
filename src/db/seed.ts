@@ -9,6 +9,7 @@ import { audit, type AuditEntry } from '~/server/audit';
 import { SYSTEM_ACTOR } from '~/server/actor';
 import { importHovership } from '~/server/hovership';
 import { setAssignment, setUnknownName } from '~/server/daily';
+import { importTforce } from '~/server/tforce';
 
 /** Idempotent: running twice inserts nothing new. Every insert is audited as `system`. */
 export async function seedMasterData(database = createDb()) {
@@ -126,6 +127,17 @@ export async function seedTforceSample(database: ReturnType<typeof createDb>) {
       else await setAssignment(tx, SYSTEM_ACTOR, { date: r.date!, routeId: id, payee: { driverId: byName.get(who)! } });
     }
     console.log(`T-Force sample: ${codes.length} routes, ${list.length} daily list entries`);
+  });
+  // T-Force's report for the same week, read through the normal import and weekly check.
+  const text = readFileSync(new URL('../../docs/seed/tforce_pieces_jun2026.csv', import.meta.url), 'utf8');
+  await database.transaction(async (tx) => {
+    try {
+      const out = await importTforce(tx, SYSTEM_ACTOR, { fileName: 'tforce_pieces_jun2026.csv', text });
+      console.log(`T-Force report: ${out.status}${'openExceptions' in out ? `, ${out.rows} route-days, ${out.openExceptions} open exceptions` : ''}`);
+    } catch (e) {
+      if ((e as { code?: string }).code === 'already_imported') console.log('T-Force report: already loaded');
+      else throw e;
+    }
   });
 }
 

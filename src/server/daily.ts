@@ -122,6 +122,14 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
 /** Sets who drove a route on a day. Same as the usual payee → confirmed; different → changed; nobody → no driver. */
 export async function setAssignment(tx: Tx, actor: Actor, input: { date: string; routeId: string; payee: PayeeInput }) {
   assertCan(actor, 'drivers.confirm_today');
+  return assignRoute(tx, actor, input);
+}
+
+/**
+ * Same as setAssignment without its permission check, for callers that already checked a
+ * permission that covers it (resolving a weekly-check exception needs exceptions.clear).
+ */
+export async function assignRoute(tx: Tx, actor: Actor, input: { date: string; routeId: string; payee: PayeeInput }) {
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
   const cols = payeeCols(input.payee);

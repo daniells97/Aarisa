@@ -25,7 +25,7 @@ export const uploadHovershipReport = createServerFn({ method: 'POST' })
     text: z.string().max(5_000_000),
     columnOverride: z.record(fields, z.string().max(100)).optional(),
   }))
-  .handler(({ data }) => run('hovership.import', (tx, actor) => importHovership(tx, actor, data)));
+  .handler(({ data }) => run('reports.import', (tx, actor) => importHovership(tx, actor, data)));
 
 export const resolveHovershipCode = createServerFn({ method: 'POST' })
   .validator(z.object({

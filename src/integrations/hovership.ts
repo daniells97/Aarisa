@@ -1,4 +1,5 @@
 import { parseCsv } from './csv';
+import { mapColumns as mapColumnsBase, toCount, toIsoDate, type Suggestion as BaseSuggestion } from './columns';
 import { toCents } from '~/domain/money';
 
 // Hovership weekly report (spec §5.2). Columns: POD Date, DriverCode, DriverNameCode, Tier 1–4,
@@ -24,44 +25,12 @@ const ALIASES: Record<Field, string[]> = {
   total_profit: ['total profit', 'total_profit'],
 };
 
-const norm = (h: string) => h.trim().toLowerCase().replace(/[_\s]+/g, ' ');
-
 export type ColumnMap = Partial<Record<Field, number>>;
-
-export interface Suggestion { field: Field; header: string | null }
+export type Suggestion = BaseSuggestion<Field>;
 
 /** Maps headers to fields. `override` lets a person confirm a renamed column (layout changed state). */
 export function mapColumns(header: string[], override: Partial<Record<Field, string>> = {}) {
-  const map: ColumnMap = {};
-  const used = new Set<number>();
-  const normalized = header.map(norm);
-  for (const field of [...REQUIRED, ...OPTIONAL]) {
-    const wanted = override[field] != null ? [norm(override[field]!)] : ALIASES[field].map(norm);
-    const idx = normalized.findIndex((h, i) => !used.has(i) && wanted.includes(h));
-    if (idx >= 0) { map[field] = idx; used.add(idx); }
-  }
-  const missing = REQUIRED.filter((f) => map[f] == null);
-  const unused = header.filter((_, i) => !used.has(i));
-  const suggestions: Suggestion[] = missing.map((field) => ({ field, header: closest(field, unused) }));
-  return { map, missing, suggestions };
-}
-
-/** The unused header that looks most like the missing field (shared words or letters). */
-function closest(field: Field, candidates: string[]): string | null {
-  let best: { h: string; score: number } | null = null;
-  for (const h of candidates) {
-    const score = Math.max(...ALIASES[field].map((a) => similarity(norm(a), norm(h))));
-    if (score >= 0.5 && (!best || score > best.score)) best = { h, score };
-  }
-  return best?.h ?? null;
-}
-
-function similarity(a: string, b: string) {
-  const grams = (s: string) => new Set(Array.from({ length: Math.max(s.length - 1, 1) }, (_, i) => s.slice(i, i + 2)));
-  const A = grams(a), B = grams(b);
-  let inter = 0;
-  for (const g of A) if (B.has(g)) inter++;
-  return (2 * inter) / (A.size + B.size);
+  return mapColumnsBase(header, { required: REQUIRED, optional: OPTIONAL, aliases: ALIASES }, override);
 }
 
 export interface HovershipRow {
@@ -83,23 +52,6 @@ export type ParseResult =
   | { kind: 'layout_changed'; header: string[]; missing: Field[]; suggestions: Suggestion[] }
   | { kind: 'ok'; rows: HovershipRow[]; problems: RowProblem[]; columnMap: Record<string, string> };
 
-function toDate(v: string): string | null {
-  const s = v.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(s); // US format from Excel exports
-  if (m) {
-    const year = m[3]!.length === 2 ? `20${m[3]}` : m[3]!;
-    return `${year}-${m[1]!.padStart(2, '0')}-${m[2]!.padStart(2, '0')}`;
-  }
-  return null;
-}
-
-function toInt(v: string): number | null {
-  const s = v.trim();
-  if (s === '') return 0;
-  return /^\d+$/.test(s) ? Number(s) : null;
-}
-
 function money(v: string): number | null {
   try { return toCents(v.replace(/[$,]/g, '')); } catch { return null; }
 }
@@ -113,9 +65,9 @@ export function parseHovership(text: string, override: Partial<Record<Field, str
   const problems: RowProblem[] = [];
   body.forEach((r, i) => {
     const line = i + 2;
-    const date = toDate(get(r, 'pod_date'));
+    const date = toIsoDate(get(r, 'pod_date'));
     const code = get(r, 'driver_code').toUpperCase();
-    const nums = (['tier1', 'tier2', 'tier3', 'tier4', 'stat'] as const).map((f) => toInt(get(r, f)));
+    const nums = (['tier1', 'tier2', 'tier3', 'tier4', 'stat'] as const).map((f) => toCount(get(r, f)));
     const stem = money(get(r, 'stem') || '0');
     const bonus = money(get(r, 'bonus') || '0');
     if (!date) return problems.push({ line, message: `Date "${get(r, 'pod_date')}" is not a date` });

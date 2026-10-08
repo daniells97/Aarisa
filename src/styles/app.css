@@ -222,3 +222,19 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
   .today-list { order: 0; }
   .today-aside > :not(:first-child) { order: 1; }
 }
+
+/* ---------- weekly check ---------- */
+.ex-list { list-style: none; margin: 0; padding: 0; }
+.ex-card { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--line-soft); }
+.ex-actions { padding-left: 36px; }
+@media (max-width: 899px) { .ex-actions { padding-left: 0; } .ex-actions .btn { flex: 1 1 140px; } }
+.grid-table td.cell, .grid-table th.cell { text-align: right; font-variant-numeric: tabular-nums lining-nums; }
+.grid-table td.empty { color: var(--ink-4); }
+.grid-table td.flag { background: var(--amber-wash); box-shadow: inset 0 0 0 2px var(--amber); font-weight: 600; }
+.grid-table tbody tr:hover td.flag { background: var(--amber-tint); }
+.legend-flag { width: 14px; height: 14px; background: var(--amber-wash); box-shadow: inset 0 0 0 2px var(--amber); border-radius: 3px; }
+.resolved { padding: 12px 20px; border-top: 1px solid var(--line-soft); }
+.resolved summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 500; }
+.resolved ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.week-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1200px) { .week-layout { grid-template-columns: 1fr; } }
