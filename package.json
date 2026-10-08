@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:docker": "scripts/e2e-docker.sh"
+    "test:e2e:docker": "scripts/e2e-docker.sh",
+    "db:restore-sample": "tsx scripts/restore-sample-bonuses.ts"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.170.41",

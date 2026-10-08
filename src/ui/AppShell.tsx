@@ -25,6 +25,7 @@ const groups: NavGroup[] = [
   { label: 'nav.group.settings', items: [
     { to: '/settings/rates', label: 'nav.driversRates', icon: 'sliders' },
     { to: '/settings/team', label: 'nav.team', icon: 'team', show: (r) => can(r, 'team.manage') },
+    { to: '/settings/audit', label: 'nav.audit', icon: 'file', show: (r) => can(r, 'audit.view') },
   ] },
 ];
 

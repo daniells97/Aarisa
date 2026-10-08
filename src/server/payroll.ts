@@ -7,7 +7,7 @@ import { can } from '~/domain/permissions';
 import { buildPayroll, payrollCsv, type Blocker, type PayrollTotals } from '~/domain/payroll';
 import { periodFor, periodsFor } from '~/domain/periods';
 import { assertCan, type Actor } from './actor';
-import { audit } from './audit';
+import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { loadHovershipDays } from './hovership';
 import { getOperation, hovershipRateFn } from './ops';
@@ -139,7 +139,15 @@ export async function approveRun(tx: Tx, actor: Actor, runId: string, expectedPa
   if (!live.ready) throw new RuleError('run_not_ready');
   if (live.totals.payCents !== expectedPayCents) throw new RuleError('total_changed');
 
-  const periodRow = stored?.period ?? (await tx.insert(payPeriods).values({ operationId: op.id, startDate: live.period.start, endDate: live.period.end }).returning())[0]!;
+  const trail: AuditEntry[] = [];
+  const log = (table: string, recordId: string, action: AuditEntry['action'], before: unknown, after: unknown) =>
+    trail.push({ table, recordId, action, before, after, userId: actor.userId, source: actor.source });
+
+  let periodRow = stored?.period;
+  if (!periodRow) {
+    [periodRow] = await tx.insert(payPeriods).values({ operationId: op.id, startDate: live.period.start, endDate: live.period.end }).returning();
+    log('pay_periods', periodRow!.id, 'insert', null, periodRow);
+  }
   const runValues = {
     status: 'approved' as const, totals: live.totals, approvedBy: actor.userId, approvedAt: now,
     reopenableUntil: new Date(now.getTime() + REOPEN_HOURS * 3_600_000), paidAt: null,
@@ -147,13 +155,15 @@ export async function approveRun(tx: Tx, actor: Actor, runId: string, expectedPa
   let run;
   if (stored?.run) {
     [run] = await tx.update(payrollRuns).set(runValues).where(eq(payrollRuns.id, stored.run.id)).returning();
-    await tx.delete(payrollLines).where(eq(payrollLines.runId, stored.run.id));
+    const removed = await tx.delete(payrollLines).where(eq(payrollLines.runId, stored.run.id)).returning();
+    for (const l of removed) log('payroll_lines', l.id, 'delete', l, null);
   } else {
-    [run] = await tx.insert(payrollRuns).values({ payPeriodId: periodRow.id, ...runValues }).returning();
+    [run] = await tx.insert(payrollRuns).values({ payPeriodId: periodRow!.id, ...runValues }).returning();
   }
-  await tx.insert(payrollLines).values(live.lines.map((l) => ({
+  const inserted = await tx.insert(payrollLines).values(live.lines.map((l) => ({
     runId: run!.id, driverId: l.driverId, routeDays: l.routeDays, pieces: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents,
-  })));
+  }))).returning();
+  for (const l of inserted) log('payroll_lines', l.id, 'insert', null, l);
 
   // Snapshot the rate and money on every work record (spec §4: values copied when the period is approved).
   const { fn: rate, ids } = await hovershipRateFn(tx, op.id);
@@ -164,11 +174,13 @@ export async function approveRun(tx: Tx, actor: Actor, runId: string, expectedPa
     if (!r.ok) throw new RuleError('run_not_ready');
     const driverPay = w.pieces * (r.driverCents ?? 0) + w.bonusCents;
     const revenue = w.pieces * (r.clientCents ?? 0);
-    await tx.update(workRecords).set({
+    const [after] = await tx.update(workRecords).set({
       clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: driverPay, revenueCents: revenue,
       profitCents: revenue - driverPay, payrollRunId: run!.id, updatedAt: now,
-    }).where(eq(workRecords.id, w.id));
+    }).where(eq(workRecords.id, w.id)).returning();
+    log('work_records', w.id, 'update', w, after);
   }
+  await audit(tx, trail);
   await audit(tx, { table: 'payroll_runs', recordId: run!.id, action: 'approve', before: stored?.run ?? null, after: run, userId: actor.userId, source: actor.source });
   return run!;
 }

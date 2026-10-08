@@ -15,7 +15,8 @@ export type Permission =
   | 'money.view' // client rates, revenue, profit
   | 'settlements.record'
   | 'setup.edit' // drivers, contractors, services, rates
-  | 'team.manage';
+  | 'team.manage'
+  | 'audit.view';
 
 const matrix: Record<Permission, Role[]> = {
   'drivers.confirm_today': ['owner', 'dispatcher'],
@@ -34,6 +35,8 @@ const matrix: Record<Permission, Role[]> = {
   'settlements.record': ['owner', 'finance'],
   'setup.edit': ['owner'],
   'team.manage': ['owner'],
+  // The log holds before/after values, including client rates, so it follows money access.
+  'audit.view': ['owner', 'finance', 'viewer'],
 };
 
 export function can(role: Role | null | undefined, permission: Permission): boolean {

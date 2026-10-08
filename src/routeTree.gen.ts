@@ -27,6 +27,7 @@ import { Route as AppExtraJobsNewRouteImport } from './routes/_app/extra-jobs/ne
 import { Route as AppHovershipIndexRouteImport } from './routes/_app/hovership/index'
 import { Route as AppPayrollIndexRouteImport } from './routes/_app/payroll/index'
 import { Route as AppPayrollRunIdRouteImport } from './routes/_app/payroll/$runId'
+import { Route as AppSettingsAuditRouteImport } from './routes/_app/settings/audit'
 import { Route as AppSettingsRatesRouteImport } from './routes/_app/settings/rates'
 import { Route as AppSettingsTeamRouteImport } from './routes/_app/settings/team'
 import { Route as AppTforceTodayRouteImport } from './routes/_app/tforce/today'
@@ -122,6 +123,11 @@ const AppPayrollRunIdRoute = AppPayrollRunIdRouteImport.update({
   path: '/payroll/$runId',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsAuditRoute = AppSettingsAuditRouteImport.update({
+  id: '/settings/audit',
+  path: '/settings/audit',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRatesRoute = AppSettingsRatesRouteImport.update({
   id: '/settings/rates',
   path: '/settings/rates',
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/payroll-export/$runId': typeof PayrollExportRunIdRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
   '/payroll/$runId': typeof AppPayrollRunIdRoute
+  '/settings/audit': typeof AppSettingsAuditRoute
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
   '/payroll/$runId': typeof AppPayrollRunIdRoute
+  '/settings/audit': typeof AppSettingsAuditRoute
   '/settings/rates': typeof AppSettingsRatesRoute
   '/settings/team': typeof AppSettingsTeamRoute
   '/tforce/today': typeof AppTforceTodayRoute
@@ -214,6 +222,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/_app/extra-jobs/new': typeof AppExtraJobsNewRoute
   '/_app/payroll/$runId': typeof AppPayrollRunIdRoute
+  '/_app/settings/audit': typeof AppSettingsAuditRoute
   '/_app/settings/rates': typeof AppSettingsRatesRoute
   '/_app/settings/team': typeof AppSettingsTeamRoute
   '/_app/tforce/today': typeof AppTforceTodayRoute
@@ -240,6 +249,7 @@ export interface FileRouteTypes {
     | '/payroll-export/$runId'
     | '/extra-jobs/new'
     | '/payroll/$runId'
+    | '/settings/audit'
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
     | '/'
     | '/extra-jobs/new'
     | '/payroll/$runId'
+    | '/settings/audit'
     | '/settings/rates'
     | '/settings/team'
     | '/tforce/today'
@@ -289,6 +300,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/_app/extra-jobs/new'
     | '/_app/payroll/$runId'
+    | '/_app/settings/audit'
     | '/_app/settings/rates'
     | '/_app/settings/team'
     | '/_app/tforce/today'
@@ -436,6 +448,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPayrollRunIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/audit': {
+      id: '/_app/settings/audit'
+      path: '/settings/audit'
+      fullPath: '/settings/audit'
+      preLoaderRoute: typeof AppSettingsAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/settings/rates': {
       id: '/_app/settings/rates'
       path: '/settings/rates'
@@ -484,6 +503,7 @@ interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppExtraJobsNewRoute: typeof AppExtraJobsNewRoute
   AppPayrollRunIdRoute: typeof AppPayrollRunIdRoute
+  AppSettingsAuditRoute: typeof AppSettingsAuditRoute
   AppSettingsRatesRoute: typeof AppSettingsRatesRoute
   AppSettingsTeamRoute: typeof AppSettingsTeamRoute
   AppTforceTodayRoute: typeof AppTforceTodayRoute
@@ -503,6 +523,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppExtraJobsNewRoute: AppExtraJobsNewRoute,
   AppPayrollRunIdRoute: AppPayrollRunIdRoute,
+  AppSettingsAuditRoute: AppSettingsAuditRoute,
   AppSettingsRatesRoute: AppSettingsRatesRoute,
   AppSettingsTeamRoute: AppSettingsTeamRoute,
   AppTforceTodayRoute: AppTforceTodayRoute,
