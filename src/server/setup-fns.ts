@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { todayLA } from '~/domain/dates';
 import { zitadelAdminConfig } from '~/integrations/zitadel';
 import { read, run } from './fn';
-import { addContractor, addDriver, addRate, loadSetup, updateDriver } from './setup';
+import { addContractor, addDriver, addRate, addService, loadSetup, updateDriver, updateService } from './setup';
 import { listTeam, recordRoleChange, updateTeamMember } from './team';
 import { inviteUser, setUserRole } from '~/integrations/zitadel';
 
@@ -30,6 +30,24 @@ export const saveDriver = createServerFn({ method: 'POST' })
   .validator(z.object({ id: uuid.nullable(), driver: driverInput }))
   .handler(({ data }) => run('setup.edit', async (tx, actor) =>
     (data.id ? await updateDriver(tx, actor, data.id, data.driver) : await addDriver(tx, actor, data.driver)).id));
+
+const serviceFields = {
+  name: z.string().max(80),
+  nameEs: z.string().max(80).nullable(),
+  requiresOrderNumber: z.boolean(),
+  requiresNote: z.boolean(),
+};
+
+export const createService = createServerFn({ method: 'POST' })
+  .validator(z.object({ ...serviceFields, operation: z.enum(['tforce', 'hovership']) }))
+  .handler(({ data }) => run('setup.edit', async (tx, actor) => (await addService(tx, actor, data)).id));
+
+export const saveService = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: z.string().uuid(), ...serviceFields, active: z.boolean() }))
+  .handler(({ data }) => run('setup.edit', async (tx, actor) => {
+    const { id, ...input } = data;
+    return (await updateService(tx, actor, id, input)).id;
+  }));
 
 export const createContractor = createServerFn({ method: 'POST' })
   .validator(z.object({ name: z.string().max(120) }))

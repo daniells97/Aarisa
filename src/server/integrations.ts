@@ -10,7 +10,7 @@ import { assertCan } from './actor';
 import { audit } from './audit';
 import { confirmUsual, loadDay, setAssignment, setUnknownName } from './daily';
 import { RuleError } from './errors';
-import { EXTRA_SERVICES } from './extra-jobs';
+import { extraServices } from './extra-jobs';
 import { getOperation } from './ops';
 import { seal, unseal } from './session';
 import { recheckForDate } from './tforce';
@@ -153,7 +153,7 @@ export async function applyDailyChanges(tx: Tx, input: z.infer<typeof dailyChang
 }
 
 export const extraJobOutput = z.object({
-  service: z.enum(EXTRA_SERVICES).nullable(),
+  service: z.string().max(60).nullable(), // checked against the active extra-job services when the draft opens
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
   near_route: z.string().max(20).nullable().optional(),
   driver_id: z.string().uuid().nullable().optional(),
@@ -207,12 +207,13 @@ export async function loadExtraJobDraft(tx: Tx, actor: Actor, token: string) {
     : undefined;
   const showMoney = can(actor.role, 'money.view');
   const d = out.success ? out.data : null;
+  const knownService = d?.service && (await extraServices(tx, op.id)).some((x) => x.code === d.service) ? d.service : null;
   return {
     suggestionId: s.id,
     fromVoice: msg?.type === 'audio',
     at: (msg?.createdAt ?? s.createdAt).toISOString(),
     fields: {
-      service: d?.service ?? null,
+      service: knownService,
       date: d?.date ?? null,
       nearRouteId: route?.id ?? null,
       payee: d?.driver_id ? `d:${d.driver_id}` : d?.contractor_id ? `c:${d.contractor_id}` : null,
@@ -244,7 +245,7 @@ export async function aiContext(tx: Tx, date: string) {
     routes: day.routes,
     drivers: people.map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, contractor: companies.find((c) => c.id === p.contractorId)?.name ?? null })),
     contractors: companies,
-    services: [...EXTRA_SERVICES],
+    services: (await extraServices(tx, op.id)).map((x) => x.code),
     operation: op.code,
   };
 }

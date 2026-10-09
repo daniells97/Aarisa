@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { read, run } from './fn';
-import { EXTRA_SERVICES, completeExtraJob, createExtraJob, extraJobOptions, listExtraJobs } from './extra-jobs';
+import { completeExtraJob, createExtraJob, extraJobOptions, listExtraJobs } from './extra-jobs';
 import { confirmExtraJobDraft, loadExtraJobDraft } from './integrations';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -16,7 +16,7 @@ export const getExtraJobOptions = createServerFn({ method: 'GET' }).handler(() =
 
 export const saveExtraJob = createServerFn({ method: 'POST' })
   .validator(z.object({
-    clientUuid: uuid, service: z.enum(EXTRA_SERVICES), date: isoDate, nearRouteId: uuid.nullable(),
+    clientUuid: uuid, service: z.string().min(1).max(60), date: isoDate, nearRouteId: uuid.nullable(),
     payee: z.union([z.object({ driverId: uuid }), z.object({ contractorId: uuid })]),
     clientAmountCents: cents.nullable(), driverAmountCents: cents, orderNumber: z.string().max(60).nullable(), note: z.string().max(500).nullable(),
     aiSuggestionId: uuid.nullable().optional(),

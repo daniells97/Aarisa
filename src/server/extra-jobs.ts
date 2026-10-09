@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { contractors, drivers, extraJobs, routes, serviceTypes, settlementLines, users, workRecords } from '~/db/schema';
-import { addDays } from '~/domain/dates';
+import { contractors, drivers, extraJobs, rates, routes, serviceTypes, settlementLines, users, workRecords } from '~/db/schema';
+import { addDays, todayLA } from '~/domain/dates';
+import { rateFor, type RateRow } from '~/domain/rates';
 import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
@@ -11,12 +12,23 @@ import { assertNotLocked, getOperation } from './ops';
 // Extra jobs (spec §5.4, 6.6): T-Force work agreed by phone that never shows in the weekly report.
 // Each job is one work record (paid at the agreed amount) and one expected settlement line.
 
-export const EXTRA_SERVICES = ['recovery_route', 'pickup', 'grainger', 'other'] as const;
-export type ExtraService = (typeof EXTRA_SERVICES)[number];
+/** Services the seed starts with, in the order the form shows them; services added in Drivers and rates follow, "other" last. */
+export const BASE_EXTRA_SERVICES = ['recovery_route', 'pickup', 'grainger'] as const;
+
+/** Active extra-job services of an operation (unit `job`, not from a report), in display order. */
+export async function extraServices(tx: Tx, operationId: string) {
+  const rows = await tx.select().from(serviceTypes)
+    .where(and(eq(serviceTypes.operationId, operationId), eq(serviceTypes.unit, 'job'), eq(serviceTypes.fromReport, false), eq(serviceTypes.active, true)));
+  const rank = (code: string) => {
+    const i = (BASE_EXTRA_SERVICES as readonly string[]).indexOf(code);
+    return code === 'other' ? 1000 : i >= 0 ? i : 100;
+  };
+  return rows.sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name));
+}
 
 export interface ExtraJobInput {
   clientUuid: string; // made on the phone, so a retry or an offline resend never creates a second job
-  service: ExtraService;
+  service: string; // service code; must be an active extra-job service
   date: string;
   nearRouteId: string | null;
   payee: { driverId: string } | { contractorId: string };
@@ -42,7 +54,7 @@ export async function createExtraJob(tx: Tx, actor: Actor, input: ExtraJobInput)
 
   const op = await getOperation(tx, 'tforce');
   await assertNotLocked(tx, op, input.date);
-  const [service] = await tx.select().from(serviceTypes).where(and(eq(serviceTypes.operationId, op.id), eq(serviceTypes.code, input.service)));
+  const service = (await extraServices(tx, op.id)).find((x) => x.code === input.service);
   if (!service) throw new RuleError('unknown_service');
   const orderNumber = input.orderNumber?.trim() || null;
   const note = input.note?.trim() || null;
@@ -138,7 +150,7 @@ export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: stri
     showMoney,
     canLog: can(actor.role, 'extra_jobs.log'),
     jobs: rows.map(({ job, service, route, by }) => ({
-      id: job.id, date: job.date, service: service.code, serviceName: service.name, nearRoute: route ?? null,
+      id: job.id, date: job.date, service: service.code, serviceName: service.name, serviceNameEs: service.nameEs, nearRoute: route ?? null,
       payee: job.driverId ? dName.get(job.driverId) ?? '' : cName.get(job.contractorId!) ?? '', contractor: !!job.contractorId,
       clientAmountCents: showMoney ? job.clientAmountCents : null, driverAmountCents: job.driverAmountCents,
       orderNumber: job.orderNumber, note: job.note, source: job.source, by: by ?? null, createdAt: job.createdAt.toISOString(),
@@ -147,14 +159,24 @@ export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: stri
   };
 }
 
-/** Choices for the form: services, routes, people. */
-export async function extraJobOptions(tx: Tx, actor: Actor) {
+/** Choices for the form: services (with default amounts from their rate, if any), routes, people. */
+export async function extraJobOptions(tx: Tx, actor: Actor, today = todayLA()) {
   assertCan(actor, 'extra_jobs.log');
   const op = await getOperation(tx, 'tforce');
-  const services = await tx.select().from(serviceTypes).where(and(eq(serviceTypes.operationId, op.id), inArray(serviceTypes.code, [...EXTRA_SERVICES])));
+  const services = await extraServices(tx, op.id);
+  const showMoney = can(actor.role, 'money.view');
+  const rateRows = services.length ? (await tx.select().from(rates).where(inArray(rates.serviceTypeId, services.map((x) => x.id)))) as RateRow[] : [];
   return {
-    showMoney: can(actor.role, 'money.view'),
-    services: EXTRA_SERVICES.map((code) => services.find((s) => s.code === code)!).filter(Boolean).map((s) => ({ code: s.code as ExtraService, name: s.name, requiresOrderNumber: s.requiresOrderNumber, requiresNote: s.requiresNote })),
+    showMoney,
+    services: services.map((x) => {
+      const r = rateFor(rateRows, x.id, null, {}, today);
+      return {
+        code: x.code, name: x.name, nameEs: x.nameEs, requiresOrderNumber: x.requiresOrderNumber, requiresNote: x.requiresNote,
+        // Default amounts are a starting point; the person can still type what was agreed for this job.
+        defaultClientCents: showMoney && r.ok ? r.clientCents : null,
+        defaultDriverCents: r.ok ? r.driverCents : null,
+      };
+    }),
     routes: (await tx.select({ id: routes.id, code: routes.code }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, true))).orderBy(asc(routes.code))),
     drivers: (await tx.select({ id: drivers.id, name: drivers.fullName }).from(drivers).where(eq(drivers.active, true)).orderBy(asc(drivers.fullName))),
     contractors: (await tx.select({ id: contractors.id, name: contractors.name }).from(contractors).where(eq(contractors.active, true)).orderBy(asc(contractors.name))),

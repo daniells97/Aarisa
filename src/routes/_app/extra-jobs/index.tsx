@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
-import { useT, type MessageKey } from '~/i18n';
+import { useLocale, useT, type MessageKey } from '~/i18n';
+import { serviceLabel } from '~/ui/service-label';
 import { addDays, todayLA } from '~/domain/dates';
 import { fillExtraJob, getExtraJobs } from '~/server/extra-jobs-fns';
 import { Button, Icon, PageHead, Panel, Pill, RoutePlate, WarningDiamond, buttonClass, parseAmount, useFormat, useToast } from '~/ui';
@@ -45,6 +46,7 @@ function ExtraJobsPage() {
 
 function JobCard({ job, data }: { job: Job; data: Data }) {
   const t = useT();
+  const locale = useLocale();
   const f = useFormat();
   const router = useRouter();
   const toast = useToast();
@@ -69,7 +71,7 @@ function JobCard({ job, data }: { job: Job; data: Data }) {
   return (
     <li className="job-card">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <strong>{t(`xj.svc.${job.service}` as MessageKey)}</strong>
+        <strong>{serviceLabel({ name: job.serviceName, nameEs: job.serviceNameEs }, locale)}</strong>
         {missing.length ? <Pill tone="warn">{missing.length === 1 ? t('xj.oneThing') : t('xj.thingsMissing', { count: missing.length })}</Pill> : <Pill tone="ok">{t('xj.complete')}</Pill>}
       </div>
       <p style={{ margin: 0 }}>

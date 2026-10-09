@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
-import { useT, type MessageKey } from '~/i18n';
+import { useLocale, useT, type MessageKey } from '~/i18n';
+import { serviceLabel } from '~/ui/service-label';
 import { todayLA } from '~/domain/dates';
 import { getExtraJobDraft, getExtraJobOptions, saveExtraJob } from '~/server/extra-jobs-fns';
 import { Button, FormError, Icon, PageHead, Panel, SelectField, TextField, WarningDiamond, centsToInput, parseAmount, useToast } from '~/ui';
@@ -18,6 +19,7 @@ export const Route = createFileRoute('/_app/extra-jobs/new')({
 
 function NewExtraJob() {
   const t = useT();
+  const locale = useLocale();
   const { options, draft: draftRes } = Route.useLoaderData();
   const { date: initialDate } = Route.useSearch();
   const draft = draftRes?.ok ? draftRes.value : null;
@@ -34,8 +36,17 @@ function NewExtraJob() {
   const [date, setDate] = useState(ai?.date ?? initialDate ?? todayLA());
   const [nearRouteId, setNearRoute] = useState(ai?.nearRouteId ?? '');
   const [payee, setPayee] = useState(ai?.payee ?? '');
-  const [clientAmount, setClientAmount] = useState(centsToInput(ai?.clientAmountCents));
-  const [driverAmount, setDriverAmount] = useState(centsToInput(ai?.driverAmountCents));
+  const defaults = (code: string) => options.services.find((x) => x.code === code);
+  const [clientAmount, setClientAmount] = useState(centsToInput(ai?.clientAmountCents ?? defaults(ai?.service ?? options.services[0]?.code ?? '')?.defaultClientCents));
+  const [driverAmount, setDriverAmount] = useState(centsToInput(ai?.driverAmountCents ?? defaults(ai?.service ?? options.services[0]?.code ?? '')?.defaultDriverCents));
+  // Picking a service fills its default amounts, but never over an amount someone typed or the AI read.
+  const pickService = (code: string) => {
+    const prev = defaults(service);
+    const next = defaults(code);
+    setService(code);
+    if (!touched.has('clientAmountCents') && ai?.clientAmountCents == null && (clientAmount === '' || clientAmount === centsToInput(prev?.defaultClientCents))) setClientAmount(centsToInput(next?.defaultClientCents));
+    if (!touched.has('driverAmountCents') && ai?.driverAmountCents == null && (driverAmount === '' || driverAmount === centsToInput(prev?.defaultDriverCents))) setDriverAmount(centsToInput(next?.defaultDriverCents));
+  };
   const [orderNumber, setOrderNumber] = useState(ai?.orderNumber ?? '');
   const [note, setNote] = useState(ai?.note ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +93,7 @@ function NewExtraJob() {
           <fieldset className="svc-toggles">
             <legend>{t('xj.service')}</legend>
             {options.services.map((s) => (
-              <button key={s.code} type="button" aria-pressed={service === s.code} className={service === s.code && aiClass('service') ? 'ai-picked' : undefined} onClick={() => { setService(s.code); touch('service'); }}>{t(`xj.svc.${s.code}` as MessageKey)}</button>
+              <button key={s.code} type="button" aria-pressed={service === s.code} className={service === s.code && aiClass('service') ? 'ai-picked' : undefined} onClick={() => { pickService(s.code); touch('service'); }}>{serviceLabel(s, locale)}</button>
             ))}
           </fieldset>
           <div className="grid-2">

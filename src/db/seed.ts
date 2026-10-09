@@ -32,6 +32,14 @@ export async function seedMasterData(database = createDb()) {
       const { operation, ...rest } = st;
       const [row] = await tx.insert(serviceTypes).values({ ...rest, operationId: ops[operation]! }).onConflictDoNothing().returning();
       if (row) log('service_types', row);
+      else {
+        // Databases seeded before services had a Spanish name get it once; a name someone set is kept.
+        const [before] = await tx.select().from(serviceTypes).where(and(eq(serviceTypes.operationId, ops[operation]!), eq(serviceTypes.code, st.code), isNull(serviceTypes.nameEs)));
+        if (before) {
+          const [after] = await tx.update(serviceTypes).set({ nameEs: st.nameEs }).where(eq(serviceTypes.id, before.id)).returning();
+          trail.push({ table: 'service_types', recordId: before.id, action: 'update', before, after, source: 'system' });
+        }
+      }
       const [found] = await tx.select().from(serviceTypes)
         .where(and(eq(serviceTypes.operationId, ops[operation]!), eq(serviceTypes.code, st.code)));
       services[st.code] = found!.id;

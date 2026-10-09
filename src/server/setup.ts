@@ -50,7 +50,10 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
     showMoney,
     canEdit: can(actor.role, 'setup.edit'),
     operations: ops.map((o) => ({ id: o.id, code: o.code, name: o.name, payCycle: o.payCycle })),
-    services: services.map((s) => ({ id: s.id, operation: opCode.get(s.operationId)!, code: s.code, name: s.name, unit: s.unit, fromReport: s.fromReport, requiresOrderNumber: s.requiresOrderNumber, requiresNote: s.requiresNote })),
+    services: services.map((s) => ({
+      id: s.id, operation: opCode.get(s.operationId)!, code: s.code, name: s.name, nameEs: s.nameEs, unit: s.unit, fromReport: s.fromReport,
+      requiresOrderNumber: s.requiresOrderNumber, requiresNote: s.requiresNote, active: s.active,
+    })),
     rates: rateViews,
     contractors: contractorRows.map((c) => ({ id: c.id, name: c.name, active: c.active, routes: routeRows.filter((r) => r.contractorId === c.id).map((r) => r.code) })),
     drivers: driverRows.map((d) => ({
@@ -147,4 +150,57 @@ export async function addContractor(tx: Tx, actor: Actor, name: string) {
   const [row] = await tx.insert(contractors).values({ name: trimmed }).returning();
   await audit(tx, { table: 'contractors', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
   return row!;
+}
+
+// ---------- services (spec 6.10; decision of Oct 9, 2026: the list is kept here, not fixed in code) ----------
+
+export interface ServiceInput {
+  name: string;
+  nameEs: string | null;
+  requiresOrderNumber: boolean;
+  requiresNote: boolean;
+}
+
+/** Code from the English name: "Hazmat pickup" → "hazmat_pickup". Codes never change once made. */
+export function serviceCode(name: string) {
+  return name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+}
+
+/**
+ * New services are extra-job services: agreed by phone, logged as a job, paid at the agreed amount.
+ * Report services (packages, stat, e-commerce) come from the client files and can't be created here.
+ */
+export async function addService(tx: Tx, actor: Actor, input: ServiceInput & { operation: 'tforce' | 'hovership' }) {
+  assertCan(actor, 'setup.edit');
+  const name = input.name.trim();
+  if (!name) throw new RuleError('name_required');
+  const code = serviceCode(name);
+  if (!code) throw new RuleError('name_required');
+  const [op] = await tx.select().from(operations).where(eq(operations.code, input.operation));
+  if (!op) throw new RuleError('unknown_service');
+  const [clash] = await tx.select({ id: serviceTypes.id }).from(serviceTypes).where(and(eq(serviceTypes.operationId, op.id), eq(serviceTypes.code, code)));
+  if (clash) throw new RuleError('name_taken');
+  const [row] = await tx.insert(serviceTypes).values({
+    operationId: op.id, code, name, nameEs: input.nameEs?.trim() || null, unit: 'job', fromReport: false,
+    requiresOrderNumber: input.requiresOrderNumber, requiresNote: input.requiresNote,
+  }).returning();
+  await audit(tx, { table: 'service_types', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
+  return row!;
+}
+
+/** Edits labels and rules. Code, unit and operation never change, so past records keep their meaning. */
+export async function updateService(tx: Tx, actor: Actor, id: string, input: ServiceInput & { active: boolean }) {
+  assertCan(actor, 'setup.edit');
+  const [before] = await tx.select().from(serviceTypes).where(eq(serviceTypes.id, id));
+  if (!before) throw new RuleError('not_found');
+  const name = input.name.trim();
+  if (!name) throw new RuleError('name_required');
+  // Report services feed the imports; turning them off would leave report rows without a service.
+  if (before.fromReport && !input.active) throw new RuleError('service_from_report');
+  const values = before.fromReport
+    ? { name, nameEs: input.nameEs?.trim() || null }
+    : { name, nameEs: input.nameEs?.trim() || null, requiresOrderNumber: input.requiresOrderNumber, requiresNote: input.requiresNote, active: input.active };
+  const [after] = await tx.update(serviceTypes).set(values).where(eq(serviceTypes.id, id)).returning();
+  await audit(tx, { table: 'service_types', recordId: id, action: 'update', before, after, userId: actor.userId, source: actor.source });
+  return after!;
 }

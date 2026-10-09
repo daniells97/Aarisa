@@ -8,17 +8,17 @@ export const OPERATIONS = [
 
 type Unit = 'package' | 'stop' | 'piece' | 'job';
 export const SERVICE_TYPES: {
-  operation: 'hovership' | 'tforce'; code: string; name: string; unit: Unit;
+  operation: 'hovership' | 'tforce'; code: string; name: string; nameEs: string; unit: Unit;
   fromReport: boolean; requiresOrderNumber?: boolean; requiresNote?: boolean;
 }[] = [
-  { operation: 'hovership', code: 'hovership_packages', name: 'Hovership packages', unit: 'package', fromReport: true },
-  { operation: 'hovership', code: 'stat', name: 'Stat stop', unit: 'stop', fromReport: true },
-  { operation: 'hovership', code: 'pharma_pickup', name: 'Pharma pickup', unit: 'job', fromReport: false },
-  { operation: 'tforce', code: 'ecommerce', name: 'E-commerce', unit: 'piece', fromReport: true },
-  { operation: 'tforce', code: 'pickup', name: 'Pickup', unit: 'job', fromReport: false },
-  { operation: 'tforce', code: 'grainger', name: 'Grainger', unit: 'job', fromReport: false },
-  { operation: 'tforce', code: 'recovery_route', name: 'Recovery route', unit: 'job', fromReport: false, requiresOrderNumber: true },
-  { operation: 'tforce', code: 'other', name: 'Other', unit: 'job', fromReport: false, requiresNote: true },
+  { operation: 'hovership', code: 'hovership_packages', nameEs: 'Paquetes Hovership', name: 'Hovership packages', unit: 'package', fromReport: true },
+  { operation: 'hovership', code: 'stat', nameEs: 'Parada stat', name: 'Stat stop', unit: 'stop', fromReport: true },
+  { operation: 'hovership', code: 'pharma_pickup', nameEs: 'Recogida de farmacia', name: 'Pharma pickup', unit: 'job', fromReport: false },
+  { operation: 'tforce', code: 'ecommerce', nameEs: 'E-commerce', name: 'E-commerce', unit: 'piece', fromReport: true },
+  { operation: 'tforce', code: 'pickup', nameEs: 'Pickup', name: 'Pickup', unit: 'job', fromReport: false },
+  { operation: 'tforce', code: 'grainger', nameEs: 'Grainger', name: 'Grainger', unit: 'job', fromReport: false },
+  { operation: 'tforce', code: 'recovery_route', nameEs: 'Ruta de recuperación', name: 'Recovery route', unit: 'job', fromReport: false, requiresOrderNumber: true },
+  { operation: 'tforce', code: 'other', nameEs: 'Otro', name: 'Other', unit: 'job', fromReport: false, requiresNote: true },
 ];
 
 export const RATES: { service: string; tier: 't1_3' | 't4' | null; client: number | null; driver: number | null }[] = [

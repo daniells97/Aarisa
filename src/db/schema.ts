@@ -107,6 +107,8 @@ export const serviceTypes = pgTable('service_types', {
   fromReport: boolean('from_report').notNull(),
   requiresOrderNumber: boolean('requires_order_number').notNull().default(false),
   requiresNote: boolean('requires_note').notNull().default(false),
+  nameEs: text('name_es'), // Spanish label; falls back to `name`
+  active: boolean('active').notNull().default(true), // inactive services stay on old records but can't be chosen
 }, (t) => [uniqueIndex('service_op_code').on(t.operationId, t.code)]);
 
 // Never update a rate; insert a new one with a later effective_from.

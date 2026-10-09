@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
-import { useT, type MessageKey } from '~/i18n';
+import { useLocale, useT, type MessageKey } from '~/i18n';
+import { serviceLabel } from '~/ui/service-label';
 import { todayLA } from '~/domain/dates';
-import { createContractor, createRate, getSetup, saveDriver } from '~/server/setup-fns';
+import { createContractor, createRate, createService, getSetup, saveDriver, saveService } from '~/server/setup-fns';
 import {
   Button, CheckField, Dialog, FormError, PageHead, Panel, Pill, RoutePlate, SelectField, TextField,
   centsToInput, parseAmount, useFormat, useToast,
@@ -39,34 +40,64 @@ function SetupPage() {
 
 // ---------------------------------------------------------------- rates
 
-const JOB_SERVICES = ['pickup', 'grainger', 'recovery_route', 'other'];
-const RATE_KEYS: { service: string; tier: 't1_3' | 't4' | null }[] = [
-  { service: 'hovership_packages', tier: 't1_3' }, { service: 'hovership_packages', tier: 't4' },
-  { service: 'stat', tier: null }, { service: 'pharma_pickup', tier: null }, { service: 'ecommerce', tier: null },
-];
+type Service = Setup['services'][number];
+type RateRow = Setup['rates'][number];
+type Tier = 't1_3' | 't4' | null;
+
+/** One rate line per service (two for Hovership packages, one per tier). Report services first. */
+function rateKeys(services: Service[]) {
+  const order = (x: Service) => (x.operation === 'hovership' ? 0 : 1) * 10 + (x.fromReport ? 0 : 1);
+  return services
+    .filter((x) => x.active)
+    .sort((a, b) => order(a) - order(b) || (a.code === 'other' ? 1 : 0) - (b.code === 'other' ? 1 : 0) || a.name.localeCompare(b.name))
+    .flatMap((x) => (x.code === 'hovership_packages' ? (['t1_3', 't4'] as const) : [null]).map((tier) => ({ service: x, tier: tier as Tier })));
+}
+
+interface RateDraft { serviceTypeId?: string; tier?: Tier; current?: RateRow }
 
 function RatesTab({ data }: { data: Setup }) {
   const t = useT();
   const f = useFormat();
+  const locale = useLocale();
   const [history, setHistory] = useState(false);
-  const [adding, setAdding] = useState<{ serviceTypeId?: string; tier?: 't1_3' | 't4' | null } | null>(null);
+  const [editing, setEditing] = useState<RateDraft | null>(null);
   const today = todayLA();
   const opName = (code: string) => data.operations.find((o) => o.code === code)?.name ?? code;
-  const serviceLabel = (code: string, name: string, tier: string | null) => (tier ? t(`tier.${tier}` as MessageKey) : name);
+  const label = (x: Service, tier: Tier) => (tier ? t(`tier.${tier}` as MessageKey) : serviceLabel(x, locale));
 
-  const rows = RATE_KEYS.flatMap((key) => {
-    const service = data.services.find((s) => s.code === key.service);
-    if (!service) return [];
-    const all = data.rates.filter((r) => r.serviceCode === key.service && r.tier === key.tier);
-    const current = all.find((r) => r.current);
-    const upcoming = all.filter((r) => r.effectiveFrom > today);
-    const older = all.filter((r) => r !== current && r.effectiveFrom <= today);
-    return [{ key, service, current, upcoming, older }];
+  const rows = rateKeys(data.services).map(({ service, tier }) => {
+    const all = data.rates.filter((r) => r.serviceCode === service.code && r.operation === service.operation && r.tier === tier);
+    return {
+      service, tier,
+      current: all.find((r) => r.current),
+      upcoming: all.filter((r) => r.effectiveFrom > today),
+      older: all.filter((r) => !r.current && r.effectiveFrom <= today),
+    };
   });
+
+  const statusOf = (service: Service, r: RateRow | undefined) => {
+    if (!r) return service.unit === 'job' ? <Pill tone="muted">{t('rates.perJobShort')}</Pill> : <Pill tone="warn">{t('rates.toLoad')}</Pill>;
+    if (r.driverRateCents == null) return <Pill tone="warn">{t('rates.driverMissing')}</Pill>;
+    return <Pill tone="ok">{t(service.unit === 'job' ? 'rates.defaultAmounts' : 'rates.active')}</Pill>;
+  };
+
+  const cells = (service: Service, tier: Tier, r: RateRow | undefined, status: React.ReactNode, action: React.ReactNode) => (
+    <>
+      <td>{opName(service.operation)}</td>
+      <td>{label(service, tier)}</td>
+      <td>{t(`unit.${service.unit}` as MessageKey)}</td>
+      {data.showMoney && <td className="r num">{r?.clientRateCents != null ? f.money(r.clientRateCents) : '–'}</td>}
+      <td className="r num">{r?.driverRateCents != null ? f.money(r.driverRateCents) : '–'}</td>
+      {data.showMoney && <td className="r num">{r?.clientRateCents != null && r.driverRateCents != null ? f.money(r.clientRateCents - r.driverRateCents) : '–'}</td>}
+      <td className="num">{r ? f.date(r.effectiveFrom) : '–'}</td>
+      <td>{status}</td>
+      {data.canEdit && <td className="r">{action}</td>}
+    </>
+  );
 
   return (
     <Panel title={t('setup.tab.rates')} id="rates"
-      aside={data.canEdit && <Button variant="primary" onClick={() => setAdding({})}>{t('rates.add')}</Button>}>
+      aside={data.canEdit && <Button variant="primary" onClick={() => setEditing({})}>{t('rates.add')}</Button>}>
       <div className="panel-body stack">
         <p className="muted" style={{ margin: 0 }}>{t('rates.lead')}</p>
         {!data.showMoney && <p className="notice notice-info" style={{ margin: 0 }}>{t('rates.hiddenMoney')}</p>}
@@ -80,77 +111,65 @@ function RatesTab({ data }: { data: Setup }) {
               <th scope="col" className="r">{t('rates.driverGets')}</th>
               {data.showMoney && <th scope="col" className="r">{t('rates.aarisaKeeps')}</th>}
               <th scope="col">{t('rates.starts')}</th><th scope="col">{t('rates.status')}</th>
+              {data.canEdit && <th scope="col"><span className="visually-hidden">{t('team.actions')}</span></th>}
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ key, service, current, upcoming, older }) => {
-              const label = serviceLabel(service.code, service.name, key.tier);
-              const cells = (r: (typeof data.rates)[number] | undefined, status: React.ReactNode) => (
-                <>
-                  <td>{opName(service.operation)}</td>
-                  <td>{label}</td>
-                  <td>{t(`unit.${service.unit}` as MessageKey)}</td>
-                  {data.showMoney && <td className="r num">{r?.clientRateCents != null ? f.money(r.clientRateCents) : addLink(r)}</td>}
-                  <td className="r num">{r?.driverRateCents != null ? f.money(r.driverRateCents) : addLink(r)}</td>
-                  {data.showMoney && <td className="r num">{r?.clientRateCents != null && r.driverRateCents != null ? f.money(r.clientRateCents - r.driverRateCents) : '–'}</td>}
-                  <td className="num">{r ? f.date(r.effectiveFrom) : '–'}</td>
-                  <td>{status}</td>
-                </>
+            {rows.map(({ service, tier, current, upcoming, older }) => {
+              const name = label(service, tier);
+              const change = (
+                <Button size="sm" aria-label={t(current ? 'rates.changeNamed' : 'rates.setNamed', { name })}
+                  onClick={() => setEditing({ serviceTypeId: service.id, tier, current })}>
+                  {t(current ? 'rates.change' : service.unit === 'job' ? 'rates.setDefault' : 'rates.add')}
+                </Button>
               );
-              const addLink = (_r: unknown) => data.canEdit
-                ? <button type="button" className="btn btn-sm" onClick={() => setAdding({ serviceTypeId: service.id, tier: key.tier })}>{t('rates.add')}</button>
-                : '–';
-              const statusOf = (r: (typeof data.rates)[number] | undefined) =>
-                !r ? <Pill tone="warn">{t('rates.toLoad')}</Pill>
-                  : r.driverRateCents == null ? <Pill tone="warn">{t('rates.driverMissing')}</Pill>
-                    : <Pill tone="ok">{t('rates.active')}</Pill>;
               return [
-                ...upcoming.map((r) => <tr key={r.id}>{cells(r, <Pill tone="waiting">{t('rates.upcoming')}</Pill>)}</tr>),
-                <tr key={`${service.id}-${key.tier}`}>{cells(current, statusOf(current))}</tr>,
-                ...(history ? older.map((r) => <tr key={r.id} className="muted">{cells(r, <Pill tone="muted">{t('rates.replaced')}</Pill>)}</tr>) : []),
+                ...upcoming.map((r) => <tr key={r.id}>{cells(service, tier, r, <Pill tone="waiting">{t('rates.upcoming')}</Pill>, null)}</tr>),
+                <tr key={`${service.id}-${tier}`}>{cells(service, tier, current, statusOf(service, current), change)}</tr>,
+                ...(history ? older.map((r) => <tr key={r.id} className="muted">{cells(service, tier, r, <Pill tone="muted">{t('rates.replaced')}</Pill>, null)}</tr>) : []),
               ];
             })}
-            <tr>
-              <td>{opName('tforce')}</td>
-              <td>{data.services.filter((s) => JOB_SERVICES.includes(s.code)).map((s) => s.name).join(', ')}</td>
-              <td>{t('unit.job')}</td>
-              <td colSpan={data.showMoney ? 5 : 3} className="muted">{t('rates.perJob')}</td>
-            </tr>
           </tbody>
         </table>
       </div>
-      <div className="panel-body" style={{ paddingTop: 16 }}>
+      <div className="panel-body row" style={{ paddingTop: 16 }}>
         <Button size="sm" aria-pressed={history} onClick={() => setHistory((h) => !h)}>{t(history ? 'rates.hideHistory' : 'rates.showHistory')}</Button>
+        <span className="muted" style={{ fontSize: 13.5 }}>{t('rates.jobNote')}</span>
       </div>
-      {adding && <AddRateDialog data={data} initial={adding} onClose={() => setAdding(null)} />}
+      {editing && <RateDialog data={data} draft={editing} onClose={() => setEditing(null)} />}
     </Panel>
   );
 }
 
-function AddRateDialog({ data, initial, onClose }: { data: Setup; initial: { serviceTypeId?: string; tier?: 't1_3' | 't4' | null }; onClose: () => void }) {
+/** Adds a rate, or "changes" one: a change is a new rate with its own start date (rule 2); the old one stays for past weeks. */
+function RateDialog({ data, draft, onClose }: { data: Setup; draft: RateDraft; onClose: () => void }) {
   const t = useT();
   const f = useFormat();
+  const locale = useLocale();
   const router = useRouter();
   const toast = useToast();
-  const rateable = data.services.filter((s) => !JOB_SERVICES.includes(s.code));
-  const [serviceTypeId, setService] = useState(initial.serviceTypeId ?? rateable[0]?.id ?? '');
-  const [tier, setTier] = useState<'t1_3' | 't4'>(initial.tier ?? 't1_3');
-  const [client, setClient] = useState('');
-  const [driver, setDriver] = useState('');
+  const choices = data.services.filter((x) => x.active);
+  const [serviceTypeId, setService] = useState(draft.serviceTypeId ?? choices[0]?.id ?? '');
+  const [tier, setTier] = useState<'t1_3' | 't4'>(draft.tier ?? 't1_3');
+  const [client, setClient] = useState(centsToInput(draft.current?.clientRateCents));
+  const [driver, setDriver] = useState(centsToInput(draft.current?.driverRateCents));
   const [start, setStart] = useState(todayLA());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const service = data.services.find((s) => s.id === serviceTypeId);
+  const service = data.services.find((x) => x.id === serviceTypeId);
   const tiered = service?.code === 'hovership_packages';
   const clientCents = parseAmount(client);
   const driverCents = parseAmount(driver);
+  const fixed = draft.serviceTypeId != null;
+  const name = service ? (tiered ? `${serviceLabel(service, locale)}, ${t(`tier.${tier}`)}` : serviceLabel(service, locale)) : '';
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (clientCents === undefined || driverCents === undefined) return setError(t('error.invalid_amount'));
+    if (draft.current && start <= draft.current.effectiveFrom) return setError(t('error.start_after_current', { date: f.date(draft.current.effectiveFrom) }));
     setBusy(true);
     try {
-      const res = await createRate({ data: { serviceTypeId, tier: tiered ? tier : null, clientRateCents: data.showMoney ? clientCents : null, driverRateCents: driverCents, effectiveFrom: start } });
+      const res = await createRate({ data: { serviceTypeId, tier: tiered ? tier : null, clientRateCents: data.showMoney ? clientCents : (draft.current?.clientRateCents ?? null), driverRateCents: driverCents, effectiveFrom: start } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       toast(t('rates.saved', { date: f.date(start) }));
       await router.invalidate();
@@ -163,16 +182,20 @@ function AddRateDialog({ data, initial, onClose }: { data: Setup; initial: { ser
   };
 
   return (
-    <Dialog open onClose={onClose} title={t('rates.dialogTitle')}>
+    <Dialog open onClose={onClose} title={draft.current ? t('rates.changeTitle', { name }) : t('rates.dialogTitle')}>
       <form onSubmit={submit} className="stack">
-        <SelectField label={t('rates.service')} value={serviceTypeId} onChange={(e) => setService(e.target.value)}>
-          {rateable.map((s) => <option key={s.id} value={s.id}>{data.operations.find((o) => o.code === s.operation)?.name} · {s.name}</option>)}
-        </SelectField>
-        {tiered && (
+        {draft.current && <p className="notice notice-info" style={{ margin: 0 }}>{t('rates.changeHint', { date: f.date(draft.current.effectiveFrom) })}</p>}
+        {!fixed && (
+          <SelectField label={t('rates.service')} value={serviceTypeId} onChange={(e) => setService(e.target.value)}>
+            {choices.map((x) => <option key={x.id} value={x.id}>{data.operations.find((o) => o.code === x.operation)?.name} · {serviceLabel(x, locale)}</option>)}
+          </SelectField>
+        )}
+        {tiered && !fixed && (
           <SelectField label={t('rates.tier')} value={tier} onChange={(e) => setTier(e.target.value as 't1_3' | 't4')}>
             <option value="t1_3">{t('tier.t1_3')}</option><option value="t4">{t('tier.t4')}</option>
           </SelectField>
         )}
+        {service?.unit === 'job' && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('rates.jobDefaultHint')}</p>}
         <div className="grid-2">
           {data.showMoney && (
             <TextField label={t('rates.clientPays')} inputMode="decimal" value={client} onChange={(e) => setClient(e.target.value)}
@@ -341,29 +364,106 @@ function ContractorDialog({ onClose }: { onClose: () => void }) {
 
 function ServicesTab({ data }: { data: Setup }) {
   const t = useT();
+  const locale = useLocale();
+  const [editing, setEditing] = useState<Service | 'new' | null>(null);
   const opName = (code: string) => data.operations.find((o) => o.code === code)?.name ?? code;
+  const list = [...data.services].sort((a, b) => Number(b.active) - Number(a.active) || a.operation.localeCompare(b.operation) || Number(b.fromReport) - Number(a.fromReport) || a.name.localeCompare(b.name));
   return (
-    <Panel title={t('setup.tab.services')} id="services">
+    <Panel title={t('setup.tab.services')} id="services"
+      aside={data.canEdit && <Button variant="primary" onClick={() => setEditing('new')}>{t('services.add')}</Button>}>
       <p className="panel-body muted" style={{ margin: 0 }}>{t('services.lead')}</p>
       <div className="table-wrap">
         <table>
-          <thead><tr><th scope="col">{t('rates.service')}</th><th scope="col">{t('rates.client')}</th><th scope="col">{t('rates.paidPer')}</th><th scope="col">{t('rates.status')}</th></tr></thead>
+          <thead>
+            <tr>
+              <th scope="col">{t('rates.service')}</th><th scope="col">{t('rates.client')}</th><th scope="col">{t('rates.paidPer')}</th><th scope="col">{t('rates.status')}</th>
+              {data.canEdit && <th scope="col"><span className="visually-hidden">{t('team.actions')}</span></th>}
+            </tr>
+          </thead>
           <tbody>
-            {data.services.map((s) => (
-              <tr key={s.id}>
-                <td><strong>{s.name}</strong></td>
-                <td>{opName(s.operation)}</td>
-                <td>{t(`unit.${s.unit}` as MessageKey)}</td>
+            {list.map((x) => (
+              <tr key={x.id} className={x.active ? undefined : 'muted'}>
+                <td><strong>{serviceLabel(x, locale)}</strong>{locale === 'es' ? x.nameEs && x.nameEs !== x.name && <span className="sub">{x.name}</span> : x.nameEs && x.nameEs !== x.name && <span className="sub" lang="es">{x.nameEs}</span>}</td>
+                <td>{opName(x.operation)}</td>
+                <td>{t(`unit.${x.unit}` as MessageKey)}</td>
                 <td className="row" style={{ gap: 6 }}>
-                  <Pill tone={s.fromReport ? 'ok' : 'muted'}>{t(s.fromReport ? 'services.fromReport' : 'services.logged')}</Pill>
-                  {s.requiresOrderNumber && <Pill tone="warn">{t('services.needsOrder')}</Pill>}
-                  {s.requiresNote && <Pill tone="muted">{t('services.needsNote')}</Pill>}
+                  {!x.active && <Pill tone="muted">{t('pill.inactive')}</Pill>}
+                  <Pill tone={x.fromReport ? 'ok' : 'muted'}>{t(x.fromReport ? 'services.fromReport' : 'services.logged')}</Pill>
+                  {x.requiresOrderNumber && <Pill tone="warn">{t('services.needsOrder')}</Pill>}
+                  {x.requiresNote && <Pill tone="muted">{t('services.needsNote')}</Pill>}
                 </td>
+                {data.canEdit && <td className="r"><Button size="sm" aria-label={t('drivers.editNamed', { name: serviceLabel(x, locale) })} onClick={() => setEditing(x)}>{t('drivers.edit')}</Button></td>}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {editing && <ServiceDialog service={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </Panel>
+  );
+}
+
+function ServiceDialog({ service, onClose }: { service: Service | null; onClose: () => void }) {
+  const t = useT();
+  const router = useRouter();
+  const toast = useToast();
+  const [form, setForm] = useState({
+    operation: (service?.operation ?? 'tforce') as 'tforce' | 'hovership',
+    name: service?.name ?? '', nameEs: service?.nameEs ?? '',
+    requiresOrderNumber: service?.requiresOrderNumber ?? false, requiresNote: service?.requiresNote ?? false,
+    active: service?.active ?? true,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((s) => ({ ...s, [k]: v }));
+  const fromReport = service?.fromReport ?? false;
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const common = { name: form.name, nameEs: form.nameEs || null, requiresOrderNumber: form.requiresOrderNumber, requiresNote: form.requiresNote };
+      const res = service
+        ? await saveService({ data: { id: service.id, ...common, active: form.active } })
+        : await createService({ data: { ...common, operation: form.operation } });
+      if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
+      toast(t('services.saved'));
+      await router.invalidate();
+      onClose();
+    } catch {
+      setError(t('error.generic'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={onClose} title={service ? t('drivers.editNamed', { name: service.name }) : t('services.add')}>
+      <form onSubmit={submit} className="stack">
+        {!service && (
+          <>
+            <SelectField label={t('rates.client')} value={form.operation} onChange={(e) => set('operation', e.target.value as 'tforce' | 'hovership')}>
+              <option value="tforce">T-Force</option><option value="hovership">Hovership</option>
+            </SelectField>
+            <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('services.newHint')}</p>
+          </>
+        )}
+        <div className="grid-2">
+          <TextField label={t('services.nameEn')} required value={form.name} onChange={(e) => set('name', e.target.value)} />
+          <TextField label={t('services.nameEs')} lang="es" value={form.nameEs} onChange={(e) => set('nameEs', e.target.value)} />
+        </div>
+        {fromReport ? <p className="notice notice-info" style={{ margin: 0 }}>{t('services.reportLocked')}</p> : (
+          <>
+            <CheckField label={t('services.needsOrder')} checked={form.requiresOrderNumber} onChange={(e) => set('requiresOrderNumber', e.target.checked)} />
+            <CheckField label={t('services.needsNote')} checked={form.requiresNote} onChange={(e) => set('requiresNote', e.target.checked)} />
+            {service && <CheckField label={t('services.activeLabel')} checked={form.active} onChange={(e) => set('active', e.target.checked)} />}
+            {service && !form.active && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('services.inactiveHint')}</p>}
+          </>
+        )}
+        <FormError>{error}</FormError>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>{t('services.save')}</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
