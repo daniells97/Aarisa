@@ -1,0 +1,13 @@
+node_modules
+.output
+dist
+.env
+.env.*
+!.env.example
+storage
+test-results
+playwright-report
+coverage
+.git
+docs/screenshots
+design

@@ -100,3 +100,8 @@ export function roleFromClaims(claims: Record<string, unknown>): Role | null {
 export function safeReturnTo(value: string | null | undefined): string {
   return value && value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : '/';
 }
+
+/** Absolute URL for redirects. Behind Traefik the request arrives as http, so prefer APP_BASE_URL. */
+export function publicUrl(path: string, requestUrl: string) {
+  return new URL(path, process.env.APP_BASE_URL || requestUrl).toString();
+}

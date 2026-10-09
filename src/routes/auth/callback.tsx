@@ -1,11 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { deleteCookie, getCookie, setCookie } from '@tanstack/react-start/server';
 import { db } from '~/db/client';
-import { exchangeCode, fetchUserInfo, oidcConfig, roleFromClaims } from '~/server/oidc';
+import { exchangeCode, fetchUserInfo, oidcConfig, publicUrl, roleFromClaims } from '~/server/oidc';
 import { LOGIN_COOKIE, SESSION_COOKIE, SESSION_TTL, cookieOptions, seal, unseal, type LoginPayload } from '~/server/session';
 import { upsertUserFromIdentity } from '~/server/users';
 
-const fail = (url: URL, error: string) => new Response(null, { status: 302, headers: { location: new URL(`/login?error=${error}`, url).toString() } });
+const fail = (url: URL, error: string) => new Response(null, { status: 302, headers: { location: publicUrl(`/login?error=${error}`, url.toString()) } });
 
 export const Route = createFileRoute('/auth/callback')({
   server: {
@@ -27,7 +27,7 @@ export const Route = createFileRoute('/auth/callback')({
           }));
           if (!user.active) return fail(url, 'inactive');
           setCookie(SESSION_COOKIE, seal({ uid: user.id }, SESSION_TTL), cookieOptions(SESSION_TTL));
-          return new Response(null, { status: 302, headers: { location: new URL(login.returnTo, url).toString() } });
+          return new Response(null, { status: 302, headers: { location: publicUrl(login.returnTo, url.toString()) } });
         } catch (e) {
           console.error('OIDC callback failed', e);
           return fail(url, 'provider');

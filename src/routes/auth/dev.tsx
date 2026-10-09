@@ -6,7 +6,7 @@ import { users } from '~/db/schema';
 import { audit } from '~/server/audit';
 import { isRole } from '~/domain/permissions';
 import { devLoginEnabled } from '~/server/auth';
-import { safeReturnTo } from '~/server/oidc';
+import { publicUrl, safeReturnTo } from '~/server/oidc';
 import { SESSION_COOKIE, SESSION_TTL, cookieOptions, seal } from '~/server/session';
 import { upsertUserFromIdentity } from '~/server/users';
 
@@ -29,7 +29,7 @@ export const Route = createFileRoute('/auth/dev')({
           return after!;
         });
         setCookie(SESSION_COOKIE, seal({ uid: user.id }, SESSION_TTL), cookieOptions(SESSION_TTL));
-        return new Response(null, { status: 302, headers: { location: new URL(safeReturnTo(url.searchParams.get('returnTo')), url).toString() } });
+        return new Response(null, { status: 302, headers: { location: publicUrl(safeReturnTo(url.searchParams.get('returnTo')), url.toString()) } });
       },
     },
   },
