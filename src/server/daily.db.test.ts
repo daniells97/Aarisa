@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { auditLog, contractors, drivers, operations, payPeriods, payrollRuns, routes } from '~/db/schema';
-import { actorAs, withRollback } from '../../tests/helpers/db';
+import { actorAs, withRollback, activeTforceRouteCount } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { addDriverForRoute, confirmUsual, loadDay, setAssignment, undoAssignment } from './daily';
 
@@ -23,7 +23,7 @@ describe("today's drivers (server)", () => {
     withRollback(async (tx) => {
       const d = actorAs('dispatcher');
       const day = await loadDay(tx, d, '2026-09-03');
-      expect(day.rows.length).toBe(19);
+      expect(day.rows.length).toBe(await activeTforceRouteCount(tx));
       expect(day.summary.proposed).toBeGreaterThan(0);
       const n = await confirmUsual(tx, d, '2026-09-03');
       expect(n).toBe(day.rows.filter((r) => r.status === 'proposed').length);

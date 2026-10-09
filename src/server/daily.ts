@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { auditLog, contractors, dailyAssignments, drivers, routes, users } from '~/db/schema';
 import { can } from '~/domain/permissions';
@@ -165,12 +165,59 @@ export async function confirmUsual(tx: Tx, actor: Actor, date: string) {
 /** A name nobody recognised ("the new guy from Puma"): add the person under a contractor and assign them. */
 export async function addDriverForRoute(tx: Tx, actor: Actor, input: { date: string; routeId: string; fullName: string; contractorId: string | null }) {
   assertCan(actor, 'drivers.confirm_today');
-  const name = input.fullName.trim();
+  const d = await createQuickDriver(tx, actor, input.fullName, input.contractorId);
+  await setAssignment(tx, actor, { date: input.date, routeId: input.routeId, payee: { driverId: d.id } });
+  return d;
+}
+
+/**
+ * A driver typed in Today's drivers who isn't on the list yet. Marked "Finish setup" so the owner adds
+ * phone, codes and aliases later. Refuses a name that already exists, so the list doesn't get duplicates.
+ */
+async function createQuickDriver(tx: Tx, actor: Actor, fullName: string, contractorId: string | null) {
+  const name = fullName.trim().replace(/\s+/g, ' ');
   if (!name) throw new RuleError('name_required');
-  const [d] = await tx.insert(drivers).values({ fullName: name, contractorId: input.contractorId, setupComplete: false }).returning();
+  const [same] = await tx.select({ id: drivers.id }).from(drivers).where(sql`lower(${drivers.fullName}) = lower(${name})`);
+  if (same) throw new RuleError('driver_exists');
+  const [d] = await tx.insert(drivers).values({ fullName: name, contractorId, setupComplete: false }).returning();
   await audit(tx, { table: 'drivers', recordId: d!.id, action: 'insert', after: d, userId: actor.userId, source: actor.source });
-  await setAssignment(tx, actor, { date: input.date, routeId: input.routeId, payee: { driverId: d!.id } });
   return d!;
+}
+
+export type NewRoutePayee = { driverId: string } | { contractorId: string } | { newDriverName: string };
+
+/**
+ * A route that isn't on the list yet (spec 6.3, decision of Oct 9, 2026). The person who drives it becomes
+ * its usual driver; a contractor makes it a contractor route. It is assigned and confirmed for the day.
+ */
+export async function addRoute(tx: Tx, actor: Actor, input: { date: string; code: string; payee: NewRoutePayee }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const code = input.code.trim().toUpperCase().replace(/\s+/g, '');
+  if (!/^[A-Z0-9-]{2,12}$/.test(code)) throw new RuleError('route_code_invalid');
+  const op = await getOperation(tx, 'tforce');
+  await assertNotLocked(tx, op, input.date);
+  const [clash] = await tx.select({ id: routes.id, active: routes.active }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.code, code)));
+  if (clash) throw new RuleError(clash.active ? 'route_exists' : 'route_inactive');
+
+  let payee: { driverId: string } | { contractorId: string };
+  if ('newDriverName' in input.payee) payee = { driverId: (await createQuickDriver(tx, actor, input.payee.newDriverName, null)).id };
+  else payee = input.payee;
+  const cols = payeeCols(payee);
+  if (cols.driverId && !(await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.id, cols.driverId))).length) throw new RuleError('not_found');
+  if (cols.contractorId && !(await tx.select({ id: contractors.id }).from(contractors).where(eq(contractors.id, cols.contractorId))).length) throw new RuleError('not_found');
+
+  const [route] = await tx.insert(routes).values({ operationId: op.id, code, contractorId: cols.contractorId, usualDriverId: cols.driverId }).returning();
+  await audit(tx, { table: 'routes', recordId: route!.id, action: 'insert', after: route, userId: actor.userId, source: actor.source });
+  await writeAssignment(tx, actor, input.date, route!.id, { ...cols, status: 'confirmed' });
+  return route!;
+}
+
+/** Assigns someone typed in the driver picker who isn't on the list: creates them, then assigns. */
+export async function assignNewDriver(tx: Tx, actor: Actor, input: { date: string; routeId: string; fullName: string }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const d = await createQuickDriver(tx, actor, input.fullName, null);
+  const res = await setAssignment(tx, actor, { date: input.date, routeId: input.routeId, payee: { driverId: d.id } });
+  return { driver: d, ...res };
 }
 
 /** Records an unrecognised name on a route (from the daily list or WhatsApp), leaving it without a driver. */

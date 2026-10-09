@@ -75,3 +75,12 @@ async function clearSettlements(tx: Tx, operationId: string) {
   await tx.delete(settlementLines).where(eq(settlementLines.operationId, operationId));
   await tx.delete(paymentsReceived).where(eq(paymentsReceived.operationId, operationId));
 }
+
+import { and as andOp, eq as eqOp } from 'drizzle-orm';
+import { routes as routesTable } from '~/db/schema';
+
+/** Active T-Force routes right now (the dev database may have more than the 19 seeded ones). */
+export async function activeTforceRouteCount(tx: Tx) {
+  const [op] = await tx.select().from(operations).where(eqOp(operations.code, 'tforce'));
+  return (await tx.select({ id: routesTable.id }).from(routesTable).where(andOp(eqOp(routesTable.operationId, op!.id), eqOp(routesTable.active, true)))).length;
+}

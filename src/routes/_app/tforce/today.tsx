@@ -3,8 +3,8 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addForRoute, assign, confirmAll, getDay, undoAssign } from '~/server/daily-fns';
-import { Button, Icon, PageHead, Panel, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
+import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, undoAssign } from '~/server/daily-fns';
+import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
 type Row = Day['rows'][number];
@@ -35,6 +35,7 @@ function TodayPage() {
   const router = useRouter();
   const toast = useToast();
   const dateLabel = f.date(day.date, { weekday: 'short', month: 'short', day: 'numeric' });
+  const [addingRoute, setAddingRoute] = useState(false);
 
   const change = async (r: Row, value: string) => {
     const payee = decode(value);
@@ -57,18 +58,30 @@ function TodayPage() {
     await router.invalidate();
   };
 
+  // Typed name that isn't on the list: add the person and assign them in one step, with Undo.
+  const createAndAssign = async (r: Row, fullName: string) => {
+    const res = await assignNew({ data: { date: day.date, routeId: r.routeId, fullName } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.newDriverAssigned', { name: res.value.name, route: r.code }), async () => {
+      const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
+
   const select = (r: Row) => (
-    <select className="input route-select" value={encode(r.today)} disabled={!day.canEdit}
-      aria-label={t('td.driverFor', { route: r.code, date: dateLabel })} data-state={r.status === 'no_driver' ? 'missing' : r.status === 'changed' ? 'changed' : undefined}
-      onChange={(e) => change(r, e.target.value)}>
-      <option value="">{r.status === 'no_driver' ? t('td.chooseDriver') : t('td.noDriver')}</option>
-      <optgroup label={t('td.groupContractors')}>
-        {day.options.contractors.map((c) => <option key={c.id} value={`c:${c.id}`}>{c.name}</option>)}
-      </optgroup>
-      <optgroup label={t('td.groupDrivers')}>
-        {day.options.drivers.map((d) => <option key={d.id} value={`d:${d.id}`}>{d.name}{d.contractor ? ` (${d.contractor})` : ''}</option>)}
-      </optgroup>
-    </select>
+    <PersonPicker
+      value={encode(r.today)}
+      options={day.options}
+      disabled={!day.canEdit}
+      label={t('td.driverFor', { route: r.code, date: dateLabel })}
+      placeholder={r.status === 'no_driver' ? t('td.chooseDriver') : undefined}
+      state={r.status === 'no_driver' ? 'missing' : r.status === 'changed' ? 'changed' : undefined}
+      onPick={(v) => change(r, v)}
+      onCreate={(name) => createAndAssign(r, name)}
+    />
   );
 
   const sourceText = (r: Row) => {
@@ -89,6 +102,7 @@ function TodayPage() {
               <span className="num">{dateLabel}</span>
               <Link to="/tforce/today" search={{ date: addDays(day.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
+            {day.canEdit && <Button onClick={() => setAddingRoute(true)}><Icon name="plus" width={18} height={18} />{t('td.addRoute')}</Button>}
             <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>
           </div>
         } />
@@ -176,6 +190,7 @@ function TodayPage() {
           </Panel>
         </div>
       </div>
+      {addingRoute && <AddRouteDialog day={day} dateLabel={dateLabel} onClose={() => setAddingRoute(false)} />}
     </>
   );
 }
@@ -219,5 +234,62 @@ function UnknownName({ row, day }: { row: Row; day: Day }) {
         </form>
       )}
     </div>
+  );
+}
+
+function AddRouteDialog({ day, dateLabel, onClose }: { day: Day; dateLabel: string; onClose: () => void }) {
+  const t = useT();
+  const router = useRouter();
+  const toast = useToast();
+  const [code, setCode] = useState('');
+  const [who, setWho] = useState<{ value: string } | { newName: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const whoName = !who ? null : 'newName' in who ? who.newName
+    : who.value.startsWith('d:') ? day.options.drivers.find((d) => d.id === who.value.slice(2))?.name
+      : day.options.contractors.find((c) => c.id === who.value.slice(2))?.name;
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!who || ('value' in who && !who.value)) return setError(t('td.choosePerson'));
+    const payee = 'newName' in who ? { newDriverName: who.newName }
+      : who.value.startsWith('d:') ? { driverId: who.value.slice(2) } : { contractorId: who.value.slice(2) };
+    setBusy(true);
+    try {
+      const res = await createRoute({ data: { date: day.date, code, payee } });
+      if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
+      toast(t('td.routeAdded', { route: res.value.code, name: whoName ?? '' }));
+      await router.invalidate();
+      onClose();
+    } catch {
+      setError(t('error.generic'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={onClose} title={t('td.addRouteTitle', { date: dateLabel })}>
+      <form onSubmit={submit} className="stack">
+        <TextField label={t('td.routeCode')} hint={t('td.routeCodeHint')} required autoComplete="off" autoCapitalize="characters"
+          value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+        <div className="field">
+          <span id="who-label" style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)' }}>{t('td.whoDrives')}</span>
+          <PersonPicker
+            value={who && 'value' in who ? who.value : ''}
+            options={day.options}
+            label={t('td.whoDrives')}
+            placeholder={who && 'newName' in who ? who.newName : undefined}
+            allowNone={false}
+            onPick={(v) => setWho({ value: v })}
+            onCreate={(name) => setWho({ newName: name })}
+          />
+          <span className="muted" style={{ fontSize: 13.5 }}>{who && 'newName' in who ? t('picker.create', { name: who.newName }) : t('td.newRouteHint')}</span>
+        </div>
+        <FormError>{error}</FormError>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>{t('td.saveRoute')}</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

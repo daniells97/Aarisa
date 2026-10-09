@@ -276,3 +276,19 @@ tr.row-selected td { background: var(--green-tint); }
   .content { padding: 0; max-width: none; }
   .claim-doc { border: 0; padding: 0; }
 }
+
+/* ---------- person picker (combobox) ---------- */
+.picker { position: relative; min-width: 220px; }
+.picker-input { width: 100%; }
+.picker-input::placeholder { color: var(--ink-4); opacity: 1; }
+.picker[data-filled] .picker-input::placeholder { color: var(--ink); }
+.picker[data-state='changed'] .picker-input { border-color: var(--green); background: var(--green-tint); }
+.picker[data-state='missing'] .picker-input { border-color: var(--amber); background: var(--amber-wash); }
+.picker[data-state='missing'] .picker-input::placeholder { color: var(--amber-ink); }
+.picker-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--control); border-radius: var(--r-md); box-shadow: 0 8px 24px rgba(28,34,38,.14); max-height: 300px; overflow: auto; min-width: 240px; }
+.picker-list li { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--r-sm); cursor: pointer; }
+.picker-list li[aria-selected='true'] { background: var(--green-tint); }
+.picker-list li[data-kind='create'] { color: var(--green); font-weight: 600; border-top: 1px solid var(--line-soft); }
+.picker-list li[data-kind='none'] { color: var(--ink-3); }
+.picker-hint { font-size: 13px; color: var(--ink-4); }
+.picker-empty { color: var(--ink-4); padding: 10px 12px; }

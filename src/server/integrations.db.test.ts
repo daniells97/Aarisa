@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { aiSuggestions, contractors, drivers, users } from '~/db/schema';
-import { actorAs, withRollback } from '../../tests/helpers/db';
+import { actorAs, withRollback, activeTforceRouteCount } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { loadDay } from './daily';
 import { createExtraJob } from './extra-jobs';
@@ -93,7 +93,7 @@ describe('integration API (server)', () => {
       await person(tx, 'dispatcher', '+19255550105');
       await person(tx, 'viewer', '+19255550106');
       const list = await morningList(tx, '2026-06-18');
-      expect(list.routes).toHaveLength(19);
+      expect(list.routes).toHaveLength(await activeTforceRouteCount(tx));
       expect(list.recipients.map((r) => r.phone)).toContain('+19255550105');
       expect(list.recipients.map((r) => r.phone)).not.toContain('+19255550106');
       expect(JSON.stringify(list)).not.toMatch(/Cents/);
@@ -105,7 +105,7 @@ describe('AI context and reminders (server)', () => {
     withRollback(async (tx) => {
       const { aiContext } = await import('./integrations');
       const ctx = await aiContext(tx, '2026-06-18');
-      expect(ctx.routes).toHaveLength(19);
+      expect(ctx.routes).toHaveLength(await activeTforceRouteCount(tx));
       expect(ctx.contractors.map((c) => c.name)).toContain('Puma');
       expect(ctx.drivers.find((d) => d.name === 'Norwin Saloman')).toBeTruthy();
       expect(JSON.stringify(ctx)).not.toMatch(/Cents|rate/i);

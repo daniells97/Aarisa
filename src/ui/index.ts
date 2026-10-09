@@ -10,3 +10,4 @@ export { WarningDiamond } from './WarningDiamond';
 export { CheckField, FormError, SelectField, TextField } from './Field';
 export { centsToInput, parseAmount, useFormat } from './format';
 export { ImportNotice, ReadingSteps } from './ImportStates';
+export { PersonPicker, type PickerOptions } from './PersonPicker';

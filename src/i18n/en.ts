@@ -682,6 +682,23 @@ export const en = {
   "services.reportLocked": "This service comes from the client's report. You can rename it, but its rules stay as they are.",
   "services.activeLabel": "Can be chosen for new jobs",
   "services.inactiveHint": "Past jobs keep this service; it just won't show in the extra job form.",
+  "picker.create": "Add “{name}” as a new driver",
+  "picker.typeName": "Type a name",
+  "picker.noMatch": "Nobody matches.",
+  "td.addRoute": "Add route",
+  "td.addRouteTitle": "Add a route for {date}",
+  "td.routeCode": "Route code",
+  "td.routeCodeHint": "As T-Force writes it, for example 9000T.",
+  "td.whoDrives": "Who drives it",
+  "td.newRouteHint": "This person becomes the route's usual driver. A contractor makes it a contractor route.",
+  "td.saveRoute": "Add route",
+  "td.routeAdded": "Route {route} added with {name}.",
+  "td.newDriverAssigned": "{name} added as a new driver and assigned to {route}. Finish their details in Drivers and rates.",
+  "td.choosePerson": "Choose who drives it.",
+  "error.route_code_invalid": "Write the route code with letters and numbers, like 9000T.",
+  "error.route_exists": "That route is already on the list.",
+  "error.route_inactive": "That route exists but is turned off. Turn it on in Drivers and rates.",
+  "error.driver_exists": "A driver with that name already exists. Pick them from the list.",
 } as const;
 
 export type MessageKey = keyof typeof en;
