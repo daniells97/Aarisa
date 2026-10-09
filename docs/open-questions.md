@@ -28,7 +28,7 @@ Claude Code: when you hit one of these, build behind a setting or a placeholder 
 | # | Question |
 |---|---|
 | 14 | Host on the Dimetrics VPS (`alexyah` or `dimetrics` host) or on infrastructure Aarisa owns? Data is US payroll data. |
-| 15 | Domain: `aarisa.dimetrics.com.co` or a domain of Aarisa's. |
+| 15 | ~~Domain~~ Decided Oct 9, 2026: `aarisa.dimetrics.com.co` for now (A record to the Dimetrics VPS, 2.25.229.44). A domain of Aarisa's can be added later. |
 | 16 | Speech-to-text provider for WhatsApp voice notes (self-hosted Whisper vs hosted API). |
 | 17 | File storage: local volume or S3-compatible bucket. |
 | 18 | Teams integration later (phase 4) or not at all. |
