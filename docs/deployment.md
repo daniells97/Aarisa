@@ -51,3 +51,21 @@ TZ=America/Los_Angeles
 4. Add the `aarisa` service to the compose file with Traefik labels and the DNS record.
 5. Add the deploy key and GHCR token to the GitHub repository secrets.
 6. Import the n8n workflows from `n8n/` (created in Phase 2) and set their credentials.
+
+## Current state (October 9, 2026)
+
+Running as a preview on the Dimetrics VPS (`srv1986534.hstgr.cloud`, 2.25.229.44), built from branch `phase-3`.
+
+| Piece | Where |
+|---|---|
+| URL | `https://aarisa.dimetrics.com.co` (A record at Hostinger DNS) and `https://aarisa.srv1986534.hstgr.cloud` |
+| Compose | `/docker/aarisa/docker-compose.yml`, project `aarisa`, container `aarisa-portal`, networks `app` (Traefik) and `data` (Postgres) |
+| Image | `aarisa-portal:<commit>` built on the server from `Dockerfile`; migrations run on start |
+| Database | `aarisa_db`, role `aarisa_app`, direct to `dmx-postgres` like the other apps (no PgBouncer entry yet) |
+| Secrets | `/docker/aarisa/.env` (root only). Move to Infisical project `aarisa` when it exists |
+| Files | Docker volume `aarisa_aarisa-storage` mounted at `/data/storage` |
+| Zitadel | Org **Aarisa**, project **Aarisa portal** (roles owner, dispatcher, finance, viewer; role assertion and role check on), PKCE app **Aarisa portal web**. Service user `aarisa-portal` (ORG_OWNER of Aarisa only) for Team access |
+| Data | June 2026 sample data loaded for review. Start from a clean `aarisa_db` before real use |
+
+Redeploy after a change: `docker build -t aarisa-portal:$(git rev-parse --short HEAD) -t aarisa-portal:latest .` in the repo, then `docker compose up -d` in `/docker/aarisa`.
+Not done yet: GitHub Actions deploy, GHCR, Infisical, nightly backups.
