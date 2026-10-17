@@ -74,11 +74,11 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
               ))}
             </div>
             <p className="legend"><span className="swatch swatch-tforce" aria-hidden="true" />T-Force <span className="swatch" aria-hidden="true" style={{ marginLeft: 12 }} />Hovership</p>
-            <table className="visually-hidden">
+            <div className="visually-hidden"><table>
               <caption>{t('ov.byDayCaption')}</caption>
               <thead><tr><th scope="col">{t('ov.day')}</th><th scope="col">T-Force</th><th scope="col">Hovership</th></tr></thead>
               <tbody>{data.perDay.map((d) => <tr key={d.date}><th scope="row">{f.date(d.date, { weekday: 'long', month: 'long', day: 'numeric' })}</th><td>{d.tforce}</td><td>{d.hovership}</td></tr>)}</tbody>
-            </table>
+            </table></div>
           </div>
         </Panel>
         <Panel title={t('ov.eachOp')} id="ops">

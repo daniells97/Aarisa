@@ -104,7 +104,7 @@ Sentence case everywhere. No all-caps labels, no middle-dot meta strings.
 ## Layout
 
 - Desktop: white sidebar 248–300 px (logo, ⌘K search, grouped nav: T-Force, Hovership,
-  Money, Settings; user at the bottom). Content max 1240 px, padding 32/40 px.
+  Money, Settings; user at the bottom). Content is fluid and fills the screen at every width; side padding grows from 24 to 56 px.
 - Phone: large title header on `--base`, content in white sections, primary action pinned
   above the tab bar.
 - Breakpoints by content: sidebar and side panels wrap under the main content below ~900 px.
