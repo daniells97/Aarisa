@@ -144,7 +144,7 @@ tbody tr:hover td { background: var(--row-hover); }
 .login-name { display: block; font-size: 28px; font-weight: 700; letter-spacing: .01em; }
 .login-sub { display: block; font-size: 13px; font-weight: 600; letter-spacing: .08em; color: #C9D3E3; }
 .login-brand h1 { font-size: 64px; line-height: .98; max-width: 560px; color: #fff; }
-.login-accent { color: #FF8A93; }
+.login-brand .login-subhead { margin: 10px 0 0; font-size: 30px; font-weight: 600; line-height: 1.1; color: #FF8A93; max-width: 560px; }
 .login-brand p { margin: 0; font-size: 17px; line-height: 1.5; color: #C9D3E3; max-width: 460px; }
 .login-plates { display: flex; flex-wrap: wrap; gap: 10px; max-width: 520px; }
 .login-plates .plate { box-shadow: inset 0 0 0 1px rgba(255,255,255,.75), 0 0 0 1px rgba(255,255,255,.35); }
@@ -160,7 +160,9 @@ tbody tr:hover td { background: var(--row-hover); }
   .login-card { margin: 0; width: 100%; }
   .login-brand { padding: 28px 20px; gap: 20px; }
   .login-brand h1 { font-size: 36px; }
-  .login-plates, .login-brand p { display: none; }
+  .login-brand .login-subhead { font-size: 22px; }
+  .login-plates { gap: 8px; }
+  .login-brand p { font-size: 16px; }
   .login-swoosh { height: 90px; }
   .login-swoosh-space { height: 50px; }
 }

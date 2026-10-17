@@ -39,7 +39,10 @@ function Login() {
           </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28, position: 'relative' }}>
-          <h1>{t('login.tagline1')}<br />{t('login.tagline2')}<br /><span className="login-accent">{t('login.tagline3')}</span></h1>
+          <div>
+            <h1>{t('login.headline')}</h1>
+            <p className="login-subhead cond">{t('login.subhead')}</p>
+          </div>
           <div className="login-plates" aria-hidden="true">
             {['9000A', '9000B', '9000E', '9000K', '9000N', 'DUB1'].map((c) => <RoutePlate key={c} code={c} size="lg" />)}
             <RoutePlate code="9000Z" size="lg" needsDriver />
