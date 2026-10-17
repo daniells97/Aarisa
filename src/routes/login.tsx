@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { ROLES } from '~/domain/permissions';
-import { buttonClass, RoutePlate, WarningDiamond } from '~/ui';
+import { BrandLogo, buttonClass, RoutePlate, WarningDiamond } from '~/ui';
 import { LanguageSwitch } from '~/ui/LanguageSwitch';
 
 const search = z.object({ returnTo: z.string().optional(), error: z.string().optional() });
@@ -26,21 +26,34 @@ function Login() {
   return (
     <div className="login">
       <section className="login-brand">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <RoutePlate code="A" size="lg" /><span className="cond" style={{ fontSize: 28, fontWeight: 700 }}>{t('app.name')}</span>
+        <svg className="login-swoosh" viewBox="0 0 800 260" preserveAspectRatio="xMaxYMax slice" aria-hidden="true" focusable="false">
+          <path d="M-60 250 C 220 120, 520 70, 860 96" fill="none" stroke="var(--brand-red)" strokeWidth="30" strokeLinecap="round" />
+          <path d="M-60 292 C 230 162, 530 114, 860 140" fill="none" stroke="#FFFFFF" strokeOpacity=".9" strokeWidth="12" strokeLinecap="round" />
+          <path d="M-60 330 C 240 200, 540 154, 860 180" fill="none" stroke="var(--brand-mid)" strokeWidth="24" strokeLinecap="round" />
+        </svg>
+        <div className="login-id">
+          <span className="login-mark"><BrandLogo variant="mark" height={40} decorative /></span>
+          <span>
+            <span className="cond login-name">Aarisa Consulting</span>
+            <span className="login-sub">Logistics Solutions DR / USA</span>
+          </span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-          <h1>{t('login.tagline1')}<br />{t('login.tagline2')}<br />{t('login.tagline3')}</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28, position: 'relative' }}>
+          <h1>{t('login.tagline1')}<br />{t('login.tagline2')}<br /><span className="login-accent">{t('login.tagline3')}</span></h1>
           <div className="login-plates" aria-hidden="true">
             {['9000A', '9000B', '9000E', '9000K', '9000N', 'DUB1'].map((c) => <RoutePlate key={c} code={c} size="lg" />)}
             <RoutePlate code="9000Z" size="lg" needsDriver />
           </div>
           <p>{t('login.lead')}</p>
+          <span className="login-built">{t('login.builtBy')}</span>
         </div>
-        <span style={{ fontSize: 14, color: '#9AA5A0' }}>{t('login.builtBy')}</span>
+        <span className="login-swoosh-space" aria-hidden="true" />
       </section>
       <section className="login-form">
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}><LanguageSwitch /></div>
+        <div className="login-top">
+          <span className="login-form-logo"><BrandLogo height={76} /></span>
+          <LanguageSwitch />
+        </div>
         <div className="login-card">
           <h2>{t('login.title')}</h2>
           <p className="muted" style={{ margin: 0 }}>{t('login.hint')}</p>

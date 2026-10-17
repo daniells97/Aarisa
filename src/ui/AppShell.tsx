@@ -3,7 +3,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import { can, type Role } from '~/domain/permissions';
 import { Icon, type IconName } from './icons';
-import { RoutePlate } from './RoutePlate';
+import { BrandLogo } from './BrandLogo';
 import { Badge } from './Pill';
 
 export interface ShellUser { name: string; role: Role }
@@ -50,7 +50,7 @@ export function AppShell({ user, children, badges = {} }: { user: ShellUser; chi
   return (
     <div className="shell">
       <aside className="side">
-        <div className="side-brand"><RoutePlate code="A" size="lg" />{t('app.name')}</div>
+        <Link to="/" className="side-brand" aria-label={t('nav.overview')}><BrandLogo height={58} /></Link>
         <nav aria-label={t('nav.main')}>
           {groups.map((g, gi) => {
             const items = g.items.filter((i) => !i.show || i.show(user.role));
@@ -79,7 +79,10 @@ export function AppShell({ user, children, badges = {} }: { user: ShellUser; chi
           </a>
         </div>
       </aside>
-      <main className="content" id="main">{children}</main>
+      <main className="content" id="main">
+        <div className="phone-brand"><BrandLogo variant="horizontal" height={34} /></div>
+        {children}
+      </main>
       <nav className="tabbar" aria-label={t('nav.main')}>
         {tabs.map((i) => (
           <Link key={i.to} to={i.to} aria-current={isActive(path, i.to) ? 'page' : undefined}>

@@ -236,7 +236,7 @@ function PaymentDialog({ data, onClose }: { data: Data; onClose: () => void }) {
             return (
               <div key={l.id} className="alloc-row">
                 <label className="row" style={{ gap: 10, flex: 1, minHeight: 44 }}>
-                  <input type="checkbox" checked={checked} style={{ width: 22, height: 22, accentColor: 'var(--green)' }}
+                  <input type="checkbox" checked={checked} style={{ width: 22, height: 22, accentColor: 'var(--brand)' }}
                     onChange={(e) => setPicked((p) => { const n = { ...p }; if (e.target.checked) n[l.id] = ((l.missingCents ?? 0) / 100).toFixed(2); else delete n[l.id]; return n; })} />
                   <span>{covers}<span className="sub">{t('st.missing')}: {f.money(l.missingCents)}</span></span>
                 </label>

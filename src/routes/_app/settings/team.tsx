@@ -61,7 +61,7 @@ function TeamPage() {
                   <th scope="row" style={{ fontWeight: 400, color: 'var(--ink)', fontSize: 14.5, whiteSpace: 'normal' }}>{t(`perm.${p}` as MessageKey)}</th>
                   {ROLES.map((r) => (
                     <td key={r} style={{ textAlign: 'center' }}>
-                      {can(r, p) ? <span style={{ color: 'var(--green)', fontWeight: 600 }}>✓<span className="visually-hidden"> {t('team.yes')}</span></span>
+                      {can(r, p) ? <span style={{ color: 'var(--brand)', fontWeight: 600 }}>✓<span className="visually-hidden"> {t('team.yes')}</span></span>
                         : <span className="muted">–<span className="visually-hidden"> {t('team.no')}</span></span>}
                     </td>
                   ))}

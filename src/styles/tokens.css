@@ -1,23 +1,32 @@
 /* Design tokens from docs/design-system.md. Change values here, never inline. */
 :root {
-  --ink: #1C2226;
-  --ink-2: #3A4449;
-  --ink-3: #4A5459;
-  --ink-4: #5F696E;
-  --base: #F3F4F2;
+  --ink: #172033;
+  --ink-2: #344054;
+  --ink-3: #475467;
+  --ink-4: #5B6577;
+  --base: #F3F5F9;
   --surface: #FFFFFF;
-  --surface-hover: #F7F8F7;
-  --row-hover: #F8F9F8;
-  --line: #DADFDB;
-  --line-soft: #EEF0EE;
-  --control: #CDD3CF;
-  --muted-tint: #ECEEEC;
+  --surface-hover: #F6F8FB;
+  --row-hover: #F7F9FC;
+  --line: #D8DEE8;
+  --line-soft: #ECF0F5;
+  --control: #C6CFDC;
+  --muted-tint: #EBEFF4;
+  /* brand (Aarisa Consulting logo): navy is the primary colour, red is an accent only */
+  --brand: #122A5A;
+  --brand-hover: #0B1C40;
+  --brand-tint: #E7EDF7;
+  --brand-mid: #305A84;
+  --brand-red: #C02430;
+  --brand-red-dark: #9C1E24;
+  /* status: green means confirmed / done, never a button */
   --green: #0D5C46;
   --green-hover: #08402F;
   --green-tint: #E3F0EA;
   --green-ai: #F2F8F5;
   --green-ai-line: #B9D7C9;
-  --chart-hovership: #3E9C78;
+  --chart-hovership: #6E93BF;
+  --chart-tforce: #122A5A;
   --amber: #F2A900;
   --amber-tint: #FFF4D6;
   --amber-wash: #FFF8E6;

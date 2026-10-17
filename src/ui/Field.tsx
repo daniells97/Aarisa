@@ -33,7 +33,7 @@ export function CheckField({ label, ...rest }: { label: ReactNode } & InputHTMLA
   const id = useId();
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44 }}>
-      <input id={id} type="checkbox" style={{ width: 22, height: 22, accentColor: 'var(--green)' }} {...rest} />
+      <input id={id} type="checkbox" style={{ width: 22, height: 22, accentColor: 'var(--brand)' }} {...rest} />
       <label htmlFor={id}>{label}</label>
     </div>
   );

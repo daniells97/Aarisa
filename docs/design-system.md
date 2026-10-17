@@ -1,4 +1,29 @@
-# Design system: "Bay Area dispatch"
+# Design system: Aarisa Consulting
+
+> **Rebrand, Oct 17, 2026.** The portal now uses the Aarisa Consulting logo and its colours (navy and red,
+> from `design/brand/source`). Navy is the primary colour; the logo red is an accent only (route plate cap,
+> active navigation marker, login artwork). Status colours did not change: green = confirmed, amber = needs a
+> person, blue = waiting, red text with a minus sign = negative money. The original "Bay Area dispatch" notes
+> below still apply to layout, type and components; where a colour below differs from `src/styles/tokens.css`,
+> the tokens file wins.
+
+## Brand
+
+| Token | Hex | Use |
+|---|---|---|
+| `--brand` | `#122A5A` | Primary buttons, links on hover, active navigation, page titles, T-Force in charts |
+| `--brand-hover` | `#0B1C40` | Primary button hover, login gradient |
+| `--brand-tint` | `#E7EDF7` | Selected rows, active nav background, picker highlight |
+| `--brand-mid` | `#305A84` | Links |
+| `--brand-red` | `#C02430` | Accents only: route plate cap, active nav marker, tab underline. Never a button or a status |
+| `--brand-red-dark` | `#9C1E24` | Reserved (logo letters) |
+| `--chart-hovership` | `#6E93BF` | Hovership in charts |
+
+Logo files: `public/brand/` (horizontal, stacked, mark, favicons), generated from `design/brand/source` by
+`scripts/make-brand-assets.mjs`. Use the `BrandLogo` component; alt text is "Aarisa Consulting".
+The sources are 786 px PNGs, so very large uses (print, signage) need a vector version from Aarisa.
+
+## Original notes ("Bay Area dispatch")
 
 Visual language taken from California road signage: Barlow type, freeway-green route plates,
 and amber warning diamonds reserved for things that need a person. Everything else stays quiet.
