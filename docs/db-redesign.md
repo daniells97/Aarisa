@@ -207,3 +207,12 @@ Design impact:
   `profit = revenue - driver_pay`.
 - Index (route_id, date).
 - Star: becomes `fact_work`.
+
+### Review follow-ups (approved Oct 18, 2026)
+- `bonuses` becomes `pay_adjustments` with `adjustment_types` (class bonus, goal_top_up, correction,
+  deduction). After the 24-hour reopen window, a fix is a `correction` in the next open period that
+  points to the original execution.
+- `report_import_rows` keeps every raw row (jsonb) with its status; `work_records.report_import_row_id`.
+- `audit_log.ai_suggestion_id` links a change to the WhatsApp suggestion that caused it.
+- Not adopted: `route_executions.pay_period_id` (derivable from date, would be redundant) and frozen
+  rate ids on work records (optional, left out for now).

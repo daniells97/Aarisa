@@ -57,7 +57,7 @@ Nothing here is migrated yet. Sections marked **provisional** wait for the clien
 `user_id` PK · `zitadel_sub` U · `full_name` · `email` U · `phone_e164` · `user_role` (owner, dispatcher, finance, viewer) · `morning_channel` (whatsapp, email, none) · `locale` (en, es) · `is_active` · `created_at` · `updated_at`
 
 **audit_log**: every write, in the same transaction.
-`audit_log_id` PK · `table_name` · `record_id` (any table, so no FK) · `audit_action` (insert, update, delete, approve, reopen, undo, confirm) · `before_data` jsonb · `after_data` jsonb · `user_id` FK · `audit_source` (portal, whatsapp, email_import, system) · `occurred_at`
+`audit_log_id` PK · `table_name` · `record_id` (any table, so no FK) · `audit_action` (insert, update, delete, approve, reopen, undo, confirm) · `before_data` jsonb · `after_data` jsonb · `user_id` FK · `audit_source` (portal, whatsapp, email_import, system) · `ai_suggestion_id` FK (the WhatsApp suggestion that caused the change) · `occurred_at`
 Index (`table_name`, `record_id`), (`occurred_at`), (`user_id`).
 
 ### 2.2 Clients and contracts
@@ -148,11 +148,12 @@ Lookup on a work date: payee → route type → general.
 `revenue_type_id` PK · `operation_id` FK · `revenue_type_code` · `revenue_type_name` · `counts_in_payee_margin` (false for STEM)
 Unique (`operation_id`, `revenue_type_code`).
 
-**bonus_types**
-`bonus_type_id` PK · `bonus_type_code` U · `bonus_type_name` · `bonus_type_name_es` · `is_active`
+**adjustment_types**: kinds of pay adjustment.
+`adjustment_type_id` PK · `adjustment_type_code` U · `adjustment_type_name` · `adjustment_type_name_es` · `adjustment_class` (bonus, goal_top_up, correction, deduction) · `is_active`
+Seed: one type per class plus the owner's bonus types (hard route, weekend…).
 
-**bonus_rules**: standing bonuses (premise 4).
-`bonus_rule_id` PK · `bonus_type_id` FK · `operation_id` FK · `payee_id` FK · `route_id` FK · `weekdays` smallint[] · `on_date` · `amount_cents` > 0 · `valid_from` · `valid_to` · `created_at` · `created_by_user_id`
+**bonus_rules**: standing bonuses (premise 4). Each proposes a `pay_adjustments` row.
+`bonus_rule_id` PK · `adjustment_type_id` FK (class bonus) · `operation_id` FK · `payee_id` FK · `route_id` FK · `weekdays` smallint[] · `on_date` · `amount_cents` > 0 · `valid_from` · `valid_to` · `created_at` · `created_by_user_id`
 `weekdays` and `on_date` never both set. Never edited.
 
 **daily_goals**: expected result of a day (kept ready).
@@ -161,8 +162,12 @@ Unique (`operation_id`, `revenue_type_code`).
 ### 2.5 Inputs
 
 **report_imports**
-`report_import_id` PK · `operation_id` FK · `report_layout_id` FK · `pay_period_id` FK · `period_start_date` · `period_end_date` · `import_channel` (email, upload) · `file_name` · `file_sha256` · `file_url` · `import_status` (waiting, reading, layout_changed, partial, done, failed) · `row_count` · `problems` jsonb · `received_at` · `created_at` · `created_by_user_id`
+`report_import_id` PK (header only; rows below) · `operation_id` FK · `report_layout_id` FK · `pay_period_id` FK · `period_start_date` · `period_end_date` · `import_channel` (email, upload) · `file_name` · `file_sha256` · `file_url` · `import_status` (waiting, reading, layout_changed, partial, done, failed) · `row_count` · `problems` jsonb · `received_at` · `created_at` · `created_by_user_id`
 Unique (`operation_id`, `file_sha256`).
+
+**report_import_rows**: each row of the file exactly as it arrived.
+`report_import_row_id` PK · `report_import_id` FK · `row_number` · `raw_data` jsonb · `row_status` (ok, warning, error, ignored) · `problem_code` · `problem_text`
+Unique (`report_import_id`, `row_number`). Lets the import screen show which row failed and reprocess it.
 
 **messages**: WhatsApp in and out.
 `message_id` PK · `wa_message_id` U · `message_direction` (inbound, outbound) · `phone_e164` · `user_id` FK · `payee_id` FK · `message_type` (text, audio, interactive, template) · `body` · `media_url` · `transcript` · `related_date` · `created_at`
@@ -182,13 +187,16 @@ Unique (`operation_id`, `work_date`, `payee_id`) where `execution_kind = route` 
 `extra_job_id` PK · `client_uuid` U · `route_execution_id` FK (kind = extra) · `service_type_id` FK · `near_route_id` FK → routes · `client_amount_cents` · `payee_amount_cents` · `order_number` · `photo_url` · `note` · `ai_suggestion_id` FK · `created_at` · `created_by_user_id` · `updated_at`
 
 **work_records**: what was done in an execution.
-`work_record_id` PK · `route_execution_id` FK · `service_type_id` FK · `service_tier_id` FK · `quantity` ≥ 0 · `report_import_id` FK · `extra_job_id` FK U · `client_rate_cents` · `payee_rate_cents` · `revenue_cents` · `pay_cents` · `payroll_line_id` FK · `created_at` · `updated_at`
+`work_record_id` PK · `route_execution_id` FK · `service_type_id` FK · `service_tier_id` FK · `quantity` ≥ 0 · `report_import_id` FK · `report_import_row_id` FK · `extra_job_id` FK U · `client_rate_cents` · `payee_rate_cents` · `revenue_cents` · `pay_cents` · `payroll_line_id` FK · `created_at` · `updated_at`
 Unique (`route_execution_id`, `service_type_id`, `service_tier_id`) nulls not distinct, where `extra_job_id` is null.
 The four money columns are all set (frozen at approval) or all null. Profit is never stored.
 
-**bonuses**
-`bonus_id` PK · `route_execution_id` FK · `bonus_type_id` FK · `bonus_rule_id` FK · `amount_cents` · `reason` · `bonus_source` (manual, rule) · `bonus_status` (proposed, confirmed, rejected) · `confirmed_by_user_id` · `confirmed_at` · `created_at` · `created_by_user_id`
-Unique (`route_execution_id`, `bonus_rule_id`). A manual bonus or a changed amount needs a reason.
+**pay_adjustments**: everything added to or taken from a payee's pay besides quantity × rate.
+`pay_adjustment_id` PK · `pay_period_id` FK (the period it is paid in) · `payee_id` FK · `route_execution_id` FK (the day it refers to; for a correction, the original day) · `adjustment_type_id` FK · `bonus_rule_id` FK · `daily_goal_id` FK · `amount_cents` · `reason` · `adjustment_source` (manual, rule, goal) · `adjustment_status` (proposed, confirmed, rejected) · `confirmed_by_user_id` · `confirmed_at` · `created_at` · `created_by_user_id`
+Bonus and goal top-up are > 0; correction can be either sign; deduction is < 0. A manual row or a changed amount needs a reason.
+Unique (`route_execution_id`, `bonus_rule_id`) and (`route_execution_id`, `daily_goal_id`).
+Payee and period must match the execution's operation; `payee_id` repeats the execution's payee except for corrections and deductions that have no execution.
+**Closing rule**: an approved run locks its executions, work records and adjustments. Owner reopen within 24 h stays; after that a fix is a `correction` in the next open period of the same operation, pointing to the original execution.
 
 **other_revenues** (was `operation_revenue`): STEM and similar.
 `other_revenue_id` PK · `operation_id` FK · `revenue_date` · `revenue_type_id` FK · `route_execution_id` FK · `zone_id` FK · `reason_text` (as received) · `amount_cents` · `classification_status` (classified, needs_review, lump_adjustment) · `report_import_id` FK · `created_at`
@@ -206,7 +214,7 @@ Unique (`operation_id`, `start_date`); `end_date` follows the pay cycle.
 `payroll_run_id` PK · `pay_period_id` FK U · `run_status` (draft, ready, approved, reopened, paid) · `approved_by_user_id` · `approved_at` · `reopenable_until` · `export_url` · `paid_at` · `created_at` · `updated_at`
 
 **payroll_lines**: what one payee is paid in one run (frozen at approval).
-`payroll_line_id` PK · `payroll_run_id` FK · `payee_id` FK · `route_day_count` · `extra_job_count` · `quantity_total` · `bonus_cents` · `pay_cents` · `revenue_cents` · `created_at`
+`payroll_line_id` PK · `payroll_run_id` FK · `payee_id` FK · `route_day_count` · `extra_job_count` · `quantity_total` · `adjustment_cents` · `pay_cents` · `revenue_cents` · `created_at`
 Unique (`payroll_run_id`, `payee_id`). Contractors with `pay_trigger = on_collection` are not in the weekly run.
 
 ### 2.8 Receivables (provisional, open questions #38–#40)
@@ -242,7 +250,7 @@ Unique (`claim_id`, `receivable_item_id`).
 
 - `v_rate_timeline`: each rate with its end date (next `effective_from`).
 - `v_route_owner_on_date`, `v_driver_affiliation_on_date`.
-- `v_execution_totals`: per execution, revenue, pay, bonuses, other revenue, profit.
+- `v_execution_totals`: per execution, revenue, pay, adjustments, other revenue, profit.
 - `v_receivable_item_status`: expected, received, outstanding, days late, paid to payee, status.
 - `v_period_checklist`: report imported, daily list complete, open exceptions, extra jobs, run approved, settlement checked.
 
@@ -260,7 +268,7 @@ payees 1─1 drivers 1─< driver_client_codes, driver_aliases, driver_affiliati
 payees 1─1 contractors
 route_executions >─1 operations, routes, payees, drivers
 route_executions 1─< work_records >─1 service_types, service_tiers
-                 1─< bonuses >─1 bonus_types, bonus_rules
+                 1─< pay_adjustments >─1 adjustment_types, bonus_rules, daily_goals, pay_periods
                  1─< other_revenues >─1 revenue_types, zones
                  1─< extra_jobs
 work_records >─1 payroll_lines
@@ -285,7 +293,7 @@ Rebuilt from `core` every night and when a payroll run is approved. Read-only fo
 | `dim_service` | one service + tier | `service_type_id`, `service_tier_id` | service code and name EN/ES, unit, tier code and name, `is_from_report` | SCD 1 |
 | `dim_pay_period` | one pay period | `pay_period_id` | operation, start, end, run status | SCD 1 |
 | `dim_zone` | one zone | `zone_id` | zone code and name | SCD 1 |
-| `dim_bonus_type` | one bonus type | `bonus_type_id` | code, name EN/ES | SCD 1 |
+| `dim_adjustment_type` | one adjustment type | `adjustment_type_id` | code, name EN/ES, class | SCD 1 |
 | `dim_revenue_type` | one revenue type | `revenue_type_id` | code, name, counts in payee margin | SCD 1 |
 | `dim_execution_profile` | one combination (junk) | — | execution kind, status, source | static |
 | `dim_exception_type` | one type + resolution (junk) | — | exception type, resolution | static |
@@ -297,10 +305,10 @@ Rebuilt from `core` every night and when a payroll run is approved. Read-only fo
 | Fact | Type | Grain | Dimension keys | Degenerate | Measures |
 |---|---|---|---|---|---|
 | `fact_work` | transaction | one work record | `date_key`, `operation_key`, `payee_key`, `driver_key`, `route_key`, `service_key`, `pay_period_key`, `execution_profile_key` | `route_execution_id`, `order_number` | `quantity`, `revenue_amount`, `pay_amount` |
-| `fact_route_execution` | transaction | one execution | `date_key`, `operation_key`, `payee_key`, `driver_key`, `route_key`, `pay_period_key`, `execution_profile_key` | `route_execution_id` | `route_day_count`, `quantity_total`, `revenue_amount`, `pay_amount`, `bonus_amount`, `other_revenue_amount`, `profit_amount`, `goal_target`, `goal_attainment_bp` |
-| `fact_bonus` | transaction | one bonus | `date_key`, `operation_key`, `payee_key`, `route_key`, `bonus_type_key` | `bonus_id`, `bonus_rule_id` | `bonus_amount` |
+| `fact_route_execution` | transaction | one execution | `date_key`, `operation_key`, `payee_key`, `driver_key`, `route_key`, `pay_period_key`, `execution_profile_key` | `route_execution_id` | `route_day_count`, `quantity_total`, `revenue_amount`, `pay_amount`, `adjustment_amount`, `other_revenue_amount`, `profit_amount`, `goal_target`, `goal_attainment_bp` |
+| `fact_pay_adjustment` | transaction | one pay adjustment | `date_key` (day it refers to), `paid_period_key`, `operation_key`, `payee_key`, `route_key`, `adjustment_type_key` | `pay_adjustment_id`, `bonus_rule_id` | `adjustment_amount` |
 | `fact_other_revenue` | transaction | one STEM or similar | `date_key`, `operation_key`, `payee_key`, `zone_key`, `revenue_type_key` | `other_revenue_id` | `revenue_amount` |
-| `fact_payroll_line` | periodic snapshot | one payee in one approved run | `pay_period_key`, `operation_key`, `payee_key`, `approved_date_key` | `payroll_run_id` | `route_day_count`, `extra_job_count`, `quantity_total`, `bonus_amount`, `pay_amount`, `revenue_amount` |
+| `fact_payroll_line` | periodic snapshot | one payee in one approved run | `pay_period_key`, `operation_key`, `payee_key`, `approved_date_key` | `payroll_run_id` | `route_day_count`, `extra_job_count`, `quantity_total`, `adjustment_amount`, `pay_amount`, `revenue_amount` |
 | `fact_exception` | accumulating snapshot | one exception | `created_date_key`, `resolved_date_key`, `operation_key`, `route_key`, `payee_key`, `exception_type_key` | `exception_id` | `exception_count`, `days_open` |
 | `fact_receivable_item` (provisional) | accumulating snapshot | one receivable item | `issue_date_key`, `due_date_key`, `paid_date_key`, `payee_paid_date_key`, `operation_key`, `payee_key`, `route_key`, `service_key` | `receivable_id`, `order_number` | `expected_amount`, `received_amount`, `outstanding_amount`, `days_late`, `paid_to_payee_not_collected_amount` |
 
@@ -316,7 +324,7 @@ Every fact uses `-1` for a missing dimension (no route, no driver, no zone).
                        dim_route ── dim_pay_period ── dim_execution_profile
 
  fact_work            → dim_date, dim_operation, dim_payee, dim_route, dim_service, dim_pay_period
- fact_bonus           → dim_date, dim_operation, dim_payee, dim_route, dim_bonus_type
+ fact_pay_adjustment  → dim_date, dim_pay_period, dim_operation, dim_payee, dim_route, dim_adjustment_type
  fact_other_revenue   → dim_date, dim_operation, dim_payee, dim_zone, dim_revenue_type
  fact_payroll_line    → dim_pay_period, dim_operation, dim_payee, dim_date (approved)
  fact_exception       → dim_date (created, resolved), dim_operation, dim_route, dim_payee, dim_exception_type
