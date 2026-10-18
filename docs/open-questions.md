@@ -22,6 +22,12 @@ Claude Code: when you hit one of these, build behind a setting or a placeholder 
 | 19 | The Hovership report has a Bonus column, but spec §5.2 says Finance/Owner types the bonus. Phase 1 imports the report value as the starting bonus (source `hovership_report`) and lets Finance/Owner change it, with each change audited. Is that right, or should bonuses always start at zero? | Phase 1 bonus entry |
 | 20 | Driver code `DUB088` appears once with a blank name and elsewhere as "Naira Rivera". Seed uses the non-blank name. Should a blank name in a report be an exception? | Phase 1 import |
 | 21 | STEM reasons are typed by hand ("Diablo", "DIABLO", "DIablo", "Pittsburg", "Pitsburg", "Pittrsburg Martinez"…). Kept as free text for now; does Aarisa want a closed list of stations? | Reporting |
+| 38 | Receivables reconciliation (database redesign, Oct 18, 2026). Aarisa pays drivers before clients pay. When Hovership and T-Force pay, do they send a detail of what they pay (statement, remittance, Excel)? In what format? | Receivables redesign |
+| 39 | From which date does T-Force's net 30 count: end of the week worked, the statement, or an Aarisa invoice? Does Aarisa issue invoices to Hovership and T-Force, or does the client send the statement? | Receivables redesign |
+| 40 | Do clients make deductions (damaged packages, fines)? How do they show up in the payment? | Receivables redesign |
+| 41 | Discovery says rates can vary by route type. Which route types exist and which ones change the rate? The redesign keeps an optional `route_types` catalog and rate key, empty until confirmed. | Rates redesign |
+| 42 | Puma is the partner paid on collection. Does Aarisa transfer everything T-Force pays for Puma's routes, or keep a percentage or a fixed fee? | Contractor redesign |
+| 43 | Can one driver drive two T-Force routes on the same day? The portal allows it but raises a weekly-check exception to review. | Daily list |
 
 ## Need Dimetrics / Leanova
 
