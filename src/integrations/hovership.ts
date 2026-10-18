@@ -2,11 +2,12 @@ import { parseCsv } from './csv';
 import { mapColumns as mapColumnsBase, toCount, toIsoDate, type Suggestion as BaseSuggestion } from './columns';
 import { toCents } from '~/domain/money';
 
-// Hovership weekly report (spec §5.2). Columns: POD Date, DriverCode, DriverNameCode, Tier 1–4,
-// Stat, Stem, Stem Reason, Bonus, Total Route, Total Profit. The seed file uses snake_case names.
+// Hovership weekly report (spec §5.2). The client sends POD Date, DriverCode, DriverNameCode,
+// Tier 1–4, Stat, Stem, Stem Reason. Bonus, Total Route and Total Profit only exist in Aarisa's own
+// workbook (the seed file, snake_case names), so they are optional; a missing bonus starts at zero.
 
-export const REQUIRED = ['pod_date', 'driver_code', 'tier1', 'tier2', 'tier3', 'tier4', 'stat', 'stem', 'bonus'] as const;
-export const OPTIONAL = ['driver_name', 'stem_reason', 'total_route', 'total_profit'] as const;
+export const REQUIRED = ['pod_date', 'driver_code', 'tier1', 'tier2', 'tier3', 'tier4', 'stat', 'stem'] as const;
+export const OPTIONAL = ['driver_name', 'stem_reason', 'bonus', 'total_route', 'total_profit'] as const;
 export type Field = (typeof REQUIRED)[number] | (typeof OPTIONAL)[number];
 
 const ALIASES: Record<Field, string[]> = {
