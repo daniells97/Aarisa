@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, getViewSelectedFields, gte, inArray, lte } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { contractors, drivers, extraJobs, rates, routes, serviceTypes, settlementLines, users, workRecords } from '~/db/schema';
+import { extraJobView, extraJobs, rates, routes, serviceTypes, settlementLines, users, workRecords } from '~/db/schema';
 import { addDays, todayLA } from '~/domain/dates';
 import { rateFor, type RateRow } from '~/domain/rates';
 import { can } from '~/domain/permissions';
@@ -8,6 +8,7 @@ import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation } from './ops';
+import { extraDay } from './executions';
 import { contractorProfiles, driverProfiles, payeeNameMaps } from './people';
 
 // Extra jobs (spec §5.4, 6.6): T-Force work agreed by phone that never shows in the weekly report.
@@ -50,7 +51,7 @@ export function missingFields(j: { serviceCode: string; clientAmountCents: numbe
 
 export async function createExtraJob(tx: Tx, actor: Actor, input: ExtraJobInput) {
   assertCan(actor, 'extra_jobs.log');
-  const [existing] = await tx.select().from(extraJobs).where(eq(extraJobs.clientUuid, input.clientUuid));
+  const [existing] = await tx.select().from(extraJobView).where(eq(extraJobView.clientUuid, input.clientUuid));
   if (existing) return { job: existing, created: false };
 
   const op = await getOperation(tx, 'tforce');
@@ -64,22 +65,23 @@ export async function createExtraJob(tx: Tx, actor: Actor, input: ExtraJobInput)
   if (input.clientAmountCents != null && !can(actor.role, 'money.view')) throw new RuleError('client_amount_not_allowed');
   if (input.driverAmountCents < 0 || (input.clientAmountCents ?? 0) < 0) throw new RuleError('invalid_amount');
   const payee = 'driverId' in input.payee ? { driverId: input.payee.driverId, contractorId: null } : { driverId: null, contractorId: input.payee.contractorId };
-  if (payee.driverId && !(await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.id, payee.driverId))).length) throw new RuleError('not_found');
-  if (payee.contractorId && !(await tx.select({ id: contractors.id }).from(contractors).where(eq(contractors.id, payee.contractorId))).length) throw new RuleError('not_found');
 
   const source = actor.source === 'whatsapp' ? 'whatsapp' as const : 'extra_job' as const;
   const trail: AuditEntry[] = [];
   const log = (table: string, row: { id: string }) => trail.push({ table, recordId: row.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
 
+  // Extra jobs hang from the payee's `extra` execution of the day: paid, but not a route day.
+  const { row: ex, created } = await extraDay(tx, { operationId: op.id, date: input.date, payee, source, userId: actor.userId });
+  if (created) log('route_executions', ex);
   const [job] = await tx.insert(extraJobs).values({
-    clientUuid: input.clientUuid, operationId: op.id, serviceTypeId: service.id, date: input.date, nearRouteId: input.nearRouteId,
-    ...payee, clientAmountCents: input.clientAmountCents, driverAmountCents: input.driverAmountCents, orderNumber, note,
+    clientUuid: input.clientUuid, executionId: ex.id, serviceTypeId: service.id, nearRouteId: input.nearRouteId,
+    clientAmountCents: input.clientAmountCents, driverAmountCents: input.driverAmountCents, orderNumber, note,
     source, aiSuggestionId: input.aiSuggestionId ?? null, createdBy: actor.userId,
   }).returning();
   log('extra_jobs', job!);
   // One unit of work at the agreed amounts (the "rate" of a job is its amount).
   const [work] = await tx.insert(workRecords).values({
-    date: input.date, operationId: op.id, serviceTypeId: service.id, routeId: input.nearRouteId, ...payee, pieces: 1,
+    executionId: ex.id, serviceTypeId: service.id, pieces: 1,
     clientRateCents: input.clientAmountCents, driverRateCents: input.driverAmountCents, source: 'extra_job', extraJobId: job!.id,
   }).returning();
   log('work_records', work!);
@@ -92,7 +94,8 @@ export async function createExtraJob(tx: Tx, actor: Actor, input: ExtraJobInput)
   const [linked] = await tx.update(workRecords).set({ settlementLineId: line!.id }).where(eq(workRecords.id, work!.id)).returning();
   trail.push({ table: 'work_records', recordId: work!.id, action: 'update', before: work, after: linked, userId: actor.userId, source: actor.source });
   await audit(tx, trail);
-  return { job: job!, created: true };
+  const [view] = await tx.select().from(extraJobView).where(eq(extraJobView.id, job!.id));
+  return { job: view!, created: true };
 }
 
 /** Fill in what was missing on a job card (Mobile-Synced design). */
@@ -103,10 +106,11 @@ export async function completeExtraJob(tx: Tx, actor: Actor, id: string, patch: 
     assertCan(actor, 'settlements.record');
   }
   if (patch.orderNumber !== undefined) assertCan(actor, 'extra_jobs.log');
+  const [job] = await tx.select({ date: extraJobView.date }).from(extraJobView).where(eq(extraJobView.id, id));
   const [before] = await tx.select().from(extraJobs).where(eq(extraJobs.id, id));
-  if (!before) throw new RuleError('not_found');
+  if (!before || !job) throw new RuleError('not_found');
   const op = await getOperation(tx, 'tforce');
-  await assertNotLocked(tx, op, before.date);
+  await assertNotLocked(tx, op, job.date);
   const values = {
     ...(patch.orderNumber !== undefined ? { orderNumber: patch.orderNumber?.trim() || null } : {}),
     ...(patch.clientAmountCents !== undefined ? { clientAmountCents: patch.clientAmountCents } : {}),
@@ -138,11 +142,11 @@ export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: stri
   assertCan(actor, 'payroll.view');
   const showMoney = can(actor.role, 'money.view');
   const op = await getOperation(tx, 'tforce');
-  const rows = await tx.select({ job: extraJobs, service: serviceTypes, route: routes.code, by: users.name })
-    .from(extraJobs).innerJoin(serviceTypes, eq(serviceTypes.id, extraJobs.serviceTypeId))
-    .leftJoin(routes, eq(routes.id, extraJobs.nearRouteId)).leftJoin(users, eq(users.id, extraJobs.createdBy))
-    .where(and(eq(extraJobs.operationId, op.id), gte(extraJobs.date, from), lte(extraJobs.date, to)))
-    .orderBy(desc(extraJobs.date), desc(extraJobs.createdAt));
+  const rows = await tx.select({ job: getViewSelectedFields(extraJobView), service: serviceTypes, route: routes.code, by: users.name })
+    .from(extraJobView).innerJoin(serviceTypes, eq(serviceTypes.id, extraJobView.serviceTypeId))
+    .leftJoin(routes, eq(routes.id, extraJobView.nearRouteId)).leftJoin(users, eq(users.id, extraJobView.createdBy))
+    .where(and(eq(extraJobView.operationId, op.id), gte(extraJobView.date, from), lte(extraJobView.date, to)))
+    .orderBy(desc(extraJobView.date), desc(extraJobView.createdAt));
   const dIds = rows.map((r) => r.job.driverId).filter((x): x is string => !!x);
   const cIds = rows.map((r) => r.job.contractorId).filter((x): x is string => !!x);
   const names = dIds.length || cIds.length ? await payeeNameMaps(tx) : null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { routes, settlementLines, workRecords } from '~/db/schema';
+import { routes, settlementLines, workView } from '~/db/schema';
 import { TFORCE_CSV, actorAs, clearTforceReports, withRollback, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { addDriverForRoute, setAssignment } from './daily';
@@ -45,7 +45,7 @@ describe('T-Force weekly check (server)', () => {
       await recheckForDate(tx, owner, '2026-06-18'); // fixing the daily list closes the exception
       let after = await loadTforceWeek(tx, owner, WEEK);
       expect(after.exceptions.find((e) => e.id === unknown.id)!.status).toBe('resolved');
-      const [rec] = await tx.select().from(workRecords).where(and(eq(workRecords.routeId, z!.id), eq(workRecords.date, '2026-06-18')));
+      const [rec] = await tx.select().from(workView).where(and(eq(workView.routeId, z!.id), eq(workView.date, '2026-06-18')));
       expect(rec!.driverId).toBe(newGuy.id);
 
       const finance = actorAs('finance');

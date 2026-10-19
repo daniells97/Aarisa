@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Tx } from '~/db/client';
-import { aiSuggestions, extraJobs, messages, routes, serviceTypes, users } from '~/db/schema';
+import { aiSuggestions, extraJobView, messages, routes, serviceTypes, users } from '~/db/schema';
 import { can, isRole } from '~/domain/permissions';
 import { isLocale } from '~/i18n';
 import type { Actor } from './actor';
@@ -253,9 +253,9 @@ export async function aiContext(tx: Tx, date: string) {
 
 /** 7 PM reminder: extra jobs saved on `date` without an order number, grouped by the phone of who saved them. */
 export async function orderNumberReminders(tx: Tx, date: string) {
-  const rows = await tx.select({ id: extraJobs.id, orderNumber: extraJobs.orderNumber, service: serviceTypes.name, phone: users.phone, name: users.name, locale: users.locale })
-    .from(extraJobs).innerJoin(serviceTypes, eq(serviceTypes.id, extraJobs.serviceTypeId)).leftJoin(users, eq(users.id, extraJobs.createdBy))
-    .where(eq(extraJobs.date, date));
+  const rows = await tx.select({ id: extraJobView.id, orderNumber: extraJobView.orderNumber, service: serviceTypes.name, phone: users.phone, name: users.name, locale: users.locale })
+    .from(extraJobView).innerJoin(serviceTypes, eq(serviceTypes.id, extraJobView.serviceTypeId)).leftJoin(users, eq(users.id, extraJobView.createdBy))
+    .where(eq(extraJobView.date, date));
   const byPhone = new Map<string, { phone: string; name: string; locale: string; jobs: { id: string; service: string }[] }>();
   for (const r of rows) {
     if (r.orderNumber || !r.phone) continue;

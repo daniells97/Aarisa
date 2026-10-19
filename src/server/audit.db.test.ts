@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { auditLog, exceptions, operationRevenue, payPeriods, payrollLines, payrollRuns, reportImports, users, workRecords } from '~/db/schema';
+import { auditLog, exceptions, operationRevenue, payPeriods, payrollLines, payrollRuns, reportImports, users, workView } from '~/db/schema';
 import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { importHovership, resolveUnknownCode, setBonus } from './hovership';
 import { approveRun, markRunPaid, reopenRun } from './payroll';
@@ -35,7 +35,7 @@ describe('audit log (rule 4)', () => {
       const runIds = (await tx.select({ id: payrollRuns.id }).from(payrollRuns).where(inArray(payrollRuns.payPeriodId, periodIds))).map((r) => r.id);
       const checks: Record<string, string[]> = {
         report_imports: (await tx.select({ id: reportImports.id }).from(reportImports).where(eq(reportImports.operationId, op.id))).map((r) => r.id),
-        work_records: (await tx.select({ id: workRecords.id }).from(workRecords).where(eq(workRecords.operationId, op.id))).map((r) => r.id),
+        work_records: (await tx.select({ id: workView.id }).from(workView).where(eq(workView.operationId, op.id))).map((r) => r.id),
         operation_revenue: (await tx.select({ id: operationRevenue.id }).from(operationRevenue).where(eq(operationRevenue.operationId, op.id))).map((r) => r.id),
         exceptions: (await tx.select({ id: exceptions.id }).from(exceptions).where(eq(exceptions.operationId, op.id))).map((r) => r.id),
         pay_periods: periodIds,

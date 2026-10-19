@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { exceptions, operationRevenue, reportImports, workRecords } from '~/db/schema';
+import { exceptions, operationRevenue, reportImports, workRecords, workView } from '~/db/schema';
 import { addDays, todayLA, weekStart } from '~/domain/dates';
 import { hovershipSummary, type HovershipDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
@@ -11,6 +11,7 @@ import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation, hovershipRateFn, lockedPeriodStarts, serviceIds } from './ops';
+import { driverDay } from './executions';
 import { createDriver, driverIdsByCode, driverProfile, driverProfiles, setHovershipCode } from './people';
 import { saveImportFile } from './storage';
 import { refreshWeeklyLines } from './settlements';
@@ -35,7 +36,9 @@ interface UnknownDetails { code: string; name: string; importId: string; rows: H
 async function writeRows(tx: Tx, actor: Actor, ctx: { operationId: string; importId: string; ids: Record<string, string> }, driverId: string, rows: HovershipRow[]) {
   const trail: AuditEntry[] = [];
   for (const r of rows) {
-    const base = { date: r.date, operationId: ctx.operationId, driverId, source: 'hovership_report' as const, importId: ctx.importId };
+    const { row: ex, created } = await driverDay(tx, { operationId: ctx.operationId, date: r.date, driverId, importId: ctx.importId });
+    if (created) trail.push({ table: 'route_executions', recordId: ex.id, action: 'insert', after: ex, userId: actor.userId, source: actor.source });
+    const base = { executionId: ex.id, source: 'hovership_report' as const, importId: ctx.importId };
     const records = [
       { ...base, serviceTypeId: ctx.ids.hovership_packages!, tier: 't1_3' as const, pieces: r.t1 + r.t2 + r.t3, bonusCents: r.bonusCents },
       ...(r.t4 ? [{ ...base, serviceTypeId: ctx.ids.hovership_packages!, tier: 't4' as const, pieces: r.t4 }] : []),
@@ -83,8 +86,8 @@ export async function importHovership(tx: Tx, actor: Actor, input: { fileName: s
   if (!parsed.rows.length) return { status: 'failed', reason: 'no_rows' };
 
   const dates = [...new Set(parsed.rows.map((r) => r.date))].sort();
-  const already = await tx.selectDistinct({ date: workRecords.date }).from(workRecords).where(and(
-    eq(workRecords.operationId, op.id), eq(workRecords.source, 'hovership_report'), inArray(workRecords.date, dates)));
+  const already = await tx.selectDistinct({ date: workView.date }).from(workView).where(and(
+    eq(workView.operationId, op.id), eq(workView.source, 'hovership_report'), inArray(workView.date, dates)));
   if (already.length) return { status: 'failed', reason: 'dates_already_imported', dates: already.map((d) => d.date).sort() };
 
   // Driver codes: known → records now; unknown → one exception per code holding its rows.
@@ -185,8 +188,10 @@ export async function setBonus(tx: Tx, actor: Actor, input: { driverId: string; 
   assertCan(actor, 'hovership.enter_bonus');
   const op = await getOperation(tx, 'hovership');
   await assertNotLocked(tx, op, input.date);
-  const [before] = await tx.select().from(workRecords).where(and(
-    eq(workRecords.operationId, op.id), eq(workRecords.driverId, input.driverId), eq(workRecords.date, input.date), eq(workRecords.tier, 't1_3')));
+  const [row] = await tx.select({ id: workView.id }).from(workView).where(and(
+    eq(workView.operationId, op.id), eq(workView.driverId, input.driverId), eq(workView.date, input.date), eq(workView.tier, 't1_3')));
+  if (!row) throw new RuleError('not_found');
+  const [before] = await tx.select().from(workRecords).where(eq(workRecords.id, row.id));
   if (!before) throw new RuleError('not_found');
   if (before.bonusCents === input.bonusCents) return before;
   const [after] = await tx.update(workRecords).set({ bonusCents: input.bonusCents, updatedAt: new Date() }).where(eq(workRecords.id, before.id)).returning();
@@ -196,7 +201,7 @@ export async function setBonus(tx: Tx, actor: Actor, input: { driverId: string; 
 
 /** Driver-days and STEM for a date range, rebuilt from the work records. */
 export async function loadHovershipDays(tx: Tx, operationId: string, ids: Record<string, string>, from: string, to: string) {
-  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, operationId), gte(workRecords.date, from), lte(workRecords.date, to)));
+  const records = await tx.select().from(workView).where(and(eq(workView.operationId, operationId), gte(workView.date, from), lte(workView.date, to)));
   const dayMap = new Map<string, HovershipDay>();
   for (const w of records) {
     if (!w.driverId) continue;
@@ -270,6 +275,6 @@ export async function loadHovershipWeek(tx: Tx, actor: Actor, start: string) {
 /** Week to open by default: the latest week with Hovership data, else the current week. */
 export async function latestHovershipWeek(tx: Tx, today: string) {
   const op = await getOperation(tx, 'hovership');
-  const [row] = await tx.select({ date: sql<string>`max(${workRecords.date})` }).from(workRecords).where(eq(workRecords.operationId, op.id));
+  const [row] = await tx.select({ date: sql<string>`max(${workView.date})` }).from(workView).where(eq(workView.operationId, op.id));
   return weekStart(row?.date ?? today);
 }

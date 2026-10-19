@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, getViewSelectedFields } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { aiSuggestions, claims, extraJobs, operations, paymentAllocations, paymentsReceived, payrollRuns, rates, routes, serviceTypes, settlementLines, workRecords } from '~/db/schema';
+import { aiSuggestions, claims, extraJobView, operations, paymentAllocations, paymentsReceived, payrollRuns, rates, routes, serviceTypes, settlementLines, workView } from '~/db/schema';
 import { addDays, weekStart } from '~/domain/dates';
 import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
@@ -29,7 +29,7 @@ async function weeklyExpected(tx: Tx, op: Op, start: string, end: string): Promi
   }
   const ids = await serviceIds(tx, op.id);
   const rateRows = (await tx.select().from(rates).where(eq(rates.serviceTypeId, ids.ecommerce!))) as RateRow[];
-  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, 'tforce_report'), gte(workRecords.date, start), lte(workRecords.date, end)));
+  const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), gte(workView.date, start), lte(workView.date, end)));
   let total = 0;
   for (const w of records) {
     if (!w.driverId && !w.contractorId) continue; // not our route: not billed
@@ -50,7 +50,7 @@ export async function refreshWeeklyLines(tx: Tx, actor: Actor, code: 'hovership'
   const source = code === 'hovership' ? 'hovership_report' as const : 'tforce_report' as const;
   let weeks = weekStarts;
   if (!weeks) {
-    const dates = await tx.selectDistinct({ date: workRecords.date }).from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, source)));
+    const dates = await tx.selectDistinct({ date: workView.date }).from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, source)));
     weeks = [...new Set(dates.map((d) => weekStart(d.date)))];
   }
   const trail: AuditEntry[] = [];
@@ -91,8 +91,8 @@ async function paidOutLines(tx: Tx, lines: (typeof settlementLines.$inferSelect)
   if (!approved.size) return out;
   for (const l of lines) {
     const recs = l.extraJobId
-      ? await tx.select({ run: workRecords.payrollRunId }).from(workRecords).where(eq(workRecords.extraJobId, l.extraJobId))
-      : await tx.select({ run: workRecords.payrollRunId }).from(workRecords).where(and(eq(workRecords.operationId, l.operationId), gte(workRecords.date, l.periodStart ?? '9999-12-31'), lte(workRecords.date, l.periodEnd ?? '0000-01-01')));
+      ? await tx.select({ run: workView.payrollRunId }).from(workView).where(eq(workView.extraJobId, l.extraJobId))
+      : await tx.select({ run: workView.payrollRunId }).from(workView).where(and(eq(workView.operationId, l.operationId), gte(workView.date, l.periodStart ?? '9999-12-31'), lte(workView.date, l.periodEnd ?? '0000-01-01')));
     if (recs.length && recs.every((r) => r.run && approved.has(r.run))) out.add(l.id);
   }
   return out;
@@ -109,8 +109,8 @@ export async function loadSettlements(tx: Tx, actor: Actor, today: string, filte
   const claimRows = ids.length ? await tx.select().from(claims).where(inArray(claims.settlementLineId, ids)).orderBy(desc(claims.createdAt)) : [];
   const paidOut = await paidOutLines(tx, lines);
   const jobIds = lines.map((l) => l.extraJobId).filter((x): x is string => !!x);
-  const jobs = jobIds.length ? await tx.select({ job: extraJobs, service: serviceTypes.name, route: routes.code }).from(extraJobs)
-    .innerJoin(serviceTypes, eq(serviceTypes.id, extraJobs.serviceTypeId)).leftJoin(routes, eq(routes.id, extraJobs.nearRouteId)).where(inArray(extraJobs.id, jobIds)) : [];
+  const jobs = jobIds.length ? await tx.select({ job: getViewSelectedFields(extraJobView), service: serviceTypes.name, route: routes.code }).from(extraJobView)
+    .innerJoin(serviceTypes, eq(serviceTypes.id, extraJobView.serviceTypeId)).leftJoin(routes, eq(routes.id, extraJobView.nearRouteId)).where(inArray(extraJobView.id, jobIds)) : [];
   const { driver: dName, contractor: cName } = await payeeNameMaps(tx);
 
   const view = lines.map((l) => {
@@ -225,7 +225,7 @@ export async function claimDetails(tx: Tx, actor: Actor, lineId: string, today: 
   let agreement: { at: string; text: string } | null = null;
   const [row] = await tx.select({ extraJobId: settlementLines.extraJobId }).from(settlementLines).where(eq(settlementLines.id, lineId));
   if (row?.extraJobId) {
-    const [job] = await tx.select().from(extraJobs).where(eq(extraJobs.id, row.extraJobId));
+    const [job] = await tx.select().from(extraJobView).where(eq(extraJobView.id, row.extraJobId));
     // The phone agreement: the WhatsApp message the job came from, else the note typed when it was logged.
     if (job?.aiSuggestionId) {
       const [s] = await tx.select().from(aiSuggestions).where(eq(aiSuggestions.id, job.aiSuggestionId));

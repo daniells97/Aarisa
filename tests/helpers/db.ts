@@ -24,13 +24,23 @@ export const ALL_ROLES: Role[] = ['owner', 'dispatcher', 'finance', 'viewer'];
 
 import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
-import { claims, exceptions, operationRevenue, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, settlementLines, workRecords } from '~/db/schema';
+import { and, inArray } from 'drizzle-orm';
+import { claims, exceptions, operationRevenue, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, routeExecutions, settlementLines, workRecords } from '~/db/schema';
+
+/** Work records of an operation (they hang from its executions). */
+async function clearWork(tx: Tx, operationId: string) {
+  const ex = tx.select({ id: routeExecutions.id }).from(routeExecutions).where(eq(routeExecutions.operationId, operationId));
+  await tx.delete(workRecords).where(inArray(workRecords.executionId, ex));
+}
 
 export const HOVERSHIP_CSV = readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8');
 
 /** Inside a rolled-back test transaction: start from an empty Hovership operation even if the dev seed loaded data. */
 export async function clearHovership(tx: Tx) {
   const [op] = await tx.select().from(operations).where(eq(operations.code, 'hovership'));
+  // Exceptions and work point at runs and settlement lines, so they go first.
+  await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
+  await clearWork(tx, op!.id);
   const periods = await tx.select({ id: payPeriods.id }).from(payPeriods).where(eq(payPeriods.operationId, op!.id));
   for (const p of periods) {
     const runs = await tx.select({ id: payrollRuns.id }).from(payrollRuns).where(eq(payrollRuns.payPeriodId, p.id));
@@ -38,9 +48,8 @@ export async function clearHovership(tx: Tx) {
     await tx.delete(payrollRuns).where(eq(payrollRuns.payPeriodId, p.id));
   }
   await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
-  await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
   await clearSettlements(tx, op!.id);
-  await tx.delete(workRecords).where(eq(workRecords.operationId, op!.id));
+  await tx.delete(routeExecutions).where(eq(routeExecutions.operationId, op!.id));
   await tx.delete(operationRevenue).where(eq(operationRevenue.operationId, op!.id));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;
@@ -51,6 +60,9 @@ export const TFORCE_CSV = readFileSync(new URL('../../docs/seed/tforce_pieces_ju
 /** Inside a rolled-back test transaction: remove T-Force report data but keep routes and the daily list. */
 export async function clearTforceReports(tx: Tx) {
   const [op] = await tx.select().from(operations).where(eq(operations.code, 'tforce'));
+  // Exceptions and work point at runs and settlement lines, so they go first.
+  await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
+  await clearWork(tx, op!.id);
   const periods = await tx.select({ id: payPeriods.id }).from(payPeriods).where(eq(payPeriods.operationId, op!.id));
   for (const p of periods) {
     const runs = await tx.select({ id: payrollRuns.id }).from(payrollRuns).where(eq(payrollRuns.payPeriodId, p.id));
@@ -58,9 +70,10 @@ export async function clearTforceReports(tx: Tx) {
     await tx.delete(payrollRuns).where(eq(payrollRuns.payPeriodId, p.id));
   }
   await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
-  await tx.delete(exceptions).where(eq(exceptions.operationId, op!.id));
   await clearSettlements(tx, op!.id);
-  await tx.delete(workRecords).where(eq(workRecords.operationId, op!.id));
+  // Days only the report knew about go; the daily list stays (it may still point at the import it fixed).
+  await tx.delete(routeExecutions).where(and(eq(routeExecutions.operationId, op!.id), eq(routeExecutions.source, 'tforce_report')));
+  await tx.update(routeExecutions).set({ importId: null }).where(eq(routeExecutions.operationId, op!.id));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;
 }

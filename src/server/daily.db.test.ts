@@ -41,7 +41,7 @@ describe("today's drivers (server)", () => {
       await undoAssignment(tx, d, { date: '2026-09-03', routeId: e.id, previous: res.previous });
       row = (await loadDay(tx, d, '2026-09-03')).rows.find((r) => r.code === '9000E')!;
       expect(row.status).toBe('proposed');
-      const trail = await tx.select().from(auditLog).where(and(eq(auditLog.tableName, 'daily_assignments'), eq(auditLog.recordId, res.assignmentId)));
+      const trail = await tx.select().from(auditLog).where(and(eq(auditLog.tableName, 'route_executions'), eq(auditLog.recordId, res.assignmentId)));
       expect(trail.map((t) => t.action).sort()).toEqual(['insert', 'undo']);
       expect((await loadDay(tx, d, '2026-09-03')).changes.filter((c) => c.route === '9000E')).toHaveLength(2);
     }));

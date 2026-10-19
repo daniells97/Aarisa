@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { dailyAssignments, exceptions, reportImports, routes, settlementLines, workRecords } from '~/db/schema';
+import { executionView, exceptions, reportImports, routes, settlementLines, workRecords, workView } from '~/db/schema';
 import { addDays, weekStart } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { crossCheck, pieceGrid, type CheckException, type ListEntry, type Payee, type ReportRow } from '~/domain/tforce';
@@ -11,6 +11,7 @@ import { audit, type AuditEntry } from './audit';
 import { assignRoute, type PayeeInput } from './daily';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation, lockedPeriodStarts, serviceIds } from './ops';
+import { reportRouteDay } from './executions';
 import { createRoute, payeeNameMaps, routeOwners } from './people';
 import { saveImportFile } from './storage';
 import { refreshWeeklyLines } from './settlements';
@@ -52,8 +53,8 @@ export async function importTforce(tx: Tx, actor: Actor, input: { fileName: stri
   if (!parsed.rows.length) return { status: 'failed', reason: 'no_rows' };
 
   const dates = [...new Set(parsed.rows.map((r) => r.date))].sort();
-  const already = await tx.selectDistinct({ date: workRecords.date }).from(workRecords)
-    .where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, 'tforce_report'), inArray(workRecords.date, dates)));
+  const already = await tx.selectDistinct({ date: workView.date }).from(workView)
+    .where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), inArray(workView.date, dates)));
   if (already.length) return { status: 'failed', reason: 'dates_already_imported', dates: already.map((d) => d.date).sort() };
   for (const d of dates) await assertNotLocked(tx, op, d);
 
@@ -72,9 +73,14 @@ export async function importTforce(tx: Tx, actor: Actor, input: { fileName: stri
     newRoutes.push(code);
   }
   const ids = await serviceIds(tx, op.id);
-  const inserted = await tx.insert(workRecords).values(parsed.rows.map((r) => ({
-    date: r.date, operationId: op.id, serviceTypeId: ids.ecommerce!, routeId: routeId.get(r.route)!, pieces: r.pieces, source: 'tforce_report' as const, importId: imp.id,
-  }))).returning();
+  // Each report row lands on the execution of its route and day; a day the list never mentioned gets one without a driver.
+  const values: (typeof workRecords.$inferInsert)[] = [];
+  for (const r of parsed.rows) {
+    const { row: ex, created } = await reportRouteDay(tx, { operationId: op.id, date: r.date, routeId: routeId.get(r.route)!, importId: imp.id });
+    if (created) trail.push({ table: 'route_executions', recordId: ex.id, action: 'insert', after: ex, userId: actor.userId, source: actor.source });
+    values.push({ executionId: ex.id, serviceTypeId: ids.ecommerce!, pieces: r.pieces, source: 'tforce_report', importId: imp.id });
+  }
+  const inserted = await tx.insert(workRecords).values(values).returning();
   for (const w of inserted) trail.push({ table: 'work_records', recordId: w.id, action: 'insert', after: w, userId: actor.userId, source: actor.source });
   await audit(tx, trail);
 
@@ -88,8 +94,9 @@ export async function importTforce(tx: Tx, actor: Actor, input: { fileName: stri
 const exKey = (type: string, date: string, routeId: string | null) => `${type}|${date}|${routeId ?? ''}`;
 
 /**
- * Re-runs the check for a week: sets the payee on every report row that the daily list covers and
- * reconciles exceptions. Runs after an import and after any daily-list change in an imported week.
+ * Re-runs the check for a week and reconciles exceptions. The payee of a report row is the payee of its
+ * execution, so a daily-list change already moves the row. Runs after an import and after any
+ * daily-list change in an imported week.
  */
 export async function runWeeklyCheck(tx: Tx, actor: Actor, start: string) {
   const op = await getOperation(tx, 'tforce');
@@ -98,10 +105,11 @@ export async function runWeeklyCheck(tx: Tx, actor: Actor, start: string) {
   const codeOf = new Map(routeRows.map((r) => [r.id, r.code]));
   const idOf = new Map(routeRows.map((r) => [r.code, r.id]));
 
-  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, 'tforce_report'), gte(workRecords.date, start), lte(workRecords.date, end)));
+  const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), gte(workView.date, start), lte(workView.date, end)));
   if (!records.length) return { open: 0 };
-  const history = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, 'tforce_report'), gte(workRecords.date, addDays(start, -28)), lt(workRecords.date, start)));
-  const assignments = await tx.select().from(dailyAssignments).where(and(gte(dailyAssignments.date, start), lte(dailyAssignments.date, end), inArray(dailyAssignments.routeId, routeRows.map((r) => r.id))));
+  const history = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), gte(workView.date, addDays(start, -28)), lt(workView.date, start)));
+  const assignments = (await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.kind, 'route'), gte(executionView.date, start), lte(executionView.date, end))))
+    .filter((a) => a.routeId).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId }));
 
   const toRow = (w: typeof records[number]): ReportRow => ({ date: w.date, route: codeOf.get(w.routeId!)!, pieces: w.pieces });
   const list: ListEntry[] = assignments.map((a) => ({
@@ -110,16 +118,7 @@ export async function runWeeklyCheck(tx: Tx, actor: Actor, start: string) {
   }));
   const result = crossCheck(records.map(toRow), list, history.map(toRow));
 
-  // Payee on each report row follows the daily list.
   const trail: AuditEntry[] = [];
-  for (const w of records) {
-    const a = assignments.find((x) => x.date === w.date && x.routeId === w.routeId);
-    const driverId = a?.driverId ?? null, contractorId = a?.contractorId ?? null, assignmentId = a?.id ?? null;
-    if (w.driverId === driverId && w.contractorId === contractorId && w.assignmentId === assignmentId) continue;
-    if (w.payrollRunId) continue; // frozen by an approved run
-    const [after] = await tx.update(workRecords).set({ driverId, contractorId, assignmentId, updatedAt: new Date() }).where(eq(workRecords.id, w.id)).returning();
-    trail.push({ table: 'work_records', recordId: w.id, action: 'update', before: w, after, userId: actor.userId, source: actor.source });
-  }
 
   // Reconcile exceptions: new ones open, open ones no longer found close as fixed in the daily list.
   const current = await tx.select().from(exceptions).where(and(eq(exceptions.operationId, op.id), eq(exceptions.periodStart, start), inArray(exceptions.type, ['no_driver', 'unknown_name', 'no_pieces', 'low_pieces'])));
@@ -131,7 +130,7 @@ export async function runWeeklyCheck(tx: Tx, actor: Actor, start: string) {
     const asg = assignments.find((a) => a.date === e.date && a.routeId === idOf.get(e.route));
     const [row] = await tx.insert(exceptions).values({
       operationId: op.id, periodStart: start, date: e.date, routeId: idOf.get(e.route)!, type: e.type,
-      workRecordId: rec?.id ?? null, assignmentId: asg?.id ?? null, details: detailsOf(e),
+      workRecordId: rec?.id ?? null, executionId: rec?.executionId ?? asg?.id ?? null, details: detailsOf(e),
     }).returning();
     trail.push({ table: 'exceptions', recordId: row!.id, action: 'insert', after: row, userId: null, source: 'system' });
   }
@@ -157,7 +156,7 @@ function detailsOf(e: CheckException) {
 /** Re-check the week of `date` if T-Force already reported it (called after daily-list changes). */
 export async function recheckForDate(tx: Tx, actor: Actor, date: string) {
   const op = await getOperation(tx, 'tforce');
-  const [any] = await tx.select({ id: workRecords.id }).from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, 'tforce_report'), gte(workRecords.date, weekStart(date)), lte(workRecords.date, addDays(weekStart(date), 6)))).limit(1);
+  const [any] = await tx.select({ id: workView.id }).from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), gte(workView.date, weekStart(date)), lte(workView.date, addDays(weekStart(date), 6)))).limit(1);
   if (any) await runWeeklyCheck(tx, actor, weekStart(date));
 }
 
@@ -205,12 +204,7 @@ export async function resolveTforceException(tx: Tx, actor: Actor, exceptionId: 
     await audit(tx, { table: 'settlement_lines', recordId: line!.id, action: 'insert', after: line, userId: actor.userId, source: actor.source });
     claimId = line!.id;
   }
-  if (r.action === 'not_ours' && ex.workRecordId) {
-    // Not Aarisa's route: nobody is paid for that row.
-    const [w] = await tx.select().from(workRecords).where(eq(workRecords.id, ex.workRecordId));
-    const [after] = await tx.update(workRecords).set({ driverId: null, contractorId: null, updatedAt: new Date() }).where(eq(workRecords.id, ex.workRecordId)).returning();
-    await audit(tx, { table: 'work_records', recordId: ex.workRecordId, action: 'update', before: w, after, userId: actor.userId, source: actor.source });
-  }
+  // Not Aarisa's route: the execution has no payee (no driver or an unknown name), so nobody is paid for it.
   const resolution = r.action === 'not_ours' ? 'not_ours' : r.action === 'pay_as_reported' ? 'pay_as_reported' : 'ask_client';
   const [after] = await tx.update(exceptions).set({
     status: 'resolved', resolution, resolvedBy: actor.userId, resolvedAt: new Date(),
@@ -229,7 +223,7 @@ export async function loadTforceWeek(tx: Tx, actor: Actor, start: string) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   const routeRows = await tx.select().from(routes).where(eq(routes.operationId, op.id)).orderBy(asc(routes.code));
   const codeOf = new Map(routeRows.map((r) => [r.id, r.code]));
-  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, 'tforce_report'), gte(workRecords.date, start), lte(workRecords.date, end)));
+  const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), gte(workView.date, start), lte(workView.date, end)));
   const report: ReportRow[] = records.map((w) => ({ date: w.date, route: codeOf.get(w.routeId!)!, pieces: w.pieces }));
   const shownDays = days.filter((d, i) => i < 6 || report.some((r) => r.date === d)); // Sunday only if it has work
 
@@ -298,6 +292,6 @@ export async function loadTforceWeek(tx: Tx, actor: Actor, start: string) {
 /** Default week: the latest week T-Force reported, else this week. */
 export async function latestTforceWeek(tx: Tx, today: string) {
   const op = await getOperation(tx, 'tforce');
-  const [row] = await tx.select({ date: workRecords.date }).from(workRecords).where(and(eq(workRecords.operationId, op.id), eq(workRecords.source, 'tforce_report'))).orderBy(desc(workRecords.date)).limit(1);
+  const [row] = await tx.select({ date: workView.date }).from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'))).orderBy(desc(workView.date)).limit(1);
   return weekStart(row?.date ?? today);
 }

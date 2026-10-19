@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { exceptions, payPeriods, payrollLines, payrollRuns, rates, users, workRecords } from '~/db/schema';
+import { exceptions, payPeriods, payrollLines, payrollRuns, rates, users, workRecords, workView } from '~/db/schema';
 import { addDays, todayLA } from '~/domain/dates';
 import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
@@ -12,6 +12,7 @@ import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { loadHovershipDays } from './hovership';
 import { getOperation, hovershipRateFn, serviceIds } from './ops';
+import { payeeIdsByKey, payeeRefs } from './executions';
 import { contractorProfiles, driverProfiles } from './people';
 
 // Payroll runs (spec §5.5, rule 3). A run is identified as `<operation>-<period start>`;
@@ -37,7 +38,7 @@ type Operation = Awaited<ReturnType<typeof getOperation>>;
 
 /** Values copied onto a work record when its run is approved (spec §4). */
 interface Snapshot {
-  record: typeof workRecords.$inferSelect;
+  record: typeof workView.$inferSelect;
   values: { clientRateCents: number | null; driverRateCents: number | null; driverPayCents: number; revenueCents: number; profitCents: number };
 }
 
@@ -47,8 +48,9 @@ async function previousPayees(tx: Tx, operationId: string, start: string) {
     .where(and(eq(payPeriods.operationId, operationId), sql`${payPeriods.startDate} < ${start}`, inArray(payrollRuns.status, ['approved', 'paid'])))
     .orderBy(desc(payPeriods.startDate)).limit(1);
   if (!prev) return null;
-  const lines = await tx.select({ driverId: payrollLines.driverId, contractorId: payrollLines.contractorId }).from(payrollLines).where(eq(payrollLines.runId, prev.runId));
-  return lines.map(payeeKey);
+  const lines = await tx.select({ payeeId: payrollLines.payeeId }).from(payrollLines).where(eq(payrollLines.runId, prev.runId));
+  const refs = await payeeRefs(tx);
+  return lines.map((l) => payeeKey(refs.get(l.payeeId)!));
 }
 
 async function openExceptionCount(tx: Tx, operationId: string, from: string, to: string) {
@@ -91,7 +93,7 @@ async function computeTforce(tx: Tx, op: Operation, start: string) {
   if (period.start !== start) throw new RuleError('not_found');
   const ids = await serviceIds(tx, op.id);
   const rateRows = (await tx.select().from(rates).where(eq(rates.serviceTypeId, ids.ecommerce!))) as RateRow[];
-  const records = await tx.select().from(workRecords).where(and(eq(workRecords.operationId, op.id), gte(workRecords.date, period.start), lte(workRecords.date, period.end)));
+  const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), gte(workView.date, period.start), lte(workView.date, period.end)));
   const paid = records.filter((w) => w.driverId || w.contractorId);
   // Report route-days use the e-commerce rate valid that day; extra jobs carry their agreed amounts.
   const priced = paid.map((w) => w.source === 'tforce_report'
@@ -157,7 +159,8 @@ export async function loadRun(tx: Tx, actor: Actor, runId: string, now = new Dat
     return { key, driverId: l.driverId, contractorId: l.contractorId, contractor: !!l.contractorId, name: p?.name ?? '', code: p?.code ?? '', routeDays: l.routeDays, extraJobs: l.extraJobs ?? 0, packages: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents };
   };
   if (frozen) {
-    const rows = (await tx.select().from(payrollLines).where(eq(payrollLines.runId, run.id))).map((r) => ({ ...r, packages: r.pieces }));
+    const refs = await payeeRefs(tx);
+    const rows = (await tx.select().from(payrollLines).where(eq(payrollLines.runId, run.id))).map((r) => ({ ...r, ...refs.get(r.payeeId)!, packages: r.pieces }));
     const info = await payeeInfo(tx, rows.map(payeeKey));
     lines = rows.map((r) => view(r, info));
     totals = run.totals as PayrollTotals;
@@ -202,7 +205,7 @@ export async function listRuns(tx: Tx, actor: Actor, now = new Date()) {
   for (const code of ['hovership', 'tforce'] as const) {
     const op = await getOperation(tx, code);
     payCycles[code] = op.payCycle;
-    const dates = await tx.selectDistinct({ date: workRecords.date }).from(workRecords).where(eq(workRecords.operationId, op.id));
+    const dates = await tx.selectDistinct({ date: workView.date }).from(workView).where(eq(workView.operationId, op.id));
     for (const p of periodsFor(op.cycleAnchor, op.payCycle, dates.map((d) => d.date))) {
       const r = await loadRun(tx, actor, `${code}-${p.start}`, now);
       runs.push({ runId: r.runId, operation: r.operation, period: r.period, status: r.status, payCents: r.totals.payCents, blockers: r.blockers, paidAt: r.paidAt, approvedAt: r.approvedAt });
@@ -244,8 +247,9 @@ export async function approveRun(tx: Tx, actor: Actor, runId: string, expectedPa
   } else {
     [run] = await tx.insert(payrollRuns).values({ payPeriodId: periodRow!.id, ...runValues }).returning();
   }
+  const payeeOf = await payeeIdsByKey(tx);
   const inserted = await tx.insert(payrollLines).values(live.lines.map((l) => ({
-    runId: run!.id, driverId: l.driverId, contractorId: l.contractorId, routeDays: l.routeDays, extraJobs: l.extraJobs, pieces: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents,
+    runId: run!.id, payeeId: payeeOf.get(payeeKey(l))!, routeDays: l.routeDays, extraJobs: l.extraJobs, pieces: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents,
   }))).returning();
   for (const l of inserted) log('payroll_lines', l.id, 'insert', null, l);
 

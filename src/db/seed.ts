@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 import { createDb } from './client';
-import { contractors, dailyAssignments, operations, paymentsReceived, rates, routes, serviceTypes, settlementLines } from './schema';
+import { contractors, operations, routeExecutions, paymentsReceived, rates, routes, serviceTypes, settlementLines } from './schema';
 import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TYPES } from './seed-data';
 import { parseCsvObjects } from '~/integrations/csv';
 import { audit, type AuditEntry } from '~/server/audit';
@@ -133,7 +133,8 @@ export async function seedTforceSample(database: ReturnType<typeof createDb>) {
 
     const routeRows = await tx.select().from(routes).where(eq(routes.operationId, op!.id));
     const routeId = new Map(routeRows.map((r) => [r.code, r.id]));
-    const existing = await tx.select({ id: dailyAssignments.id }).from(dailyAssignments).where(inArray(dailyAssignments.routeId, routeRows.map((r) => r.id))).limit(1);
+    const existing = await tx.select({ id: routeExecutions.id }).from(routeExecutions)
+      .where(and(eq(routeExecutions.operationId, op!.id), ne(routeExecutions.source, 'tforce_report'), eq(routeExecutions.kind, 'route'))).limit(1);
     if (existing.length) return console.log('T-Force sample: daily list already loaded');
     for (const r of list) {
       const id = routeId.get(r.route!)!;

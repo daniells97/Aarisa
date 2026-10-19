@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { rates, serviceTypes, workRecords } from '~/db/schema';
+import { rates, serviceTypes, workView } from '~/db/schema';
 import { TFORCE_CSV, actorAs, clearTforceReports, withRollback, contractorNamed } from '../../tests/helpers/db';
 import { approveRun, loadRun } from './payroll';
 import { importTforce, loadTforceWeek, resolveTforceException } from './tforce';
@@ -38,7 +38,7 @@ describe('T-Force payroll (server)', () => {
       const pumaLine = run.lines.find((l) => l.contractorId === puma!.id)!;
       expect(pumaLine).toMatchObject({ name: 'Puma', contractor: true, routeDays: 10, packages: 685 });
       await approveRun(tx, owner, RUN, run.totals.payCents);
-      const recs = await tx.select().from(workRecords).where(eq(workRecords.date, '2026-06-17'));
+      const recs = await tx.select().from(workView).where(eq(workView.date, '2026-06-17'));
       expect(recs.filter((r) => r.contractorId === puma!.id).every((r) => r.driverRateCents === 110 && r.driverPayCents === r.pieces * 110)).toBe(true);
       expect((await loadRun(tx, owner, RUN)).status).toBe('approved');
     }));

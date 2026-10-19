@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, users, workRecords } from '~/db/schema';
+import { auditLog, users, workView } from '~/db/schema';
 import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { importHovership, setBonus } from './hovership';
@@ -42,7 +42,7 @@ describe('payroll runs (server)', () => {
       expect(run).toMatchObject({ status: 'approved', canReopen: true, canMarkPaid: true });
       expect(run.lines).toHaveLength(20);
       // rates are snapshotted on every work record
-      const recs = await tx.select().from(workRecords).where(and(eq(workRecords.date, '2026-06-15'), eq(workRecords.tier, 't4')));
+      const recs = await tx.select().from(workView).where(and(eq(workView.date, '2026-06-15'), eq(workView.tier, 't4')));
       expect(recs.every((r) => r.driverRateCents === 175 && r.clientRateCents === 200 && r.payrollRunId)).toBe(true);
       // locked: bonuses can't change, and a second approval is refused
       const robert = await driverWithCode(tx, 'DUB061');
@@ -61,7 +61,7 @@ describe('payroll runs (server)', () => {
       await expect(reopenRun(tx, owner, RUN, new Date('2026-06-23T17:00:01Z'))).rejects.toMatchObject({ code: 'reopen_expired' });
       await reopenRun(tx, owner, RUN, new Date('2026-06-23T16:59:00Z'));
       const robert = await driverWithCode(tx, 'DUB061');
-      const [rec] = await tx.select().from(workRecords).where(and(eq(workRecords.driverId, robert!.id), eq(workRecords.date, '2026-06-15'), eq(workRecords.tier, 't1_3')));
+      const [rec] = await tx.select().from(workView).where(and(eq(workView.driverId, robert!.id), eq(workView.date, '2026-06-15'), eq(workView.tier, 't1_3')));
       await setBonus(tx, owner, { driverId: robert!.id, date: '2026-06-15', bonusCents: rec!.bonusCents + 10_00 });
       const reopened = await loadRun(tx, owner, RUN);
       expect(reopened.status).toBe('reopened');

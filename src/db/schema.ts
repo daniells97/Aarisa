@@ -29,7 +29,8 @@ export const auditSourceEnum = core.enum('audit_source', ['portal', 'whatsapp', 
 export const importStatusEnum = core.enum('import_status', [
   'waiting', 'reading', 'layout_changed', 'partial', 'done', 'failed',
 ]);
-export const assignmentStatusEnum = core.enum('assignment_status', [
+export const executionKindEnum = core.enum('execution_kind', ['route', 'extra']);
+export const executionStatusEnum = core.enum('execution_status', [
   'proposed', 'confirmed', 'changed', 'waiting', 'no_driver',
 ]);
 export const exceptionTypeEnum = core.enum('exception_type', [
@@ -216,49 +217,62 @@ export const reportImports = core.table('report_imports', {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('import_file_once').on(t.operationId, t.fileSha256)]);
 
-export const dailyAssignments = core.table('daily_assignments', {
-  id: id('daily_assignment_id'),
+// One payee, one day, one route (or none) for one operation: the "execution" (docs/db-model.md §2.6).
+// T-Force executions come from the daily list (one per route and day); Hovership executions from the
+// report (one per driver and day, no route); extra jobs hang from an `extra` execution per payee and day,
+// which pays without counting as a route day. Work records, extra jobs and exceptions hang from here.
+export const routeExecutions = core.table('route_executions', {
+  id: id('route_execution_id'),
+  operationId: uuid('operation_id').notNull().references(() => operations.id),
   date: date('work_date').notNull(),
-  routeId: uuid('route_id').notNull().references(() => routes.id),
-  driverId: uuid('driver_id').references(() => drivers.id),
-  contractorId: uuid('contractor_id').references(() => contractors.id),
+  routeId: uuid('route_id').references(() => routes.id),
+  kind: executionKindEnum('execution_kind').notNull().default('route'),
+  payeeId: uuid('payee_id').references(() => payees.id), // who is paid: the driver, or the contractor on its routes
+  driverId: uuid('driver_id').references(() => drivers.id), // who drove, when known
   rawName: text('raw_name'), // what someone wrote when the name wasn't recognised
-  status: assignmentStatusEnum('assignment_status').notNull().default('proposed'),
-  source: sourceEnum('assignment_source').notNull().default('system'),
+  status: executionStatusEnum('execution_status').notNull().default('proposed'),
+  source: sourceEnum('execution_source').notNull().default('system'),
+  importId: uuid('report_import_id').references(() => reportImports.id),
+  agreedClientAmountCents: cents('agreed_client_amount_cents'),
   confirmedBy: uuid('confirmed_by_user_id').references(() => users.id),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
-  updatedAt: updatedAt(),
-}, (t) => [uniqueIndex('assignment_day_route').on(t.date, t.routeId)]);
+  createdAt: createdAt(), updatedAt: updatedAt(),
+}, (t) => [
+  uniqueIndex('route_executions_route_day').on(t.operationId, t.date, t.routeId).where(sql`${t.kind} = 'route' and ${t.routeId} is not null`),
+  uniqueIndex('route_executions_payee_day').on(t.operationId, t.date, t.payeeId).where(sql`${t.kind} = 'route' and ${t.routeId} is null`),
+  uniqueIndex('route_executions_extra_day').on(t.operationId, t.date, t.payeeId).where(sql`${t.kind} = 'extra'`),
+  index('route_executions_payee').on(t.payeeId, t.date),
+  check('route_executions_status_payee', sql`(${t.status} in ('confirmed', 'changed') and ${t.payeeId} is not null) or (${t.status} = 'no_driver' and ${t.payeeId} is null) or ${t.status} in ('proposed', 'waiting')`),
+  check('route_executions_confirmed_at', sql`${t.confirmedAt} is null or ${t.status} in ('confirmed', 'changed')`),
+  check('route_executions_extra_payee', sql`${t.kind} = 'route' or ${t.payeeId} is not null`),
+]);
 
 export const extraJobs = core.table('extra_jobs', {
   id: id('extra_job_id'),
   clientUuid: uuid('client_uuid').notNull().unique(), // generated on the phone; makes offline sync idempotent
-  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  executionId: uuid('route_execution_id').notNull().references(() => routeExecutions.id),
   serviceTypeId: uuid('service_type_id').notNull().references(() => serviceTypes.id),
-  date: date('work_date').notNull(),
   nearRouteId: uuid('near_route_id').references(() => routes.id),
-  driverId: uuid('driver_id').references(() => drivers.id),
-  contractorId: uuid('contractor_id').references(() => contractors.id),
   clientAmountCents: cents('client_amount_cents'),
   driverAmountCents: cents('payee_amount_cents'),
   orderNumber: text('order_number'),
   photoUrl: text('photo_url'),
   note: text('note'),
   source: sourceEnum('job_source').notNull(),
-  aiSuggestionId: uuid('ai_suggestion_id'),
+  aiSuggestionId: uuid('ai_suggestion_id').references(() => aiSuggestions.id),
   createdBy: uuid('created_by_user_id').references(() => users.id),
   createdAt: createdAt(), updatedAt: updatedAt(),
-}, (t) => [check('extra_one_payee', sql`(${t.driverId} is null) <> (${t.contractorId} is null)`)]);
+}, (t) => [
+  index('extra_jobs_execution').on(t.executionId),
+  check('extra_jobs_amounts', sql`${t.driverAmountCents} >= 0 and (${t.clientAmountCents} is null or ${t.clientAmountCents} >= 0)`),
+]);
 
 // ---------- the unified work record ----------
+// What was done in an execution: one row per service and tier (or one per extra job).
 export const workRecords = core.table('work_records', {
   id: id('work_record_id'),
-  date: date('work_date').notNull(),
-  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  executionId: uuid('route_execution_id').notNull().references(() => routeExecutions.id),
   serviceTypeId: uuid('service_type_id').notNull().references(() => serviceTypes.id),
-  routeId: uuid('route_id').references(() => routes.id),
-  driverId: uuid('driver_id').references(() => drivers.id),
-  contractorId: uuid('contractor_id').references(() => contractors.id),
   tier: tierEnum('tier'),
   pieces: integer('quantity').notNull().default(0),
   bonusCents: cents('bonus_cents').notNull().default(0),
@@ -270,14 +284,18 @@ export const workRecords = core.table('work_records', {
   profitCents: cents('profit_cents'),
   source: sourceEnum('record_source').notNull(),
   importId: uuid('report_import_id').references(() => reportImports.id),
-  assignmentId: uuid('daily_assignment_id').references(() => dailyAssignments.id),
-  extraJobId: uuid('extra_job_id').references(() => extraJobs.id),
-  payrollRunId: uuid('payroll_run_id'),
-  settlementLineId: uuid('settlement_line_id'),
+  extraJobId: uuid('extra_job_id').unique().references(() => extraJobs.id),
+  payrollRunId: uuid('payroll_run_id').references(() => payrollRuns.id),
+  settlementLineId: uuid('settlement_line_id').references(() => settlementLines.id),
   createdAt: createdAt(), updatedAt: updatedAt(),
 }, (t) => [
-  index('work_op_date').on(t.operationId, t.date),
-  index('work_driver_date').on(t.driverId, t.date),
+  index('work_records_execution').on(t.executionId),
+  index('work_records_payroll_run').on(t.payrollRunId),
+  index('work_records_settlement_line').on(t.settlementLineId),
+  // One row per service and tier in an execution; extra jobs are one row each.
+  uniqueIndex('work_records_grain_tier').on(t.executionId, t.serviceTypeId, t.tier).where(sql`${t.extraJobId} is null and ${t.tier} is not null`),
+  uniqueIndex('work_records_grain').on(t.executionId, t.serviceTypeId).where(sql`${t.extraJobId} is null and ${t.tier} is null`),
+  check('work_records_quantity', sql`${t.pieces} >= 0 and ${t.bonusCents} >= 0`),
 ]);
 
 // STEM and other revenue Hovership pays that isn't tied to one driver.
@@ -299,7 +317,7 @@ export const exceptions = core.table('exceptions', {
   routeId: uuid('route_id').references(() => routes.id),
   type: exceptionTypeEnum('exception_type').notNull(),
   workRecordId: uuid('work_record_id').references(() => workRecords.id),
-  assignmentId: uuid('daily_assignment_id').references(() => dailyAssignments.id),
+  executionId: uuid('route_execution_id').references(() => routeExecutions.id),
   details: jsonb('details'), // pieces, usual range, raw name…
   status: exceptionStatusEnum('exception_status').notNull().default('open'),
   resolution: resolutionEnum('resolution'),
@@ -331,8 +349,7 @@ export const payrollRuns = core.table('payroll_runs', {
 export const payrollLines = core.table('payroll_lines', {
   id: id('payroll_line_id'),
   runId: uuid('payroll_run_id').notNull().references(() => payrollRuns.id),
-  driverId: uuid('driver_id').references(() => drivers.id),
-  contractorId: uuid('contractor_id').references(() => contractors.id),
+  payeeId: uuid('payee_id').notNull().references(() => payees.id),
   routeDays: integer('route_day_count').notNull(),
   extraJobs: integer('extra_job_count').notNull().default(0),
   pieces: integer('quantity_total').notNull(),
@@ -340,7 +357,7 @@ export const payrollLines = core.table('payroll_lines', {
   bonusCents: cents('bonus_cents').notNull(),
   payCents: cents('pay_cents').notNull(),
   marginCents: cents('margin_cents').notNull(),
-});
+}, (t) => [uniqueIndex('payroll_lines_run_payee').on(t.runId, t.payeeId)]);
 
 // ---------- settlements ----------
 export const settlementLines = core.table('settlement_lines', {
@@ -427,3 +444,75 @@ export const auditLog = core.table('audit_log', {
   source: auditSourceEnum('audit_source').notNull(),
   at: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('audit_record').on(t.tableName, t.recordId)]);
+
+// ---------- read views (created by migration 0006; Drizzle only reads them) ----------
+// Work and extra jobs in the flat shape screens and reports use: the execution's date, operation, route
+// and payee (as driver or contractor) next to each row.
+export const workView = core.view('v_work_records', {
+  id: uuid('work_record_id').notNull(),
+  executionId: uuid('route_execution_id').notNull(),
+  executionKind: executionKindEnum('execution_kind').notNull(),
+  date: date('work_date').notNull(),
+  operationId: uuid('operation_id').notNull(),
+  routeId: uuid('route_id'),
+  payeeId: uuid('payee_id'),
+  driverId: uuid('driver_id'),
+  contractorId: uuid('contractor_id'),
+  serviceTypeId: uuid('service_type_id').notNull(),
+  tier: tierEnum('tier'),
+  pieces: integer('quantity').notNull(),
+  bonusCents: cents('bonus_cents').notNull(),
+  clientRateCents: cents('client_rate_cents'),
+  driverRateCents: cents('payee_rate_cents'),
+  driverPayCents: cents('pay_cents'),
+  revenueCents: cents('revenue_cents'),
+  profitCents: cents('profit_cents'),
+  source: sourceEnum('record_source').notNull(),
+  importId: uuid('report_import_id'),
+  extraJobId: uuid('extra_job_id'),
+  payrollRunId: uuid('payroll_run_id'),
+  settlementLineId: uuid('settlement_line_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+}).existing();
+
+export const extraJobView = core.view('v_extra_jobs', {
+  id: uuid('extra_job_id').notNull(),
+  clientUuid: uuid('client_uuid').notNull(),
+  executionId: uuid('route_execution_id').notNull(),
+  operationId: uuid('operation_id').notNull(),
+  date: date('work_date').notNull(),
+  serviceTypeId: uuid('service_type_id').notNull(),
+  nearRouteId: uuid('near_route_id'),
+  payeeId: uuid('payee_id').notNull(),
+  driverId: uuid('driver_id'),
+  contractorId: uuid('contractor_id'),
+  clientAmountCents: cents('client_amount_cents'),
+  driverAmountCents: cents('payee_amount_cents'),
+  orderNumber: text('order_number'),
+  photoUrl: text('photo_url'),
+  note: text('note'),
+  source: sourceEnum('job_source').notNull(),
+  aiSuggestionId: uuid('ai_suggestion_id'),
+  createdBy: uuid('created_by_user_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+}).existing();
+
+// Executions with the payee split into driver or contractor, for the daily list and the weekly check.
+export const executionView = core.view('v_route_executions', {
+  id: uuid('route_execution_id').notNull(),
+  operationId: uuid('operation_id').notNull(),
+  date: date('work_date').notNull(),
+  routeId: uuid('route_id'),
+  kind: executionKindEnum('execution_kind').notNull(),
+  payeeId: uuid('payee_id'),
+  payeeDriverId: uuid('payee_driver_id'),
+  payeeContractorId: uuid('payee_contractor_id'),
+  driverId: uuid('driver_id'),
+  rawName: text('raw_name'),
+  status: executionStatusEnum('execution_status').notNull(),
+  source: sourceEnum('execution_source').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+}).existing();

@@ -1,12 +1,13 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { auditLog, contractors, dailyAssignments, drivers, routes, users } from '~/db/schema';
+import { auditLog, contractors, drivers, executionView, routes, users } from '~/db/schema';
 import { todayLA } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation } from './ops';
+import { payeeNamesById, routeDay, writeRouteDay } from './executions';
 import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners } from './people';
 
 // Today's drivers (spec 6.3): who drove each T-Force route each day. No money here.
@@ -34,9 +35,9 @@ export async function loadDay(tx: Tx, actor: Actor, date: string) {
   assertCan(actor, 'payroll.view');
   const op = await getOperation(tx, 'tforce');
   const routeRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, true))).orderBy(asc(routes.code));
-  const assignments = routeRows.length
-    ? await tx.select().from(dailyAssignments).where(and(eq(dailyAssignments.date, date), inArray(dailyAssignments.routeId, routeRows.map((r) => r.id))))
-    : [];
+  const assignments = (routeRows.length
+    ? await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date), eq(executionView.kind, 'route'), inArray(executionView.routeId, routeRows.map((r) => r.id))))
+    : []).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId }));
   const owners = await routeOwners(tx, date, routeRows.map((r) => r.id));
   const driverRows = await driverProfiles(tx, date);
   const contractorRows = (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name }));
@@ -63,18 +64,23 @@ export async function loadDay(tx: Tx, actor: Actor, date: string) {
     };
   });
 
-  // Today's change log: audit entries for this day's assignments, newest first.
+  // Today's change log: audit entries for this day's executions, newest first. Executions kept the ids of
+  // the daily assignments they replaced, so older entries (logged as daily_assignments) still show.
   const ids = assignments.map((a) => a.id);
   const log = ids.length ? await tx.select({ log: auditLog, user: users.name }).from(auditLog).leftJoin(users, eq(users.id, auditLog.userId))
-    .where(and(eq(auditLog.tableName, 'daily_assignments'), inArray(auditLog.recordId, ids))).orderBy(desc(auditLog.at)).limit(50) : [];
+    .where(and(inArray(auditLog.tableName, ['route_executions', 'daily_assignments']), inArray(auditLog.recordId, ids))).orderBy(desc(auditLog.at)).limit(50) : [];
+  type Logged = { payeeId?: string | null; driverId?: string | null; contractorId?: string | null; rawName?: string | null };
+  const logged = log.flatMap(({ log: l }) => [l.before, l.after] as (Logged | null)[]);
+  const payeeName = await payeeNamesById(tx, [...new Set(logged.map((x) => x?.payeeId).filter((x): x is string => !!x))]);
+  const nameOf = (x: Logged) => x.payeeId !== undefined ? (x.payeeId ? payeeName.get(x.payeeId) ?? '' : null)
+    : label({ driverId: x.driverId ?? null, contractorId: x.contractorId ?? null });
   const routeOf = new Map(assignments.map((a) => [a.id, routeRows.find((r) => r.id === a.routeId)?.code ?? '']));
   const changes = log.map(({ log: l, user }) => {
-    const b = (l.before ?? {}) as { driverId?: string | null; contractorId?: string | null };
-    const af = (l.after ?? {}) as { driverId?: string | null; contractorId?: string | null; rawName?: string | null };
+    const af = (l.after ?? {}) as Logged;
     return {
       id: l.id, at: l.at.toISOString(), route: routeOf.get(l.recordId) ?? '', action: l.action, source: l.source, user: user ?? null,
-      from: l.before ? label({ driverId: b.driverId ?? null, contractorId: b.contractorId ?? null }) : null,
-      to: label({ driverId: af.driverId ?? null, contractorId: af.contractorId ?? null }) ?? af.rawName ?? null,
+      from: l.before ? nameOf(l.before as Logged) : null,
+      to: nameOf(af) ?? af.rawName ?? null,
     };
   });
 
@@ -115,16 +121,15 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
     if (!c) throw new RuleError('not_found');
   }
   const source = actor.source === 'whatsapp' ? 'whatsapp' as const : actor.source === 'system' ? 'system' as const : 'manual' as const;
-  const stamp = { source, confirmedBy: actor.userId, confirmedAt: new Date(), updatedAt: new Date() };
-  const [before] = await tx.select().from(dailyAssignments).where(and(eq(dailyAssignments.date, date), eq(dailyAssignments.routeId, routeId)));
-  let after;
-  if (before) {
-    [after] = await tx.update(dailyAssignments).set({ ...values, rawName: values.rawName ?? null, ...stamp }).where(eq(dailyAssignments.id, before.id)).returning();
-  } else {
-    [after] = await tx.insert(dailyAssignments).values({ date, routeId, ...values, rawName: values.rawName ?? null, ...stamp }).returning();
-  }
-  await audit(tx, { table: 'daily_assignments', recordId: after!.id, action: before ? action : 'insert', before: before ?? null, after, userId: actor.userId, source: actor.source });
-  return { before: before ?? null, after: after! };
+  const view = await routeDay(tx, op.id, date, routeId);
+  const { before, after } = await writeRouteDay(tx, {
+    operationId: op.id, date, routeId, payee: { driverId: values.driverId, contractorId: values.contractorId }, rawName: values.rawName ?? null,
+    status: values.status, source, userId: actor.userId,
+  });
+  await audit(tx, { table: 'route_executions', recordId: after.id, action: before ? action : 'insert', before, after, userId: actor.userId, source: actor.source });
+  // Callers undo to the previous driver or contractor, so hand back that shape.
+  const previous = view ? { driverId: view.payeeDriverId, contractorId: view.payeeContractorId, rawName: view.rawName, status: view.status } : null;
+  return { before: previous, after };
 }
 
 /** Sets who drove a route on a day. Same as the usual payee → confirmed; different → changed; nobody → no driver. */

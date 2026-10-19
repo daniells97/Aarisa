@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { and, eq, inArray, like, or } from 'drizzle-orm';
 import { createDb } from '../../src/db/client';
 import {
-  dailyAssignments, driverAffiliations, driverAliases, driverClientCodes, drivers, payees, routeOwnerships, routes,
+  driverAffiliations, driverAliases, driverClientCodes, drivers, payees, routeExecutions, routeOwnerships, routes, workRecords,
 } from '../../src/db/schema';
 
 // Removes what the end-to-end tests create (routes coded E2E…, drivers named "E2E …") so the
@@ -18,10 +18,14 @@ export default async function globalTeardown() {
       const routeIds = testRoutes.map((r) => r.id);
       const driverIds = testDrivers.map((d) => d.id);
       if (routeIds.length || driverIds.length) {
-        await tx.delete(dailyAssignments).where(or(
-          routeIds.length ? inArray(dailyAssignments.routeId, routeIds) : undefined,
-          driverIds.length ? inArray(dailyAssignments.driverId, driverIds) : undefined,
+        const ex = await tx.select({ id: routeExecutions.id }).from(routeExecutions).where(or(
+          routeIds.length ? inArray(routeExecutions.routeId, routeIds) : undefined,
+          driverIds.length ? inArray(routeExecutions.payeeId, testDrivers.map((d) => d.payeeId)) : undefined,
         ));
+        if (ex.length) {
+          await tx.delete(workRecords).where(inArray(workRecords.executionId, ex.map((e) => e.id)));
+          await tx.delete(routeExecutions).where(inArray(routeExecutions.id, ex.map((e) => e.id)));
+        }
       }
       if (routeIds.length) {
         await tx.delete(routeOwnerships).where(inArray(routeOwnerships.routeId, routeIds));

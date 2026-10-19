@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { driverProfile } from './people';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, payPeriods, payrollRuns, workRecords } from '~/db/schema';
+import { auditLog, payPeriods, payrollRuns, workView } from '~/db/schema';
 import { ALL_ROLES, HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { importHovership, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
@@ -52,7 +52,7 @@ describe('Hovership import (server)', () => {
       const text = 'POD Date,Driver #,Tier 1,Tier 2,Tier 3,Tier 4,Stat,Stem,Bonus\n2026-09-07,DUB061,10,0,0,0,0,0,0\n';
       const first = await importHovership(tx, owner, { fileName: 'x.csv', text });
       expect(first).toMatchObject({ status: 'layout_changed', missing: ['driver_code'] });
-      expect(await tx.select().from(workRecords).where(eq(workRecords.operationId, op.id))).toHaveLength(0);
+      expect(await tx.select().from(workView).where(eq(workView.operationId, op.id))).toHaveLength(0);
       const second = await importHovership(tx, owner, { fileName: 'x.csv', text, columnOverride: { driver_code: 'Driver #' } });
       expect(second).toMatchObject({ status: 'done', rows: 1 });
     }));
