@@ -227,6 +227,7 @@ Design impact:
 | 4 | `service_tiers` (Hovership T1–T4; earlier summed pieces under retired `T1-3`), `rate_agreements` + rates per side (client / payee) with `payee_id` and a reason, bonuses moved to `pay_adjustments` (+ `adjustment_types`), `profit_cents` dropped. Rates screen lists DB tiers and asks a reason | 863af3e | Oct 19, 2026, backup `aarisa_db-20261019T045408Z-before-stage4.dump` |
 | 5a | Global `zones` + `zone_aliases` (17 zones), `revenue_types` per operation, `operation_revenue` → `other_revenues` (same ids) with zone, execution and review status; STEM with no zone, no reason or > $200 is reviewed on the Hovership week (pick zone, new zone, or lump adjustment with a note) | 14d2242 | Oct 19, 2026, backup `aarisa_db-20261019T123113Z-before-stage5a.dump` |
 | 5b | Standing bonuses (`bonus_rules`) and daily goals (`daily_goals`): **postponed by the owner on Oct 19, 2026**; the design stays as approved | — | — |
+| 6a | `clients` + `client_contacts`; contract rules on `operations` (`driver_source`, `blocks_payroll_on_exceptions`, `low_quantity_threshold_bp`, dates, active); payroll and the weekly check read them; client names on screen come from the database; Clients tab in Drivers and rates | 3420098 | Oct 19, 2026, backup `aarisa_db-20261019T124524Z-before-stage6a.dump` |
 
 Note: Puma is marked `pay_trigger = on_collection`, but payroll still pays contractor routes weekly until the receivables stage builds pay-on-collection.
 
