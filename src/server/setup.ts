@@ -9,6 +9,7 @@ import { audit } from './audit';
 import { RuleError } from './errors';
 import { contractorProfiles, createContractor, createDriver, driverProfiles, routeOwners, updateDriverProfile, type DriverInput } from './people';
 import { rateRows } from './ops';
+import { loadClients } from './clients';
 import { refreshWeeklyLines } from './settlements';
 
 // Drivers, contractors, services and rates (spec 6.10). Anyone signed in can read;
@@ -67,6 +68,7 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
       tiers: tiers.filter((t) => t.serviceTypeId === s.id).map((t) => ({ id: t.id, code: t.code, name: t.name, active: t.active })),
     })),
     rates: rateViews,
+    clients: (await loadClients(tx, actor)).clients,
     contractors: contractorRows.map((c) => ({ id: c.id, name: c.name, active: c.active, routes: routeRows.filter((r) => owner.get(r.id) === c.id).map((r) => r.code) })),
     drivers: driverRows.map((d) => ({
       id: d.id, fullName: d.fullName, hovershipCode: d.hovershipCode, contractorId: d.contractorId, phone: d.phone,

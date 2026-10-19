@@ -116,7 +116,8 @@ export async function runWeeklyCheck(tx: Tx, actor: Actor, start: string) {
     date: a.date, route: codeOf.get(a.routeId)!, rawName: a.rawName,
     payee: a.driverId ? { driverId: a.driverId } : a.contractorId ? { contractorId: a.contractorId } : null,
   }));
-  const result = crossCheck(records.map(toRow), list, history.map(toRow));
+  // The low-pieces threshold is a rule of the contract (open question 12), in basis points.
+  const result = crossCheck(records.map(toRow), list, history.map(toRow), op.lowQuantityThresholdBp / 10_000);
 
   const trail: AuditEntry[] = [];
 

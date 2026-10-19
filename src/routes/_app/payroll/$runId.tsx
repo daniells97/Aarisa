@@ -3,7 +3,8 @@ import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import { approve, getRun, markPaid, reopen } from '~/server/payroll-fns';
 import { Button, Dialog, Figures, Icon, PageHead, Panel, Pill, WarningDiamond, buttonClass, useFormat, useToast } from '~/ui';
-import { blockerText, opName, rangeText, statusTone } from '~/ui/payroll-text';
+import { blockerText, rangeText, statusTone } from '~/ui/payroll-text';
+import { useClientName } from '~/ui/ClientNames';
 
 type Run = Awaited<ReturnType<typeof getRun>>;
 
@@ -14,6 +15,7 @@ export const Route = createFileRoute('/_app/payroll/$runId')({
 
 function RunPage() {
   const t = useT();
+  const opName = useClientName();
   const f = useFormat();
   const run = Route.useLoaderData();
   const router = useRouter();
@@ -117,6 +119,7 @@ function RunPage() {
 
 function ApproveDialog({ run, range, onClose }: { run: Run; range: string; onClose: () => void }) {
   const t = useT();
+  const opName = useClientName();
   const f = useFormat();
   const router = useRouter();
   const toast = useToast();

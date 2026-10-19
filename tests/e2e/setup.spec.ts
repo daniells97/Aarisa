@@ -24,6 +24,16 @@ test.describe('drivers and rates', () => {
     await expect(page.getByRole('button', { name: 'Add rate' })).toHaveCount(0);
   });
 
+  test('clients tab shows each contract with the rules it runs with', async ({ page }) => {
+    await signInAs(page, 'owner', '/settings/rates?tab=clients');
+    const tforce = page.getByRole('region', { name: 'T-Force' });
+    await expect(tforce.getByRole('row').filter({ hasText: 'T-Force' })).toContainText("Aarisa's daily list");
+    await expect(tforce.getByRole('row').filter({ hasText: 'T-Force' })).toContainText('30 days');
+    await tforce.getByRole('button', { name: 'Rules for T-Force' }).click();
+    await expect(page.getByRole('dialog')).toContainText('The driver comes from');
+    await expect(page.getByLabel('Low pieces under (% of usual)')).toHaveValue('10');
+  });
+
   test('drivers tab lists the seeded drivers and Puma', async ({ page }) => {
     await signInAs(page, 'viewer', '/settings/rates?tab=drivers');
     await expect(page.getByRole('cell', { name: /Robert Arteaga/ })).toBeVisible();

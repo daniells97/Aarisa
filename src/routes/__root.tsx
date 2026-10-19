@@ -4,6 +4,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import appCss from '~/styles/app.css?url';
 import { I18nProvider, type Locale } from '~/i18n';
 import { getSession } from '~/server/session-fns';
+import { ClientNamesProvider } from '~/ui/ClientNames';
 import { ToastProvider } from '~/ui';
 
 export const Route = createRootRoute({
@@ -32,7 +33,9 @@ function RootComponent() {
   const { session } = Route.useRouteContext();
   return (
     <RootDocument locale={session.locale}>
-      <Outlet />
+      <ClientNamesProvider names={session.clients}>
+        <Outlet />
+      </ClientNamesProvider>
     </RootDocument>
   );
 }

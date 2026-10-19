@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { createDb } from './client';
-import { contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, revenueTypes, serviceTiers } from './schema';
+import { clients, contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, revenueTypes, serviceTiers } from './schema';
 import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TIERS, SERVICE_TYPES } from './seed-data';
 import { addRate } from '~/server/setup';
 import { tierIdsByCode } from '~/server/ops';
@@ -25,7 +25,11 @@ export async function seedMasterData(database = createDb()) {
 
     const ops: Record<string, string> = {};
     for (const op of OPERATIONS) {
-      const [row] = await tx.insert(operations).values(op).onConflictDoNothing().returning();
+      // One client per contract to start with; the client carries the name people see.
+      const [client] = await tx.insert(clients).values({ code: op.code, displayName: op.name }).onConflictDoNothing().returning();
+      if (client) log('clients', client);
+      const [found0] = await tx.select({ id: clients.id }).from(clients).where(eq(clients.code, op.code));
+      const [row] = await tx.insert(operations).values({ ...op, clientId: found0!.id }).onConflictDoNothing().returning();
       if (row) log('operations', row);
       const [found] = await tx.select().from(operations).where(eq(operations.code, op.code));
       ops[op.code] = found!.id;

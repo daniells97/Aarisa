@@ -2,8 +2,8 @@
 export const RATES_EFFECTIVE_FROM = '2026-06-01';
 
 export const OPERATIONS = [
-  { code: 'hovership', name: 'Hovership', payCycle: 'biweekly', cycleAnchor: '2026-06-08', paymentTermsDays: 21 },
-  { code: 'tforce', name: 'T-Force', payCycle: 'weekly', cycleAnchor: '2026-06-15', paymentTermsDays: 30 },
+  { code: 'hovership', name: 'Hovership', driverSource: 'report_code', payCycle: 'biweekly', cycleAnchor: '2026-06-08', paymentTermsDays: 21 },
+  { code: 'tforce', name: 'T-Force', driverSource: 'daily_list', payCycle: 'weekly', cycleAnchor: '2026-06-15', paymentTermsDays: 30 },
 ] as const;
 
 type Unit = 'package' | 'stop' | 'piece' | 'job';

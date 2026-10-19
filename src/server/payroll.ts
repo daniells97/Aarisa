@@ -70,7 +70,7 @@ async function computeHovership(tx: Tx, op: Operation, start: string) {
   const covered = weeks.filter((w) => records.some((r) => r.date >= w && r.date <= addDays(w, 6)));
   const result = buildRun({
     items: hovershipItems(valued), otherRevenueCents: stemCents, expectedWeeks: weeks, coveredWeeks: covered,
-    openExceptions: await openExceptionCount(tx, op.id, period.start, period.end), previousPayees: await previousPayees(tx, op.id, period.start),
+    openExceptions: op.blocksPayrollOnExceptions ? await openExceptionCount(tx, op.id, period.start, period.end) : 0, previousPayees: await previousPayees(tx, op.id, period.start),
   });
   // Bonuses are pay adjustments of their own; a work record's pay is pieces × rate.
   const snapshots = (): Snapshot[] => records.filter((w) => w.driverId).map((w) => {
@@ -106,7 +106,7 @@ async function computeTforce(tx: Tx, op: Operation, start: string) {
   const covered = weeks.filter((wk) => records.some((r) => r.source === 'tforce_report' && r.date >= wk && r.date <= addDays(wk, 6)));
   const result = buildRun({
     items, otherRevenueCents: 0, expectedWeeks: weeks, coveredWeeks: covered,
-    openExceptions: await openExceptionCount(tx, op.id, period.start, period.end), previousPayees: await previousPayees(tx, op.id, period.start),
+    openExceptions: op.blocksPayrollOnExceptions ? await openExceptionCount(tx, op.id, period.start, period.end) : 0, previousPayees: await previousPayees(tx, op.id, period.start),
   });
   const snapshots = (): Snapshot[] => priced.map(({ w, r }) => {
     if (!r.ok) throw new RuleError('run_not_ready');

@@ -2,7 +2,8 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { useT } from '~/i18n';
 import { getRuns } from '~/server/payroll-fns';
 import { PageHead, Panel, Pill, WarningDiamond, useFormat } from '~/ui';
-import { blockerText, opName, rangeText, statusTone } from '~/ui/payroll-text';
+import { blockerText, rangeText, statusTone } from '~/ui/payroll-text';
+import { useClientName } from '~/ui/ClientNames';
 
 export const Route = createFileRoute('/_app/payroll/')({
   loader: () => getRuns(),
@@ -11,6 +12,7 @@ export const Route = createFileRoute('/_app/payroll/')({
 
 function PayrollList() {
   const t = useT();
+  const opName = useClientName();
   const f = useFormat();
   const { runs } = Route.useLoaderData();
   const open = runs.filter((r) => r.status !== 'approved' && r.status !== 'paid');

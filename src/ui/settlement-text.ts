@@ -9,7 +9,6 @@ export interface LineLike {
   job: { service: string; date: string; orderNumber: string | null } | null;
 }
 
-export const clientName = (op: string) => (op === 'tforce' ? 'T-Force' : 'Hovership');
 
 const short = (f: F, d: string) => f.date(d, { month: 'short', day: 'numeric' });
 

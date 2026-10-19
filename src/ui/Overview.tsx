@@ -11,6 +11,7 @@ import { WarningDiamond } from './WarningDiamond';
 import { useFormat } from './format';
 import { rangeText } from './payroll-text';
 import { addDays } from '~/domain/dates';
+import { useClientName } from './ClientNames';
 
 type Data = Awaited<ReturnType<typeof getOverview>>;
 
@@ -108,6 +109,7 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
 
 function Need({ item }: { item: NeedItem }) {
   const t = useT();
+  const clientName = useClientName();
   const f = useFormat();
   let title: ReactNode, body: ReactNode, action: ReactNode;
   switch (item.kind) {
@@ -117,7 +119,7 @@ function Need({ item }: { item: NeedItem }) {
       action = <Link className={buttonClass('primary', 'sm')} to="/tforce/week/$weekId" params={{ weekId: item.week }}>{t('ov.review')}</Link>;
       break;
     case 'late_payment': {
-      const client = item.operation === 'tforce' ? 'T-Force' : 'Hovership';
+      const client = clientName(item.operation);
       const what = item.lineKind === 'hovership_invoice' && item.periodEnd ? t('st.weekEnding', { date: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
         : item.lineKind === 'tforce_weekly' && item.periodStart && item.periodEnd ? t('st.ecommerce', { start: f.date(item.periodStart, { month: 'short', day: 'numeric' }), end: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
           : item.reference ?? '';

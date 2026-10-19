@@ -64,6 +64,13 @@
       "when": 1792412641850,
       "tag": "0008_zones_and_other_revenues",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792413554340,
+      "tag": "0009_clients_and_contract_rules",
+      "breakpoints": true
     }
   ]
 }

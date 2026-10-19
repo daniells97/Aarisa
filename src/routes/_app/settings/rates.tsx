@@ -5,16 +5,18 @@ import { useLocale, useT, type MessageKey } from '~/i18n';
 import { serviceLabel } from '~/ui/service-label';
 import { todayLA } from '~/domain/dates';
 import { createContractor, createRate, createService, getSetup, saveDriver, saveService } from '~/server/setup-fns';
+import { useClientName } from '~/ui/ClientNames';
+import { ClientsTab } from '~/ui/ClientsTab';
 import {
   Button, CheckField, Dialog, FormError, PageHead, Panel, Pill, RoutePlate, SelectField, TextField,
   centsToInput, parseAmount, useFormat, useToast,
 } from '~/ui';
 
 type Setup = Awaited<ReturnType<typeof getSetup>>;
-type Tab = 'rates' | 'drivers' | 'services';
+type Tab = 'rates' | 'drivers' | 'services' | 'clients';
 
 export const Route = createFileRoute('/_app/settings/rates')({
-  validateSearch: z.object({ tab: z.enum(['rates', 'drivers', 'services']).optional() }),
+  validateSearch: z.object({ tab: z.enum(['rates', 'drivers', 'services', 'clients']).optional() }),
   loader: () => getSetup(),
   component: SetupPage,
 });
@@ -27,13 +29,14 @@ function SetupPage() {
     <>
       <PageHead title={t('setup.title')} lead={t('setup.lead')} />
       <nav className="tabs" aria-label={t('setup.sections')}>
-        {(['rates', 'drivers', 'services'] as const).map((k) => (
+        {(['rates', 'drivers', 'services', 'clients'] as const).map((k) => (
           <Link key={k} to="/settings/rates" search={{ tab: k }} aria-current={tab === k ? 'page' : undefined}>{t(`setup.tab.${k}`)}</Link>
         ))}
       </nav>
       {tab === 'rates' && <RatesTab data={data} />}
       {tab === 'drivers' && <DriversTab data={data} />}
       {tab === 'services' && <ServicesTab data={data} />}
+      {tab === 'clients' && <ClientsTab clients={data.clients} canEdit={data.canEdit} />}
     </>
   );
 }
@@ -231,6 +234,7 @@ type Driver = Setup['drivers'][number];
 
 function DriversTab({ data }: { data: Setup }) {
   const t = useT();
+  const clientName = useClientName();
   const [editing, setEditing] = useState<Driver | 'new' | null>(null);
   const [addingContractor, setAddingContractor] = useState(false);
   const contractorName = (id: string | null) => (id ? data.contractors.find((c) => c.id === id)?.name ?? '' : t('drivers.aarisa'));
@@ -251,7 +255,7 @@ function DriversTab({ data }: { data: Setup }) {
               {data.drivers.map((d) => (
                 <tr key={d.id}>
                   <td><strong>{d.fullName}</strong>{d.hovershipCode && <span className="sub">{d.hovershipCode}</span>}</td>
-                  <td>{[d.hovershipCode && 'Hovership', (d.usualRoutes.length > 0 || d.contractorId) && 'T-Force'].filter(Boolean).join(', ') || '–'}</td>
+                  <td>{[d.hovershipCode && clientName('hovership'), (d.usualRoutes.length > 0 || d.contractorId) && clientName('tforce')].filter(Boolean).join(', ') || '–'}</td>
                   <td>{d.contractorId ? <Pill tone="contractor">{contractorName(d.contractorId)}</Pill> : t('drivers.aarisa')}</td>
                   <td>{d.usualRoutes.length ? <span className="row" style={{ gap: 6 }}>{d.usualRoutes.map((r) => <RoutePlate key={r} code={r} size="sm" />)}</span> : <span className="muted">{t('drivers.none')}</span>}</td>
                   <td>{!d.setupComplete ? <Pill tone="warn">{t('drivers.finishSetup')}</Pill> : d.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>}</td>

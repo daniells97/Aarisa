@@ -3,7 +3,7 @@ import { getCookie, getRequestHeader, setCookie } from '@tanstack/react-start/se
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '~/db/client';
-import { users } from '~/db/schema';
+import { clients, operations, users } from '~/db/schema';
 import { isLocale, localeFromHeader, type Locale } from '~/i18n';
 import type { Role } from '~/domain/permissions';
 import { audit } from './audit';
@@ -15,13 +15,16 @@ export interface SessionInfo {
   user: { name: string; role: Role } | null;
   locale: Locale;
   devLogin: boolean;
+  /** Client name per operation code, for screens. */
+  clients: Record<string, string>;
 }
 
 export const getSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
   const actor = await currentActor();
   const cookieLang = getCookie(LANG_COOKIE);
   const locale = actor?.locale ?? (isLocale(cookieLang) ? cookieLang : localeFromHeader(getRequestHeader('accept-language')));
-  return { user: actor ? { name: actor.name, role: actor.role } : null, locale, devLogin: devLoginEnabled() };
+  const clientRows = actor ? await db().select({ code: operations.code, name: clients.displayName }).from(operations).innerJoin(clients, eq(clients.id, operations.clientId)) : [];
+  return { user: actor ? { name: actor.name, role: actor.role } : null, locale, devLogin: devLoginEnabled(), clients: Object.fromEntries(clientRows.map((c) => [c.code, c.name])) };
 });
 
 /** Changes the interface language; saved on the user when signed in. */

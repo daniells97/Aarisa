@@ -5,7 +5,8 @@ import { useT, type MessageKey } from '~/i18n';
 import { todayLA } from '~/domain/dates';
 import { claimReady, claimSent, getClaim, getSettlements, savePayment } from '~/server/settlements-fns';
 import { Button, Dialog, Figures, FormError, PageHead, Panel, Pill, RoutePlate, SelectField, TextField, WarningDiamond, buttonClass, parseAmount, useFormat, useToast } from '~/ui';
-import { clientName, coversText, statusPill } from '~/ui/settlement-text';
+import { coversText, statusPill } from '~/ui/settlement-text';
+import { useClientName } from '~/ui/ClientNames';
 
 type Data = Awaited<ReturnType<typeof getSettlements>>;
 type Line = Data['lines'][number];
@@ -24,6 +25,7 @@ export const Route = createFileRoute('/_app/settlements/')({
 
 function SettlementsPage() {
   const t = useT();
+  const clientName = useClientName();
   const f = useFormat();
   const { data, claim } = Route.useLoaderData();
   const { client = 'all', line: selected } = Route.useSearch();
@@ -60,6 +62,7 @@ function SettlementsPage() {
 
 function Ledger({ data, selected, client }: { data: Data; selected?: string; client: string }) {
   const t = useT();
+  const clientName = useClientName();
   const f = useFormat();
   const due = (l: Line) => {
     if (l.paidOn) return t('st.paidOn', { date: f.date(l.paidOn, { month: 'short', day: 'numeric' }) });
@@ -105,6 +108,7 @@ function Ledger({ data, selected, client }: { data: Data; selected?: string; cli
 
 function ClaimPanel({ claim, canRecord }: { claim: Awaited<ReturnType<typeof getClaim>>; canRecord: boolean }) {
   const t = useT();
+  const clientName = useClientName();
   const f = useFormat();
   const router = useRouter();
   const toast = useToast();
@@ -167,6 +171,7 @@ function ClaimPanel({ claim, canRecord }: { claim: Awaited<ReturnType<typeof get
 
 function Payments({ data }: { data: Data }) {
   const t = useT();
+  const clientName = useClientName();
   const f = useFormat();
   return (
     <Panel title={t('st.payments')} id="payments">

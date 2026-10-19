@@ -68,14 +68,58 @@ export const users = core.table('users', {
 });
 
 // ---------- master data ----------
+// ---------- clients and contracts (docs/db-model.md §2.2) ----------
+export const driverSourceEnum = core.enum('driver_source', ['report_code', 'daily_list']);
+export const contactRoleEnum = core.enum('contact_role', ['billing', 'claims', 'operations', 'other']);
+
+// The company Aarisa works for. Billing and claims go to its contacts.
+export const clients = core.table('clients', {
+  id: id('client_id'),
+  code: text('client_code').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  legalName: text('legal_name'),
+  taxId: text('tax_id'),
+  billingAddress: text('billing_address'),
+  currencyCode: text('currency_code').notNull().default('USD'),
+  notes: text('notes'),
+  active: boolean('is_active').notNull().default(true),
+  createdAt: createdAt(), updatedAt: updatedAt(),
+});
+
+export const clientContacts = core.table('client_contacts', {
+  id: id('client_contact_id'),
+  clientId: uuid('client_id').notNull().references(() => clients.id),
+  role: contactRoleEnum('contact_role').notNull(),
+  fullName: text('full_name'),
+  email: text('email'),
+  phone: text('phone_e164'),
+  isPrimary: boolean('is_primary').notNull().default(false),
+  active: boolean('is_active').notNull().default(true),
+  createdAt: createdAt(), updatedAt: updatedAt(),
+}, (t) => [
+  // At most one primary contact per role and client.
+  uniqueIndex('client_contacts_primary').on(t.clientId, t.role).where(sql`${t.isPrimary} and ${t.active}`),
+  check('client_contacts_reachable', sql`${t.email} is not null or ${t.phone} is not null`),
+]);
+
+// One contract with a client, and how it works: these rules used to be written in code per client.
 export const operations = core.table('operations', {
   id: id('operation_id'),
+  clientId: uuid('client_id').notNull().references(() => clients.id),
   code: text('operation_code').notNull().unique(), // 'hovership' | 'tforce'
   name: text('operation_name').notNull(),
+  // Where the driver of a work row comes from: the client's report (driver code) or Aarisa's daily list.
+  driverSource: driverSourceEnum('driver_source').notNull(),
   payCycle: payCycleEnum('pay_cycle').notNull(),
   cycleAnchor: date('cycle_anchor_date').notNull(), // first day of any pay period
   paymentTermsDays: integer('payment_terms_days').notNull(), // hovership ~21, tforce 30
-});
+  blocksPayrollOnExceptions: boolean('blocks_payroll_on_exceptions').notNull().default(true), // rule 6
+  lowQuantityThresholdBp: integer('low_quantity_threshold_bp').notNull().default(1000), // under 10% of the route median
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  active: boolean('is_active').notNull().default(true),
+  createdAt: createdAt(), updatedAt: updatedAt(),
+}, (t) => [check('operations_threshold', sql`${t.lowQuantityThresholdBp} between 0 and 10000`)]);
 
 // ---------- payees: everyone Aarisa pays (docs/db-model.md §2.3) ----------
 export const payeeTypeEnum = core.enum('payee_type', ['driver', 'contractor']);

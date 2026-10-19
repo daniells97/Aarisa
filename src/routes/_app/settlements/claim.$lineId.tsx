@@ -3,7 +3,8 @@ import { useT } from '~/i18n';
 import { todayLA } from '~/domain/dates';
 import { getClaim } from '~/server/settlements-fns';
 import { Button, useFormat } from '~/ui';
-import { clientName, coversText } from '~/ui/settlement-text';
+import { coversText } from '~/ui/settlement-text';
+import { useClientName } from '~/ui/ClientNames';
 
 // Printable claim (spec §5.6 "exportable as PDF"): the browser's print dialog saves it as a PDF.
 export const Route = createFileRoute('/_app/settlements/claim/$lineId')({
@@ -13,6 +14,7 @@ export const Route = createFileRoute('/_app/settlements/claim/$lineId')({
 
 function ClaimDocument() {
   const t = useT();
+  const clientName = useClientName();
   const f = useFormat();
   const { line, agreement } = Route.useLoaderData();
   const client = clientName(line.operation);
