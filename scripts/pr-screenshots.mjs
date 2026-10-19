@@ -36,6 +36,15 @@ const shots = {
     ['overview-desktop', '/?week=2026-06-15'],
     ['weekly-check-es-desktop', '/tforce/week/2026-06-15', { role: 'finance', lang: 'es' }],
   ],
+  'db-redesign': [
+    ['clients-desktop', '/settings/rates?tab=clients', { full: true }],
+    ['new-client-desktop', '/settings/rates?tab=clients', { before: async (p) => { await p.getByRole('button', { name: 'New client' }).click(); await p.getByRole('dialog').waitFor(); } }],
+    ['report-layout-desktop', '/settings/rates?tab=clients', { before: async (p) => { await p.getByRole('button', { name: /^How the .* report is read$/ }).first().click(); await p.getByRole('dialog').waitFor(); } }],
+    ['rates-desktop', '/settings/rates'],
+    ['hovership-desktop', '/hovership/week/2026-06-15'],
+    ['weekly-check-desktop', '/tforce/week/2026-06-15'],
+    ['clients-es-phone', '/settings/rates?tab=clients', { lang: 'es', phone: true }],
+  ],
 }[phase];
 
 const browser = await chromium.launch();
