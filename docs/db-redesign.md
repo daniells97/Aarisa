@@ -216,3 +216,11 @@ Design impact:
 - `audit_log.ai_suggestion_id` links a change to the WhatsApp suggestion that caused it.
 - Not adopted: `route_executions.pay_period_id` (derivable from date, would be redundant) and frozen
   rate ids on work records (optional, left out for now).
+
+## Rollout log
+| Stage | What | Commit | Production |
+|---|---|---|---|
+| 0 | Hovership importer reads the client report without bonus or totals | ae1edde | Oct 18, 2026 |
+| 1 | All 23 tables and 16 enums moved to `core`; columns and constraints renamed to the convention | see git log | Oct 19, 2026, backup `aarisa_db-20261019T034513Z-before-stage1.dump` |
+
+Backups before each stage: `/docker/aarisa/backups/` (root only). Restore: `pg_restore --clean -d <url> <file>`.
