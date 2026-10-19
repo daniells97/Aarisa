@@ -2,7 +2,7 @@
 // Money is integer cents. Dates of work are `date`; events are `timestamptz`.
 
 import {
-  pgSchema, uuid, text, date, timestamp, integer, bigint, boolean, jsonb,
+  pgSchema, foreignKey, unique, uuid, text, date, timestamp, integer, bigint, boolean, jsonb,
   uniqueIndex, index, check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -20,7 +20,10 @@ export const roleEnum = core.enum('role', ['owner', 'dispatcher', 'finance', 'vi
 export const channelEnum = core.enum('channel', ['whatsapp', 'email', 'none']);
 export const payCycleEnum = core.enum('pay_cycle', ['weekly', 'biweekly']);
 export const unitEnum = core.enum('unit', ['package', 'stop', 'piece', 'job']);
-export const tierEnum = core.enum('tier', ['t1_3', 't4']);
+export const rateSideEnum = core.enum('rate_side', ['client', 'payee']);
+export const adjustmentClassEnum = core.enum('adjustment_class', ['bonus', 'goal_top_up', 'correction', 'deduction']);
+export const adjustmentSourceEnum = core.enum('adjustment_source', ['manual', 'rule', 'goal']);
+export const adjustmentStatusEnum = core.enum('adjustment_status', ['proposed', 'confirmed', 'rejected']);
 export const sourceEnum = core.enum('source', [
   'hovership_report', 'tforce_report', 'daily_list', 'extra_job', 'manual', 'whatsapp', 'system',
 ]);
@@ -184,19 +187,50 @@ export const serviceTypes = core.table('service_types', {
   active: boolean('is_active').notNull().default(true), // inactive services stay on old records but can't be chosen
 }, (t) => [uniqueIndex('service_op_code').on(t.operationId, t.code)]);
 
-// Never update a rate; insert a new one with a later effective_from.
-export const rates = core.table('rates', {
-  id: id('rate_id'),
+// Levels of a service, defined per client (premise 2). Hovership packages: T1–T4, plus the inactive
+// "T1-3" that holds pieces imported before tiers were kept apart.
+export const serviceTiers = core.table('service_tiers', {
+  id: id('service_tier_id'),
   serviceTypeId: uuid('service_type_id').notNull().references(() => serviceTypes.id),
-  tier: tierEnum('tier'),
-  driverId: uuid('driver_id').references(() => drivers.id), // optional override
-  contractorId: uuid('contractor_id').references(() => contractors.id), // optional override
-  clientRateCents: cents('client_rate_cents'),
-  driverRateCents: cents('payee_rate_cents'),
+  code: text('tier_code').notNull(),
+  name: text('tier_name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  minQty: integer('min_qty'), // only for volume tiers; client-labelled tiers leave both empty
+  maxQty: integer('max_qty'),
+  active: boolean('is_active').notNull().default(true),
+}, (t) => [uniqueIndex('service_tiers_service_code').on(t.serviceTypeId, t.code)]);
+
+// One negotiation that changes rates from a date, for one side: what the client pays Aarisa, or what
+// Aarisa pays the driver or contractor. Never edited; a renegotiation is a new agreement.
+export const rateAgreements = core.table('rate_agreements', {
+  id: id('rate_agreement_id'),
+  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  side: rateSideEnum('rate_side').notNull(),
   effectiveFrom: date('effective_from').notNull(),
+  reason: text('reason'),
+  documentUrl: text('document_url'),
   createdBy: uuid('created_by_user_id').references(() => users.id),
   createdAt: createdAt(),
-}, (t) => [index('rates_lookup').on(t.serviceTypeId, t.tier, t.effectiveFrom)]);
+}, (t) => [uniqueIndex('rate_agreements_key').on(t.id, t.side, t.effectiveFrom)]);
+
+// Rule 2: never update a rate; a change is a new agreement with its own start date. The side and date
+// repeat the agreement's (a composite foreign key keeps them equal) so uniqueness can be enforced here.
+export const rates = core.table('rates', {
+  id: id('rate_id'),
+  agreementId: uuid('rate_agreement_id').notNull(),
+  side: rateSideEnum('rate_side').notNull(),
+  effectiveFrom: date('effective_from').notNull(),
+  serviceTypeId: uuid('service_type_id').notNull().references(() => serviceTypes.id),
+  tierId: uuid('service_tier_id').references(() => serviceTiers.id),
+  payeeId: uuid('payee_id').references(() => payees.id), // a special rate for one driver or contractor
+  rateCents: cents('rate_cents').notNull(),
+}, (t) => [
+  foreignKey({ name: 'rates_agreement_fk', columns: [t.agreementId, t.side, t.effectiveFrom], foreignColumns: [rateAgreements.id, rateAgreements.side, rateAgreements.effectiveFrom] }),
+  unique('rates_unique').on(t.serviceTypeId, t.tierId, t.payeeId, t.side, t.effectiveFrom).nullsNotDistinct(),
+  index('rates_lookup').on(t.serviceTypeId, t.tierId, t.effectiveFrom),
+  check('rates_not_negative', sql`${t.rateCents} >= 0`),
+  check('rates_client_general', sql`${t.side} = 'payee' or ${t.payeeId} is null`),
+]);
 
 // ---------- inputs ----------
 export const reportImports = core.table('report_imports', {
@@ -273,15 +307,13 @@ export const workRecords = core.table('work_records', {
   id: id('work_record_id'),
   executionId: uuid('route_execution_id').notNull().references(() => routeExecutions.id),
   serviceTypeId: uuid('service_type_id').notNull().references(() => serviceTypes.id),
-  tier: tierEnum('tier'),
+  tierId: uuid('service_tier_id').references(() => serviceTiers.id),
   pieces: integer('quantity').notNull().default(0),
-  bonusCents: cents('bonus_cents').notNull().default(0),
-  // snapshots, filled when the pay period is approved
+  // snapshots, filled when the pay period is approved (profit is never stored: revenue − pay)
   clientRateCents: cents('client_rate_cents'),
   driverRateCents: cents('payee_rate_cents'),
   driverPayCents: cents('pay_cents'),
   revenueCents: cents('revenue_cents'),
-  profitCents: cents('profit_cents'),
   source: sourceEnum('record_source').notNull(),
   importId: uuid('report_import_id').references(() => reportImports.id),
   extraJobId: uuid('extra_job_id').unique().references(() => extraJobs.id),
@@ -293,9 +325,43 @@ export const workRecords = core.table('work_records', {
   index('work_records_payroll_run').on(t.payrollRunId),
   index('work_records_settlement_line').on(t.settlementLineId),
   // One row per service and tier in an execution; extra jobs are one row each.
-  uniqueIndex('work_records_grain_tier').on(t.executionId, t.serviceTypeId, t.tier).where(sql`${t.extraJobId} is null and ${t.tier} is not null`),
-  uniqueIndex('work_records_grain').on(t.executionId, t.serviceTypeId).where(sql`${t.extraJobId} is null and ${t.tier} is null`),
-  check('work_records_quantity', sql`${t.pieces} >= 0 and ${t.bonusCents} >= 0`),
+  uniqueIndex('work_records_grain_tier').on(t.executionId, t.serviceTypeId, t.tierId).where(sql`${t.extraJobId} is null and ${t.tierId} is not null`),
+  uniqueIndex('work_records_grain').on(t.executionId, t.serviceTypeId).where(sql`${t.extraJobId} is null and ${t.tierId} is null`),
+  check('work_records_quantity', sql`${t.pieces} >= 0`),
+  check('work_records_snapshot', sql`(${t.driverPayCents} is null) = (${t.revenueCents} is null)`),
+]);
+
+// Kinds of pay adjustment. Bonuses are set by Aarisa; corrections fix a closed run in a later period.
+export const adjustmentTypes = core.table('adjustment_types', {
+  id: id('adjustment_type_id'),
+  code: text('adjustment_type_code').notNull().unique(),
+  name: text('adjustment_type_name').notNull(),
+  nameEs: text('adjustment_type_name_es'),
+  adjustmentClass: adjustmentClassEnum('adjustment_class').notNull(),
+  active: boolean('is_active').notNull().default(true),
+});
+
+// Everything added to or taken from a payee's pay besides quantity × rate (docs/db-model.md §2.6).
+// `payPeriodId` is set only when it is paid in a later period than its execution (a correction).
+export const payAdjustments = core.table('pay_adjustments', {
+  id: id('pay_adjustment_id'),
+  payPeriodId: uuid('pay_period_id').references(() => payPeriods.id),
+  payeeId: uuid('payee_id').notNull().references(() => payees.id),
+  executionId: uuid('route_execution_id').references(() => routeExecutions.id),
+  typeId: uuid('adjustment_type_id').notNull().references(() => adjustmentTypes.id),
+  amountCents: cents('amount_cents').notNull(),
+  reason: text('reason'),
+  source: adjustmentSourceEnum('adjustment_source').notNull().default('manual'),
+  status: adjustmentStatusEnum('adjustment_status').notNull().default('confirmed'),
+  confirmedBy: uuid('confirmed_by_user_id').references(() => users.id),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(), updatedAt: updatedAt(),
+}, (t) => [
+  index('pay_adjustments_execution').on(t.executionId),
+  index('pay_adjustments_payee').on(t.payeeId),
+  check('pay_adjustments_target', sql`${t.executionId} is not null or ${t.payPeriodId} is not null`),
+  check('pay_adjustments_not_zero', sql`${t.amountCents} <> 0`),
 ]);
 
 // STEM and other revenue Hovership pays that isn't tied to one driver.
@@ -354,7 +420,7 @@ export const payrollLines = core.table('payroll_lines', {
   extraJobs: integer('extra_job_count').notNull().default(0),
   pieces: integer('quantity_total').notNull(),
   stops: integer('stop_count').notNull().default(0), // Hovership stat stops, kept apart from packages
-  bonusCents: cents('bonus_cents').notNull(),
+  bonusCents: cents('adjustment_cents').notNull(), // bonuses and other pay adjustments
   payCents: cents('pay_cents').notNull(),
   marginCents: cents('margin_cents').notNull(),
 }, (t) => [uniqueIndex('payroll_lines_run_payee').on(t.runId, t.payeeId)]);
@@ -459,14 +525,13 @@ export const workView = core.view('v_work_records', {
   driverId: uuid('driver_id'),
   contractorId: uuid('contractor_id'),
   serviceTypeId: uuid('service_type_id').notNull(),
-  tier: tierEnum('tier'),
+  tierId: uuid('service_tier_id'),
+  tierCode: text('tier_code'),
   pieces: integer('quantity').notNull(),
-  bonusCents: cents('bonus_cents').notNull(),
   clientRateCents: cents('client_rate_cents'),
   driverRateCents: cents('payee_rate_cents'),
   driverPayCents: cents('pay_cents'),
   revenueCents: cents('revenue_cents'),
-  profitCents: cents('profit_cents'),
   source: sourceEnum('record_source').notNull(),
   importId: uuid('report_import_id'),
   extraJobId: uuid('extra_job_id'),

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { exceptions, operationRevenue, reportImports, workRecords, workView } from '~/db/schema';
+import { executionView, exceptions, operationRevenue, reportImports, workRecords, workView } from '~/db/schema';
 import { addDays, todayLA, weekStart } from '~/domain/dates';
 import { hovershipSummary, type HovershipDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
@@ -10,7 +10,8 @@ import { parseHovership, type Field, type HovershipRow } from '~/integrations/ho
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
-import { assertNotLocked, getOperation, hovershipRateFn, lockedPeriodStarts, serviceIds } from './ops';
+import { assertNotLocked, getOperation, hovershipRateFn, lockedPeriodStarts, serviceIds, tierIdsByCode } from './ops';
+import { adjustmentsByExecution, setManualBonus } from './adjustments';
 import { driverDay } from './executions';
 import { createDriver, driverIdsByCode, driverProfile, driverProfiles, setHovershipCode } from './people';
 import { saveImportFile } from './storage';
@@ -35,17 +36,21 @@ interface UnknownDetails { code: string; name: string; importId: string; rows: H
 /** Inserts the work records and STEM revenue for rows of one known driver. */
 async function writeRows(tx: Tx, actor: Actor, ctx: { operationId: string; importId: string; ids: Record<string, string> }, driverId: string, rows: HovershipRow[]) {
   const trail: AuditEntry[] = [];
+  const tiers = await tierIdsByCode(tx, ctx.ids.hovership_packages!);
   for (const r of rows) {
     const { row: ex, created } = await driverDay(tx, { operationId: ctx.operationId, date: r.date, driverId, importId: ctx.importId });
     if (created) trail.push({ table: 'route_executions', recordId: ex.id, action: 'insert', after: ex, userId: actor.userId, source: actor.source });
     const base = { executionId: ex.id, source: 'hovership_report' as const, importId: ctx.importId };
+    // One row per tier as the report has it (premise 2); tiers with no pieces aren't stored.
     const records = [
-      { ...base, serviceTypeId: ctx.ids.hovership_packages!, tier: 't1_3' as const, pieces: r.t1 + r.t2 + r.t3, bonusCents: r.bonusCents },
-      ...(r.t4 ? [{ ...base, serviceTypeId: ctx.ids.hovership_packages!, tier: 't4' as const, pieces: r.t4 }] : []),
+      ...([['T1', r.t1], ['T2', r.t2], ['T3', r.t3], ['T4', r.t4]] as const).filter(([, n]) => n > 0)
+        .map(([code, n]) => ({ ...base, serviceTypeId: ctx.ids.hovership_packages!, tierId: tiers.get(code)!, pieces: n })),
       ...(r.stat ? [{ ...base, serviceTypeId: ctx.ids.stat!, pieces: r.stat }] : []),
     ];
-    const inserted = await tx.insert(workRecords).values(records).returning();
+    const inserted = records.length ? await tx.insert(workRecords).values(records).returning() : [];
     for (const w of inserted) trail.push({ table: 'work_records', recordId: w.id, action: 'insert', after: w, userId: actor.userId, source: actor.source });
+    // A bonus only comes in Aarisa's own workbook (the client report has none); it starts as a manual bonus.
+    if (r.bonusCents) await setManualBonus(tx, actor, { executionId: ex.id, payeeId: ex.payeeId!, amountCents: r.bonusCents, reason: 'From the imported file' });
     if (r.stemCents) {
       const [s] = await tx.insert(operationRevenue).values({ operationId: ctx.operationId, date: r.date, kind: 'stem', reason: r.stemReason, amountCents: r.stemCents, importId: ctx.importId }).returning();
       trail.push({ table: 'operation_revenue', recordId: s!.id, action: 'insert', after: s, userId: actor.userId, source: actor.source });
@@ -101,7 +106,8 @@ export async function importHovership(tx: Tx, actor: Actor, input: { fileName: s
   const { fn: rate, ids } = await hovershipRateFn(tx, op.id);
   const totalsMismatch = parsed.rows.filter((r) => {
     if (r.totalRouteCents == null) return false;
-    const v = hovershipSummary([{ date: r.date, driverId: idByCode.get(r.driverCode) ?? '', t13: r.t1 + r.t2 + r.t3, t4: r.t4, stat: r.stat, bonusCents: r.bonusCents }], 0, rate).days[0]!;
+    const counts = { T1: r.t1, T2: r.t2, T3: r.t3, T4: r.t4, stat: r.stat };
+    const v = hovershipSummary([{ date: r.date, driverId: idByCode.get(r.driverCode) ?? '', t13: r.t1 + r.t2 + r.t3, t4: r.t4, stat: r.stat, bonusCents: r.bonusCents, counts }], 0, rate).days[0]!;
     return v.missing.length === 0 && v.driverPayCents !== r.totalRouteCents;
   }).map((r) => r.line);
 
@@ -188,29 +194,37 @@ export async function setBonus(tx: Tx, actor: Actor, input: { driverId: string; 
   assertCan(actor, 'hovership.enter_bonus');
   const op = await getOperation(tx, 'hovership');
   await assertNotLocked(tx, op, input.date);
-  const [row] = await tx.select({ id: workView.id }).from(workView).where(and(
-    eq(workView.operationId, op.id), eq(workView.driverId, input.driverId), eq(workView.date, input.date), eq(workView.tier, 't1_3')));
-  if (!row) throw new RuleError('not_found');
-  const [before] = await tx.select().from(workRecords).where(eq(workRecords.id, row.id));
-  if (!before) throw new RuleError('not_found');
-  if (before.bonusCents === input.bonusCents) return before;
-  const [after] = await tx.update(workRecords).set({ bonusCents: input.bonusCents, updatedAt: new Date() }).where(eq(workRecords.id, before.id)).returning();
-  await audit(tx, { table: 'work_records', recordId: before.id, action: 'update', before, after, userId: actor.userId, source: actor.source });
-  return after!;
+  if (input.bonusCents < 0) throw new RuleError('invalid_amount');
+  // The bonus belongs to the driver's execution of that day (docs/db-model.md: pay_adjustments).
+  const [day] = await tx.select().from(executionView).where(and(
+    eq(executionView.operationId, op.id), eq(executionView.payeeDriverId, input.driverId), eq(executionView.date, input.date), eq(executionView.kind, 'route')));
+  if (!day) throw new RuleError('not_found');
+  const { before, after } = await setManualBonus(tx, actor, { executionId: day.id, payeeId: day.payeeId!, amountCents: input.bonusCents });
+  return { id: (after ?? before)?.id ?? day.id, bonusCents: after?.amountCents ?? 0 };
 }
 
 /** Driver-days and STEM for a date range, rebuilt from the work records. */
 export async function loadHovershipDays(tx: Tx, operationId: string, ids: Record<string, string>, from: string, to: string) {
   const records = await tx.select().from(workView).where(and(eq(workView.operationId, operationId), gte(workView.date, from), lte(workView.date, to)));
+  const executions = await tx.select().from(executionView).where(and(eq(executionView.operationId, operationId), eq(executionView.kind, 'route'), gte(executionView.date, from), lte(executionView.date, to)));
+  const bonus = await adjustmentsByExecution(tx, executions.map((e) => e.id));
   const dayMap = new Map<string, HovershipDay>();
+  const dayOf = (driverId: string, date: string) => {
+    const key = `${driverId}|${date}`;
+    const d = dayMap.get(key) ?? { date, driverId, t13: 0, t4: 0, stat: 0, bonusCents: 0, counts: {} };
+    dayMap.set(key, d);
+    return d;
+  };
+  // A day with a bonus and no pieces still counts (the bonus is paid).
+  for (const e of executions) if (e.payeeDriverId && bonus.get(e.id)) dayOf(e.payeeDriverId, e.date).bonusCents = bonus.get(e.id)!;
   for (const w of records) {
     if (!w.driverId) continue;
-    const key = `${w.driverId}|${w.date}`;
-    const d = dayMap.get(key) ?? { date: w.date, driverId: w.driverId, t13: 0, t4: 0, stat: 0, bonusCents: 0 };
-    if (w.serviceTypeId === ids.stat) d.stat += w.pieces;
-    else if (w.tier === 't4') d.t4 += w.pieces;
-    else { d.t13 += w.pieces; d.bonusCents += w.bonusCents; }
-    dayMap.set(key, d);
+    const d = dayOf(w.driverId, w.date);
+    const item = w.serviceTypeId === ids.stat ? 'stat' : w.tierCode ?? 'T1-3';
+    d.counts![item] = (d.counts![item] ?? 0) + w.pieces;
+    if (item === 'stat') d.stat += w.pieces;
+    else if (item === 'T4') d.t4 += w.pieces;
+    else d.t13 += w.pieces;
   }
   const [stem] = await tx.select({ total: sql<string>`coalesce(sum(${operationRevenue.amountCents}), 0)` }).from(operationRevenue)
     .where(and(eq(operationRevenue.operationId, operationId), eq(operationRevenue.kind, 'stem'), gte(operationRevenue.date, from), lte(operationRevenue.date, to)));

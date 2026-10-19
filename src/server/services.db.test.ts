@@ -29,7 +29,7 @@ describe('services (server)', () => {
       const s = await addService(tx, owner, { ...input, operation: 'tforce' });
       expect(s).toMatchObject({ code: 'hazmat_pickup', unit: 'job', fromReport: false, active: true });
       await expect(addService(tx, owner, { ...input, operation: 'tforce' })).rejects.toMatchObject({ code: 'name_taken' });
-      await addRate(tx, owner, { serviceTypeId: s.id, tier: null, clientRateCents: 150_00, driverRateCents: 90_00, effectiveFrom: '2026-01-01' });
+      await addRate(tx, owner, { serviceTypeId: s.id, tierId: null, clientRateCents: 150_00, driverRateCents: 90_00, effectiveFrom: '2026-01-01' });
 
       let opts = await extraJobOptions(tx, owner, '2026-10-09');
       expect(opts.services.map((x) => x.code)).toEqual(['recovery_route', 'pickup', 'grainger', 'hazmat_pickup', 'other']);

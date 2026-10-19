@@ -1,16 +1,16 @@
 import { and, desc, eq, gte, inArray, lte, getViewSelectedFields } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { aiSuggestions, claims, extraJobView, operations, paymentAllocations, paymentsReceived, payrollRuns, rates, routes, serviceTypes, settlementLines, workView } from '~/db/schema';
+import { aiSuggestions, claims, extraJobView, operations, paymentAllocations, paymentsReceived, payrollRuns, routes, serviceTypes, settlementLines, workView } from '~/db/schema';
 import { addDays, weekStart } from '~/domain/dates';
 import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
-import { rateFor, type RateRow } from '~/domain/rates';
+import { rateFor } from '~/domain/rates';
 import { settlementStatus, settlementSummary, type SettlementStatus } from '~/domain/settlements';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { loadHovershipDays } from './hovership';
-import { getOperation, hovershipRateFn, serviceIds } from './ops';
+import { getOperation, hovershipRateFn, rateRows as rateRowsOf, serviceIds } from './ops';
 import { payeeNameMaps } from './people';
 
 // Settlements (spec §5.6, 6.9): what each client is expected to pay, what arrived, what is late,
@@ -28,12 +28,12 @@ async function weeklyExpected(tx: Tx, op: Op, start: string, end: string): Promi
     return valued.reduce((s, v) => s + v.revenueCents, 0) + stemCents;
   }
   const ids = await serviceIds(tx, op.id);
-  const rateRows = (await tx.select().from(rates).where(eq(rates.serviceTypeId, ids.ecommerce!))) as RateRow[];
+  const rateRows = await rateRowsOf(tx, [ids.ecommerce!]);
   const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), gte(workView.date, start), lte(workView.date, end)));
   let total = 0;
   for (const w of records) {
     if (!w.driverId && !w.contractorId) continue; // not our route: not billed
-    const r = rateFor(rateRows, ids.ecommerce!, null, { driverId: w.driverId, contractorId: w.contractorId }, w.date);
+    const r = rateFor(rateRows, ids.ecommerce!, null, w.payeeId, w.date);
     if (!r.ok || r.clientCents == null) return null;
     total += w.pieces * r.clientCents;
   }

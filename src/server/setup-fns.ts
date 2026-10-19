@@ -14,7 +14,7 @@ const uuid = z.string().uuid();
 export const getSetup = createServerFn({ method: 'GET' }).handler(() => read('payroll.view', (tx, actor) => loadSetup(tx, actor, todayLA())));
 
 export const createRate = createServerFn({ method: 'POST' })
-  .validator(z.object({ serviceTypeId: uuid, tier: z.enum(['t1_3', 't4']).nullable(), clientRateCents: cents, driverRateCents: cents, effectiveFrom: isoDate }))
+  .validator(z.object({ serviceTypeId: uuid, tierId: uuid.nullable(), clientRateCents: cents, driverRateCents: cents, effectiveFrom: isoDate, reason: z.string().max(200).nullable().optional() }))
   .handler(({ data }) => run('setup.edit', async (tx, actor) => (await addRate(tx, actor, data)).id));
 
 const driverInput = z.object({

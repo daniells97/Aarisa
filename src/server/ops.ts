@@ -1,7 +1,7 @@
 import { and, eq, inArray, lte, gte } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { operations, payPeriods, payrollRuns, rates, serviceTypes } from '~/db/schema';
-import type { HovershipItem, RateFn } from '~/domain/hovership';
+import { drivers, operations, payPeriods, payrollRuns, rates, serviceTiers, serviceTypes } from '~/db/schema';
+import type { RateFn } from '~/domain/hovership';
 import { periodFor, type PayCycle } from '~/domain/periods';
 import { rateFor, type RateRow } from '~/domain/rates';
 import { RuleError } from './errors';
@@ -17,13 +17,35 @@ export async function serviceIds(tx: Tx, operationId: string) {
   return Object.fromEntries(rows.map((s) => [s.code, s.id])) as Record<string, string>;
 }
 
-/** Rate lookup for Hovership items, using the rate valid on each work date. */
+/** Rate rows of some services, in the shape the rate rules read. */
+export async function rateRows(tx: Tx, serviceTypeIds: string[]): Promise<RateRow[]> {
+  if (!serviceTypeIds.length) return [];
+  return tx.select({
+    id: rates.id, serviceTypeId: rates.serviceTypeId, tierId: rates.tierId, payeeId: rates.payeeId,
+    side: rates.side, rateCents: rates.rateCents, effectiveFrom: rates.effectiveFrom,
+  }).from(rates).where(inArray(rates.serviceTypeId, serviceTypeIds));
+}
+
+/** Tiers of a service by code (T1, T2…), including retired ones that old records still use. */
+export async function tierIdsByCode(tx: Tx, serviceTypeId: string) {
+  const rows = await tx.select().from(serviceTiers).where(eq(serviceTiers.serviceTypeId, serviceTypeId));
+  return new Map(rows.map((t) => [t.code, t.id]));
+}
+
+/**
+ * Rate lookup for Hovership items (a package tier code, or `stat`), using the rate valid on each work
+ * date and the driver's special rate when there is one. `t1_3` / `t4` are accepted for summed pieces.
+ */
 export async function hovershipRateFn(tx: Tx, operationId: string) {
   const ids = await serviceIds(tx, operationId);
-  const rows = (await tx.select().from(rates).where(inArray(rates.serviceTypeId, Object.values(ids)))) as RateRow[];
-  const service: Record<HovershipItem, string> = { t1_3: ids.hovership_packages!, t4: ids.hovership_packages!, stat: ids.stat! };
-  const fn: RateFn = (item, driverId, date) => rateFor(rows, service[item], item === 'stat' ? null : item, { driverId }, date);
-  return { fn, rows, ids };
+  const rows = await rateRows(tx, Object.values(ids));
+  const tiers = await tierIdsByCode(tx, ids.hovership_packages!);
+  const payeeOf = new Map((await tx.select({ id: drivers.id, payeeId: drivers.payeeId }).from(drivers)).map((d) => [d.id, d.payeeId]));
+  const legacy: Record<string, string> = { t1_3: 'T1-3', t4: 'T4' };
+  const fn: RateFn = (item, driverId, date) => item === 'stat'
+    ? rateFor(rows, ids.stat!, null, payeeOf.get(driverId) ?? null, date)
+    : rateFor(rows, ids.hovership_packages!, tiers.get(legacy[item] ?? item) ?? null, payeeOf.get(driverId) ?? null, date);
+  return { fn, rows, ids, tiers };
 }
 
 /** Rule 3: work inside an approved (or paid) payroll run can't change until the owner reopens it. */

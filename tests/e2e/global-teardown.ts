@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { and, eq, inArray, like, or } from 'drizzle-orm';
 import { createDb } from '../../src/db/client';
 import {
-  driverAffiliations, driverAliases, driverClientCodes, drivers, payees, routeExecutions, routeOwnerships, routes, workRecords,
+  driverAffiliations, payAdjustments, driverAliases, driverClientCodes, drivers, payees, routeExecutions, routeOwnerships, routes, workRecords,
 } from '../../src/db/schema';
 
 // Removes what the end-to-end tests create (routes coded E2E…, drivers named "E2E …") so the
@@ -24,6 +24,7 @@ export default async function globalTeardown() {
         ));
         if (ex.length) {
           await tx.delete(workRecords).where(inArray(workRecords.executionId, ex.map((e) => e.id)));
+          await tx.delete(payAdjustments).where(inArray(payAdjustments.executionId, ex.map((e) => e.id)));
           await tx.delete(routeExecutions).where(inArray(routeExecutions.id, ex.map((e) => e.id)));
         }
       }

@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { rates, routes, serviceTypes, settlementLines, workRecords } from '~/db/schema';
+import { routes, serviceTypes, settlementLines, workRecords } from '~/db/schema';
 import { TFORCE_CSV, actorAs, clearTforceReports, withRollback, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { completeExtraJob, createExtraJob, listExtraJobs } from './extra-jobs';
 import { loadRun } from './payroll';
 import { importTforce, loadTforceWeek, resolveTforceException } from './tforce';
+import { addRate } from './setup';
 
 type T = Parameters<Parameters<typeof withRollback>[0]>[0];
 const puma = async (tx: T) => contractorNamed(tx, 'Puma');
@@ -72,7 +73,7 @@ describe('extra jobs (server)', () => {
         await resolveTforceException(tx, owner, e.id, e.type === 'low_pieces' ? { action: 'pay_as_reported' } : { action: 'not_ours' });
       }
       const [ecom] = await tx.select().from(serviceTypes).where(eq(serviceTypes.code, 'ecommerce'));
-      await tx.insert(rates).values({ serviceTypeId: ecom!.id, clientRateCents: 150, driverRateCents: 110, effectiveFrom: '2026-06-01' });
+      await addRate(tx, owner, { serviceTypeId: ecom!.id, tierId: null, clientRateCents: 150, driverRateCents: 110, effectiveFrom: '2026-06-01' });
       const before = await loadRun(tx, owner, 'tforce-2026-06-15');
       await createExtraJob(tx, owner, { clientUuid: randomUUID(), service: 'recovery_route', date: '2026-06-18', nearRouteId: null, payee: { contractorId: (await puma(tx)).id }, clientAmountCents: 180_00, driverAmountCents: 120_00, orderNumber: 'TF-55821', note: null });
       const after = await loadRun(tx, owner, 'tforce-2026-06-15');

@@ -42,18 +42,21 @@ function SetupPage() {
 
 type Service = Setup['services'][number];
 type RateRow = Setup['rates'][number];
-type Tier = 't1_3' | 't4' | null;
+type Tier = Service['tiers'][number] | null;
 
-/** One rate line per service (two for Hovership packages, one per tier). Report services first. */
+/** One rate line per service, or one per active tier when the service has tiers (premise 2). Report services first. */
 function rateKeys(services: Service[]) {
   const order = (x: Service) => (x.operation === 'hovership' ? 0 : 1) * 10 + (x.fromReport ? 0 : 1);
   return services
     .filter((x) => x.active)
     .sort((a, b) => order(a) - order(b) || (a.code === 'other' ? 1 : 0) - (b.code === 'other' ? 1 : 0) || a.name.localeCompare(b.name))
-    .flatMap((x) => (x.code === 'hovership_packages' ? (['t1_3', 't4'] as const) : [null]).map((tier) => ({ service: x, tier: tier as Tier })));
+    .flatMap((x) => {
+      const tiers = x.tiers.filter((tr) => tr.active);
+      return (tiers.length ? tiers : [null]).map((tier) => ({ service: x, tier: tier as Tier }));
+    });
 }
 
-interface RateDraft { serviceTypeId?: string; tier?: Tier; current?: RateRow }
+interface RateDraft { serviceTypeId?: string; tierId?: string | null; current?: RateRow }
 
 function RatesTab({ data }: { data: Setup }) {
   const t = useT();
@@ -63,10 +66,10 @@ function RatesTab({ data }: { data: Setup }) {
   const [editing, setEditing] = useState<RateDraft | null>(null);
   const today = todayLA();
   const opName = (code: string) => data.operations.find((o) => o.code === code)?.name ?? code;
-  const label = (x: Service, tier: Tier) => (tier ? t(`tier.${tier}` as MessageKey) : serviceLabel(x, locale));
+  const label = (x: Service, tier: Tier) => (tier ? `${serviceLabel(x, locale)} · ${tier.name}` : serviceLabel(x, locale));
 
   const rows = rateKeys(data.services).map(({ service, tier }) => {
-    const all = data.rates.filter((r) => r.serviceCode === service.code && r.operation === service.operation && r.tier === tier);
+    const all = data.rates.filter((r) => r.serviceCode === service.code && r.operation === service.operation && r.tierId === (tier?.id ?? null));
     return {
       service, tier,
       current: all.find((r) => r.current),
@@ -119,13 +122,13 @@ function RatesTab({ data }: { data: Setup }) {
               const name = label(service, tier);
               const change = (
                 <Button size="sm" aria-label={t(current ? 'rates.changeNamed' : 'rates.setNamed', { name })}
-                  onClick={() => setEditing({ serviceTypeId: service.id, tier, current })}>
+                  onClick={() => setEditing({ serviceTypeId: service.id, tierId: tier?.id ?? null, current })}>
                   {t(current ? 'rates.change' : service.unit === 'job' ? 'rates.setDefault' : 'rates.add')}
                 </Button>
               );
               return [
                 ...upcoming.map((r) => <tr key={r.id}>{cells(service, tier, r, <Pill tone="waiting">{t('rates.upcoming')}</Pill>, null)}</tr>),
-                <tr key={`${service.id}-${tier}`}>{cells(service, tier, current, statusOf(service, current), change)}</tr>,
+                <tr key={`${service.id}-${tier?.id ?? ''}`}>{cells(service, tier, current, statusOf(service, current), change)}</tr>,
                 ...(history ? older.map((r) => <tr key={r.id} className="muted">{cells(service, tier, r, <Pill tone="muted">{t('rates.replaced')}</Pill>, null)}</tr>) : []),
               ];
             })}
@@ -150,18 +153,21 @@ function RateDialog({ data, draft, onClose }: { data: Setup; draft: RateDraft; o
   const toast = useToast();
   const choices = data.services.filter((x) => x.active);
   const [serviceTypeId, setService] = useState(draft.serviceTypeId ?? choices[0]?.id ?? '');
-  const [tier, setTier] = useState<'t1_3' | 't4'>(draft.tier ?? 't1_3');
+  const [tierId, setTier] = useState<string>(draft.tierId ?? '');
+  const [reason, setReason] = useState('');
   const [client, setClient] = useState(centsToInput(draft.current?.clientRateCents));
   const [driver, setDriver] = useState(centsToInput(draft.current?.driverRateCents));
   const [start, setStart] = useState(todayLA());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const service = data.services.find((x) => x.id === serviceTypeId);
-  const tiered = service?.code === 'hovership_packages';
+  const tiers = service?.tiers.filter((tr) => tr.active) ?? [];
+  const tiered = tiers.length > 0;
+  const tier = tiers.find((tr) => tr.id === tierId) ?? tiers[0] ?? null;
   const clientCents = parseAmount(client);
   const driverCents = parseAmount(driver);
   const fixed = draft.serviceTypeId != null;
-  const name = service ? (tiered ? `${serviceLabel(service, locale)}, ${t(`tier.${tier}`)}` : serviceLabel(service, locale)) : '';
+  const name = service ? (tier ? `${serviceLabel(service, locale)}, ${tier.name}` : serviceLabel(service, locale)) : '';
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,7 +175,10 @@ function RateDialog({ data, draft, onClose }: { data: Setup; draft: RateDraft; o
     if (draft.current && start <= draft.current.effectiveFrom) return setError(t('error.start_after_current', { date: f.date(draft.current.effectiveFrom) }));
     setBusy(true);
     try {
-      const res = await createRate({ data: { serviceTypeId, tier: tiered ? tier : null, clientRateCents: data.showMoney ? clientCents : (draft.current?.clientRateCents ?? null), driverRateCents: driverCents, effectiveFrom: start } });
+      const res = await createRate({ data: {
+        serviceTypeId, tierId: tier?.id ?? null, clientRateCents: data.showMoney ? clientCents : (draft.current?.clientRateCents ?? null),
+        driverRateCents: driverCents, effectiveFrom: start, reason: reason.trim() || null,
+      } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       toast(t('rates.saved', { date: f.date(start) }));
       await router.invalidate();
@@ -191,8 +200,8 @@ function RateDialog({ data, draft, onClose }: { data: Setup; draft: RateDraft; o
           </SelectField>
         )}
         {tiered && !fixed && (
-          <SelectField label={t('rates.tier')} value={tier} onChange={(e) => setTier(e.target.value as 't1_3' | 't4')}>
-            <option value="t1_3">{t('tier.t1_3')}</option><option value="t4">{t('tier.t4')}</option>
+          <SelectField label={t('rates.tier')} value={tier?.id ?? ''} onChange={(e) => setTier(e.target.value)}>
+            {tiers.map((tr) => <option key={tr.id} value={tr.id}>{tr.name}</option>)}
           </SelectField>
         )}
         {service?.unit === 'job' && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('rates.jobDefaultHint')}</p>}
@@ -205,6 +214,7 @@ function RateDialog({ data, draft, onClose }: { data: Setup; draft: RateDraft; o
             hint={t('rates.leaveBlank')} error={driverCents === undefined ? t('error.invalid_amount') : undefined} />
         </div>
         <TextField label={t('rates.starts')} type="date" required value={start} onChange={(e) => setStart(e.target.value)} />
+        <TextField label={t('rates.reason')} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} hint={t('rates.reasonHint')} />
         <FormError>{error}</FormError>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <Button onClick={onClose}>{t('common.cancel')}</Button>

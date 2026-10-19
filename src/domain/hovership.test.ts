@@ -9,7 +9,7 @@ const parsed = parseHovership(csv);
 if (parsed.kind !== 'ok') throw new Error('seed file should parse');
 
 const RATES = { t1_3: [300, 250], t4: [200, 175], stat: [1000, 500] } as const;
-const rate: RateFn = (item) => ({ ok: true, rateId: item, clientCents: RATES[item][0], driverCents: RATES[item][1], effectiveFrom: '2026-06-01' });
+const rate: RateFn = (item) => ({ ok: true, rateId: item, clientRateId: item, clientCents: RATES[item as keyof typeof RATES][0], driverCents: RATES[item as keyof typeof RATES][1], effectiveFrom: '2026-06-01' });
 
 function period(from: string, to: string) {
   const rows = parsed.kind === 'ok' ? parsed.rows.filter((r) => r.date >= from && r.date <= to) : [];

@@ -12,7 +12,8 @@ describe('setup data (server)', () => {
   it('shows Hovership rates to money roles and hides client rates from dispatchers', () =>
     withRollback(async (tx) => {
       const owner = await loadSetup(tx, actorAs('owner'), TODAY);
-      const t13 = owner.rates.find((r) => r.serviceCode === 'hovership_packages' && r.tier === 't1_3' && r.current)!;
+      const t2 = owner.services.find((s) => s.code === 'hovership_packages')!.tiers.find((t) => t.code === 'T2')!;
+      const t13 = owner.rates.find((r) => r.serviceCode === 'hovership_packages' && r.tierId === t2.id && r.current)!;
       expect([t13.clientRateCents, t13.driverRateCents]).toEqual([300, 250]);
       const dispatcher = await loadSetup(tx, actorAs('dispatcher'), TODAY);
       expect(dispatcher.showMoney).toBe(false);
@@ -28,7 +29,7 @@ describe('setup data (server)', () => {
         const attempts = [
           () => addDriver(tx, actor, driver),
           () => addContractor(tx, actor, 'Test contractor'),
-          () => addRate(tx, actor, { serviceTypeId: stat!.id, tier: null, clientRateCents: 1100, driverRateCents: 550, effectiveFrom: '2026-09-01' }),
+          () => addRate(tx, actor, { serviceTypeId: stat!.id, tierId: null, clientRateCents: 1100, driverRateCents: 550, effectiveFrom: '2026-09-01' }),
         ];
         for (const attempt of attempts) {
           if (role === 'owner') await expect(attempt()).resolves.toBeTruthy();
@@ -41,12 +42,12 @@ describe('setup data (server)', () => {
     withRollback(async (tx) => {
       const owner = actorAs('owner');
       const [stat] = await tx.select().from(serviceTypes).where(eq(serviceTypes.code, 'stat'));
-      const row = await addRate(tx, owner, { serviceTypeId: stat!.id, tier: null, clientRateCents: 1100, driverRateCents: 550, effectiveFrom: '2026-09-01' });
+      const row = await addRate(tx, owner, { serviceTypeId: stat!.id, tierId: null, clientRateCents: 1100, driverRateCents: 550, effectiveFrom: '2026-09-01' });
       const before = await loadSetup(tx, owner, '2026-08-31');
       const after = await loadSetup(tx, owner, '2026-09-01');
       expect(before.rates.find((r) => r.serviceCode === 'stat' && r.current)!.driverRateCents).toBe(500);
       expect(after.rates.find((r) => r.serviceCode === 'stat' && r.current)!.driverRateCents).toBe(550);
-      await expect(addRate(tx, owner, { serviceTypeId: stat!.id, tier: null, clientRateCents: 1, driverRateCents: 1, effectiveFrom: '2026-09-01' }))
+      await expect(addRate(tx, owner, { serviceTypeId: stat!.id, tierId: null, clientRateCents: 1, driverRateCents: 1, effectiveFrom: '2026-09-01' }))
         .rejects.toMatchObject({ code: 'rate_exists_on_date' });
       const trail = await tx.select().from(auditLog).where(and(eq(auditLog.tableName, 'rates'), eq(auditLog.recordId, row.id)));
       expect(trail).toHaveLength(1);

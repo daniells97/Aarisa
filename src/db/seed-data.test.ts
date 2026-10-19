@@ -6,9 +6,9 @@ describe('seed master data', () => {
     expect(OPERATIONS.map((o) => [o.code, o.payCycle])).toEqual([['hovership', 'biweekly'], ['tforce', 'weekly']]);
   });
   it('uses the Hovership rates from spec §5.1 in cents', () => {
-    const r = (s: string, t: string | null) => RATES.find((x) => x.service === s && x.tier === t);
-    expect(r('hovership_packages', 't1_3')).toMatchObject({ client: 300, driver: 250 });
-    expect(r('hovership_packages', 't4')).toMatchObject({ client: 200, driver: 175 });
+    const r = (s: string, t: string | null) => RATES.find((x) => x.service === s && (t ? x.tiers?.includes(t) : !x.tiers));
+    for (const tier of ['T1', 'T2', 'T3']) expect(r('hovership_packages', tier)).toMatchObject({ client: 300, driver: 250 });
+    expect(r('hovership_packages', 'T4')).toMatchObject({ client: 200, driver: 175 });
     expect(r('stat', null)).toMatchObject({ client: 1000, driver: 500 });
     expect(r('pharma_pickup', null)).toMatchObject({ client: 5000, driver: null });
   });

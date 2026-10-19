@@ -1,17 +1,17 @@
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { exceptions, payPeriods, payrollLines, payrollRuns, rates, users, workRecords, workView } from '~/db/schema';
+import { exceptions, payPeriods, payrollLines, payrollRuns, users, workRecords, workView } from '~/db/schema';
 import { addDays, todayLA } from '~/domain/dates';
 import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
 import { buildRun, hovershipItems, payeeKey, payrollCsv, type Blocker, type PayrollTotals, type RunItem } from '~/domain/payroll';
-import { rateFor, type RateRow } from '~/domain/rates';
+import { rateFor } from '~/domain/rates';
 import { periodFor, periodsFor } from '~/domain/periods';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { loadHovershipDays } from './hovership';
-import { getOperation, hovershipRateFn, serviceIds } from './ops';
+import { getOperation, hovershipRateFn, rateRows as rateRowsOf, serviceIds } from './ops';
 import { payeeIdsByKey, payeeRefs } from './executions';
 import { contractorProfiles, driverProfiles } from './people';
 
@@ -39,7 +39,7 @@ type Operation = Awaited<ReturnType<typeof getOperation>>;
 /** Values copied onto a work record when its run is approved (spec §4). */
 interface Snapshot {
   record: typeof workView.$inferSelect;
-  values: { clientRateCents: number | null; driverRateCents: number | null; driverPayCents: number; revenueCents: number; profitCents: number };
+  values: { clientRateCents: number | null; driverRateCents: number | null; driverPayCents: number; revenueCents: number };
 }
 
 /** Previous approved run's payees, to spot new drivers or contractors. */
@@ -72,13 +72,12 @@ async function computeHovership(tx: Tx, op: Operation, start: string) {
     items: hovershipItems(valued), otherRevenueCents: stemCents, expectedWeeks: weeks, coveredWeeks: covered,
     openExceptions: await openExceptionCount(tx, op.id, period.start, period.end), previousPayees: await previousPayees(tx, op.id, period.start),
   });
+  // Bonuses are pay adjustments of their own; a work record's pay is pieces × rate.
   const snapshots = (): Snapshot[] => records.filter((w) => w.driverId).map((w) => {
-    const item = w.serviceTypeId === ids.stat ? 'stat' : w.tier === 't4' ? 't4' : 't1_3';
+    const item = w.serviceTypeId === ids.stat ? 'stat' : w.tierCode ?? 'T1-3';
     const r = rate(item, w.driverId!, w.date);
     if (!r.ok) throw new RuleError('run_not_ready');
-    const driverPay = w.pieces * (r.driverCents ?? 0) + w.bonusCents;
-    const revenue = w.pieces * (r.clientCents ?? 0);
-    return { record: w, values: { clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: driverPay, revenueCents: revenue, profitCents: revenue - driverPay } };
+    return { record: w, values: { clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: w.pieces * r.driverCents, revenueCents: w.pieces * (r.clientCents ?? 0) } };
   });
   return { period, weeks, covered, snapshots, ...result };
 }
@@ -92,13 +91,13 @@ async function computeTforce(tx: Tx, op: Operation, start: string) {
   const period = periodFor(op.cycleAnchor, op.payCycle, start);
   if (period.start !== start) throw new RuleError('not_found');
   const ids = await serviceIds(tx, op.id);
-  const rateRows = (await tx.select().from(rates).where(eq(rates.serviceTypeId, ids.ecommerce!))) as RateRow[];
+  const rateRows = await rateRowsOf(tx, [ids.ecommerce!]);
   const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), gte(workView.date, period.start), lte(workView.date, period.end)));
   const paid = records.filter((w) => w.driverId || w.contractorId);
   // Report route-days use the e-commerce rate valid that day; extra jobs carry their agreed amounts.
   const priced = paid.map((w) => w.source === 'tforce_report'
-    ? { w, extra: false, r: rateFor(rateRows, ids.ecommerce!, null, { driverId: w.driverId, contractorId: w.contractorId }, w.date) }
-    : { w, extra: true, r: { ok: true as const, rateId: '', clientCents: w.clientRateCents, driverCents: w.driverRateCents, effectiveFrom: w.date } });
+    ? { w, extra: false, r: rateFor(rateRows, ids.ecommerce!, null, w.payeeId, w.date) }
+    : { w, extra: true, r: { ok: true as const, rateId: '', clientRateId: null, clientCents: w.clientRateCents, driverCents: w.driverRateCents ?? 0, effectiveFrom: w.date } });
   const items: RunItem[] = priced.map(({ w, r, extra }) => ({
     driverId: w.driverId, contractorId: w.contractorId, date: w.date, packages: extra ? 0 : w.pieces, stops: 0, bonusCents: 0, extraJob: extra,
     payCents: r.ok ? w.pieces * (r.driverCents ?? 0) : 0, revenueCents: r.ok ? w.pieces * (r.clientCents ?? 0) : 0, missingRate: !r.ok,
@@ -111,9 +110,7 @@ async function computeTforce(tx: Tx, op: Operation, start: string) {
   });
   const snapshots = (): Snapshot[] => priced.map(({ w, r }) => {
     if (!r.ok) throw new RuleError('run_not_ready');
-    const driverPay = w.pieces * (r.driverCents ?? 0);
-    const revenue = w.pieces * (r.clientCents ?? 0);
-    return { record: w, values: { clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: driverPay, revenueCents: revenue, profitCents: revenue - driverPay } };
+    return { record: w, values: { clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: w.pieces * r.driverCents, revenueCents: w.pieces * (r.clientCents ?? 0) } };
   });
   return { period, weeks, covered, snapshots, ...result };
 }

@@ -5,7 +5,7 @@ test.describe('drivers and rates', () => {
 
   test('owner sees Hovership rates with margins and can open add rate', async ({ page }) => {
     await signInAs(page, 'owner', '/settings/rates');
-    const row = page.getByRole('row').filter({ hasText: 'Tier 1 to 3' }).first();
+    const row = page.getByRole('row').filter({ hasText: 'Tier 2' }).first();
     await expect(row).toContainText('$3.00');
     await expect(row).toContainText('$2.50');
     await expect(row).toContainText('$0.50');
@@ -19,7 +19,7 @@ test.describe('drivers and rates', () => {
     await signInAs(page, 'dispatcher', '/settings/rates');
     await expect(page.getByText('Client rates and margins are hidden for your role.')).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Client pays' })).toHaveCount(0);
-    await expect(page.getByRole('row').filter({ hasText: 'Tier 1 to 3' }).first()).toContainText('$2.50');
+    await expect(page.getByRole('row').filter({ hasText: 'Tier 2' }).first()).toContainText('$2.50');
     await expect(page.getByText('$3.00')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Add rate' })).toHaveCount(0);
   });

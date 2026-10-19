@@ -27,7 +27,7 @@ test.describe('services and rates', () => {
 
   test('changing a rate opens with the current amounts and explains the start date', async ({ page }) => {
     await signInAs(page, 'owner', '/settings/rates');
-    await page.getByRole('button', { name: /Change rate for Tier 1 to 3/ }).click();
+    await page.getByRole('button', { name: /Change rate for .*Tier 2/ }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByLabel('Client pays')).toHaveValue('3.00');
     await expect(dialog.getByLabel('Driver gets')).toHaveValue('2.50');

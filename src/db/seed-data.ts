@@ -21,11 +21,17 @@ export const SERVICE_TYPES: {
   { operation: 'tforce', code: 'other', nameEs: 'Otro', name: 'Other', unit: 'job', fromReport: false, requiresNote: true },
 ];
 
-export const RATES: { service: string; tier: 't1_3' | 't4' | null; client: number | null; driver: number | null }[] = [
-  { service: 'hovership_packages', tier: 't1_3', client: 300, driver: 250 },
-  { service: 'hovership_packages', tier: 't4', client: 200, driver: 175 },
-  { service: 'stat', tier: null, client: 1000, driver: 500 },
-  { service: 'pharma_pickup', tier: null, client: 5000, driver: null }, // driver rate to confirm
+/** Levels of a service (premise 2). Hovership's report has Tier 1 to Tier 4. */
+export const SERVICE_TIERS: Record<string, { code: string; name: string }[]> = {
+  hovership_packages: [{ code: 'T1', name: 'Tier 1' }, { code: 'T2', name: 'Tier 2' }, { code: 'T3', name: 'Tier 3' }, { code: 'T4', name: 'Tier 4' }],
+};
+
+/** Rates from the June 2026 file; `tiers` lists the levels that share the amount (T1–T3 pay the same today). */
+export const RATES: { service: string; tiers: string[] | null; client: number | null; driver: number | null }[] = [
+  { service: 'hovership_packages', tiers: ['T1', 'T2', 'T3'], client: 300, driver: 250 },
+  { service: 'hovership_packages', tiers: ['T4'], client: 200, driver: 175 },
+  { service: 'stat', tiers: null, client: 1000, driver: 500 },
+  { service: 'pharma_pickup', tiers: null, client: 5000, driver: null }, // driver rate to confirm
 ];
 
 export const CONTRACTORS = ['Puma'];

@@ -2,8 +2,10 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { createDb } from './client';
-import { contractors, operations, routeExecutions, paymentsReceived, rates, routes, serviceTypes, settlementLines } from './schema';
-import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TYPES } from './seed-data';
+import { contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, serviceTiers } from './schema';
+import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TIERS, SERVICE_TYPES } from './seed-data';
+import { addRate } from '~/server/setup';
+import { tierIdsByCode } from '~/server/ops';
 import { parseCsvObjects } from '~/integrations/csv';
 import { audit, type AuditEntry } from '~/server/audit';
 import { SYSTEM_ACTOR } from '~/server/actor';
@@ -47,19 +49,22 @@ export async function seedMasterData(database = createDb()) {
       services[st.code] = found!.id;
     }
 
+    for (const [service, tiers] of Object.entries(SERVICE_TIERS)) {
+      const rows = tiers.map((t, i) => ({ serviceTypeId: services[service]!, code: t.code, name: t.name, sortOrder: i + 1 }));
+      for (const row of await tx.insert(serviceTiers).values(rows).onConflictDoNothing().returning()) log('service_tiers', row);
+    }
+
+    // Through the same path the portal uses: one agreement per side, skipped when already loaded.
     for (const r of RATES) {
       const serviceTypeId = services[r.service]!;
-      const existing = await tx.select({ id: rates.id }).from(rates).where(and(
-        eq(rates.serviceTypeId, serviceTypeId),
-        r.tier ? eq(rates.tier, r.tier) : isNull(rates.tier),
-        isNull(rates.driverId), isNull(rates.contractorId),
-        eq(rates.effectiveFrom, RATES_EFFECTIVE_FROM),
-      ));
-      if (existing.length) continue;
-      const [row] = await tx.insert(rates).values({
-        serviceTypeId, tier: r.tier, clientRateCents: r.client, driverRateCents: r.driver, effectiveFrom: RATES_EFFECTIVE_FROM,
-      }).returning();
-      log('rates', row!);
+      const tierIds = r.tiers ? await tierIdsByCode(tx, serviceTypeId) : null;
+      for (const tierId of r.tiers ? r.tiers.map((c) => tierIds!.get(c)!) : [null]) {
+        try {
+          await addRate(tx, SYSTEM_ACTOR, { serviceTypeId, tierId, clientRateCents: r.client, driverRateCents: r.driver, effectiveFrom: RATES_EFFECTIVE_FROM, reason: 'Rates from the June 2026 file' });
+        } catch (e) {
+          if (!['rate_unchanged', 'rate_exists_on_date'].includes((e as { code?: string }).code ?? '')) throw e;
+        }
+      }
     }
 
     // Aarisa itself is created by the migration that introduced payees. Puma is paid when T-Force pays.

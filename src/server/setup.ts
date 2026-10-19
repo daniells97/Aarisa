@@ -1,13 +1,14 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { operations, rates, routes, serviceTypes } from '~/db/schema';
+import { operations, rateAgreements, rates, routes, serviceTiers, serviceTypes } from '~/db/schema';
 import { todayLA } from '~/domain/dates';
 import { can } from '~/domain/permissions';
-import { currentGeneralRates, type RateRow } from '~/domain/rates';
+import { rateTimeline } from '~/domain/rates';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
 import { contractorProfiles, createContractor, createDriver, driverProfiles, routeOwners, updateDriverProfile, type DriverInput } from './people';
+import { rateRows } from './ops';
 import { refreshWeeklyLines } from './settlements';
 
 // Drivers, contractors, services and rates (spec 6.10). Anyone signed in can read;
@@ -19,11 +20,12 @@ export interface RateView {
   serviceCode: string;
   serviceName: string;
   unit: string;
-  tier: 't1_3' | 't4' | null;
+  tierId: string | null;
   clientRateCents: number | null; // null when hidden or not set
   driverRateCents: number | null;
   effectiveFrom: string;
   current: boolean;
+  reason: string | null;
 }
 
 export async function loadSetup(tx: Tx, actor: Actor, today: string) {
@@ -31,19 +33,24 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
   const showMoney = can(actor.role, 'money.view');
   const ops = await tx.select().from(operations).orderBy(asc(operations.code));
   const services = await tx.select().from(serviceTypes);
-  const allRates = (await tx.select().from(rates).where(and(isNull(rates.driverId), isNull(rates.contractorId)))) as RateRow[];
-  const current = new Set(currentGeneralRates(allRates, today).map((r) => r.id));
   const opCode = new Map(ops.map((o) => [o.id, o.code]));
   const svc = new Map(services.map((s) => [s.id, s]));
-  const rateViews: RateView[] = allRates.map((r) => {
-    const s = svc.get(r.serviceTypeId)!;
+  const tiers = await tx.select().from(serviceTiers).orderBy(asc(serviceTiers.sortOrder));
+  // General rates as a timeline: one line per date either side (client or driver) changed.
+  const reasons = new Map((await tx.select({ id: rates.id, reason: rateAgreements.reason }).from(rates)
+    .innerJoin(rateAgreements, eq(rateAgreements.id, rates.agreementId)).where(isNull(rates.payeeId))).map((r) => [r.id, r.reason]));
+  const rows = await rateRows(tx, services.map((s) => s.id));
+  const reasonOf = (serviceTypeId: string, tierId: string | null, date: string) =>
+    rows.filter((r) => !r.payeeId && r.serviceTypeId === serviceTypeId && r.tierId === tierId && r.effectiveFrom === date).map((r) => reasons.get(r.id)).find(Boolean) ?? null;
+  const rateViews: RateView[] = rateTimeline(rows, today).flatMap((line) => line.steps.map((st) => {
+    const s = svc.get(line.serviceTypeId)!;
     return {
-      id: r.id, operation: opCode.get(s.operationId)!, serviceCode: s.code, serviceName: s.name, unit: s.unit, tier: r.tier,
-      clientRateCents: showMoney ? r.clientRateCents : null,
-      driverRateCents: r.driverRateCents, effectiveFrom: r.effectiveFrom, current: current.has(r.id),
+      id: `${line.serviceTypeId}|${line.tierId ?? ''}|${st.effectiveFrom}`, operation: opCode.get(s.operationId)!, serviceCode: s.code, serviceName: s.name,
+      unit: s.unit, tierId: line.tierId, clientRateCents: showMoney ? st.clientCents : null, driverRateCents: st.driverCents,
+      effectiveFrom: st.effectiveFrom, current: line.current?.effectiveFrom === st.effectiveFrom, reason: reasonOf(line.serviceTypeId, line.tierId, st.effectiveFrom),
     };
-  }).sort((a, b) => a.operation.localeCompare(b.operation) || a.serviceCode.localeCompare(b.serviceCode)
-    || (a.tier ?? '').localeCompare(b.tier ?? '') || b.effectiveFrom.localeCompare(a.effectiveFrom));
+  })).sort((a, b) => a.operation.localeCompare(b.operation) || a.serviceCode.localeCompare(b.serviceCode)
+    || (a.tierId ?? '').localeCompare(b.tierId ?? '') || b.effectiveFrom.localeCompare(a.effectiveFrom));
 
   const contractorRows = await contractorProfiles(tx);
   const driverRows = await driverProfiles(tx, today);
@@ -56,6 +63,8 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
     services: services.map((s) => ({
       id: s.id, operation: opCode.get(s.operationId)!, code: s.code, name: s.name, nameEs: s.nameEs, unit: s.unit, fromReport: s.fromReport,
       requiresOrderNumber: s.requiresOrderNumber, requiresNote: s.requiresNote, active: s.active,
+      // Levels of the service; retired ones still label old rates and records.
+      tiers: tiers.filter((t) => t.serviceTypeId === s.id).map((t) => ({ id: t.id, code: t.code, name: t.name, active: t.active })),
     })),
     rates: rateViews,
     contractors: contractorRows.map((c) => ({ id: c.id, name: c.name, active: c.active, routes: routeRows.filter((r) => owner.get(r.id) === c.id).map((r) => r.code) })),
@@ -69,31 +78,55 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
 
 export interface NewRate {
   serviceTypeId: string;
-  tier: 't1_3' | 't4' | null;
+  tierId: string | null;
   clientRateCents: number | null;
   driverRateCents: number | null;
   effectiveFrom: string;
+  reason?: string | null;
 }
 
-/** Rule 2: never update a rate in place; a change is a new row with its own start date. */
+/**
+ * Rule 2: never update a rate in place. A change is a new agreement per side with its own start date
+ * (docs/db-model.md: rate_agreements). Only the sides whose amount changes get a new rate, so a client
+ * renegotiation leaves the driver's rate history alone and the other way round.
+ */
 export async function addRate(tx: Tx, actor: Actor, input: NewRate) {
   assertCan(actor, 'setup.edit');
   const [service] = await tx.select().from(serviceTypes).where(eq(serviceTypes.id, input.serviceTypeId));
   if (!service) throw new RuleError('unknown_service');
-  if (service.code === 'hovership_packages' && !input.tier) throw new RuleError('tier_required');
-  if (service.code !== 'hovership_packages' && input.tier) throw new RuleError('tier_not_allowed');
+  const tiers = await tx.select().from(serviceTiers).where(eq(serviceTiers.serviceTypeId, service.id));
+  if (tiers.some((t) => t.active) && !input.tierId) throw new RuleError('tier_required');
+  if (input.tierId && !tiers.some((t) => t.id === input.tierId && t.active)) throw new RuleError('tier_not_allowed');
   if (input.clientRateCents == null && input.driverRateCents == null) throw new RuleError('amount_required');
-  const clash = await tx.select({ id: rates.id }).from(rates).where(and(
-    eq(rates.serviceTypeId, input.serviceTypeId), input.tier ? eq(rates.tier, input.tier) : isNull(rates.tier),
-    isNull(rates.driverId), isNull(rates.contractorId), eq(rates.effectiveFrom, input.effectiveFrom),
-  ));
-  if (clash.length) throw new RuleError('rate_exists_on_date');
-  const [row] = await tx.insert(rates).values({ ...input, createdBy: actor.userId }).returning();
-  await audit(tx, { table: 'rates', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
+  if ((input.clientRateCents ?? 0) < 0 || (input.driverRateCents ?? 0) < 0) throw new RuleError('invalid_amount');
+
+  // The amount each side has on that date; only a side whose amount differs gets a new rate.
+  const existing = (await rateRows(tx, [service.id])).filter((r) => !r.payeeId && r.tierId === input.tierId);
+  const inForce = (side: 'client' | 'payee') => existing.filter((r) => r.side === side && r.effectiveFrom <= input.effectiveFrom)
+    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0]?.rateCents ?? null;
+  const changes = ([['client', input.clientRateCents], ['payee', input.driverRateCents]] as const)
+    .filter((c): c is ['client' | 'payee', number] => c[1] != null && c[1] !== inForce(c[0]));
+  if (!changes.length) throw new RuleError('rate_unchanged');
+  for (const [side] of changes) if (existing.some((r) => r.side === side && r.effectiveFrom === input.effectiveFrom)) throw new RuleError('rate_exists_on_date');
+
+  let first = null;
+  for (const [side, cents] of changes) {
+    const [agreement] = await tx.insert(rateAgreements).values({
+      operationId: service.operationId, side, effectiveFrom: input.effectiveFrom, reason: input.reason?.trim() || null, createdBy: actor.userId,
+    }).returning();
+    const [row] = await tx.insert(rates).values({
+      agreementId: agreement!.id, side, effectiveFrom: input.effectiveFrom, serviceTypeId: service.id, tierId: input.tierId, rateCents: cents,
+    }).returning();
+    await audit(tx, [
+      { table: 'rate_agreements', recordId: agreement!.id, action: 'insert', after: agreement, userId: actor.userId, source: actor.source },
+      { table: 'rates', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source },
+    ]);
+    first ??= row!;
+  }
   // A new rate changes what clients are expected to pay for weeks not yet paid.
   const [op] = await tx.select({ code: operations.code }).from(operations).where(eq(operations.id, service.operationId));
   await refreshWeeklyLines(tx, actor, op!.code as 'hovership' | 'tforce');
-  return row!;
+  return first!;
 }
 
 export type { DriverInput } from './people';

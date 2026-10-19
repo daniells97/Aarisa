@@ -1,18 +1,22 @@
 import type { Cents } from './money';
-import type { RateLookup, Tier } from './rates';
+import type { RateLookup } from './rates';
 
 // Hovership money rules (spec §5.2). STEM is never part of a driver's pay or margin;
 // it is operation revenue and only enters the operation profit.
 
-export type HovershipItem = 't1_3' | 't4' | 'stat';
+/** What a driver-day is paid for: a package tier code (T1…T4, or T1-3 for pieces imported summed) or `stat`. */
+export type HovershipItem = string;
 
 export interface HovershipDay {
   date: string;
   driverId: string;
+  // Shown on screen: Tier 1–3 together, Tier 4, Stat.
   t13: number;
   t4: number;
   stat: number;
   bonusCents: Cents;
+  /** Pieces per item as stored. Without it the day is valued as t1_3 / t4 / stat (tests, previews). */
+  counts?: Record<HovershipItem, number>;
 }
 
 /** Rate for an item on a date for a driver; `ok: false` means missing. */
@@ -27,7 +31,7 @@ export interface ValuedDay extends HovershipDay {
 }
 
 export function valueDay(day: HovershipDay, rate: RateFn): ValuedDay {
-  const items: [HovershipItem, number][] = [['t1_3', day.t13], ['t4', day.t4], ['stat', day.stat]];
+  const items: [HovershipItem, number][] = day.counts ? Object.entries(day.counts) : [['t1_3', day.t13], ['t4', day.t4], ['stat', day.stat]];
   let routePay = 0, revenue = 0;
   const missing: HovershipItem[] = [];
   for (const [item, count] of items) {
@@ -92,5 +96,3 @@ export function hovershipSummary(days: HovershipDay[], stemCents: Cents, rate: R
     missingRates: valued.filter((v) => v.missing.length > 0),
   };
 }
-
-export const tierOf = (item: HovershipItem): Tier | null => (item === 'stat' ? null : item);

@@ -6,7 +6,7 @@ import { buildPayroll, payrollCsv } from './payroll';
 
 const parsed = parseHovership(readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8'));
 const RATES = { t1_3: [300, 250], t4: [200, 175], stat: [1000, 500] } as const;
-const rate: RateFn = (item) => ({ ok: true, rateId: item, clientCents: RATES[item][0], driverCents: RATES[item][1], effectiveFrom: '2026-06-01' });
+const rate: RateFn = (item) => ({ ok: true, rateId: item, clientRateId: item, clientCents: RATES[item as keyof typeof RATES][0], driverCents: RATES[item as keyof typeof RATES][1], effectiveFrom: '2026-06-01' });
 
 function run(from: string, to: string, extra: Partial<Parameters<typeof buildPayroll>[0]> = {}) {
   const rows = parsed.kind === 'ok' ? parsed.rows.filter((r) => r.date >= from && r.date <= to) : [];

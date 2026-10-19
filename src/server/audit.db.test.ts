@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { auditLog, exceptions, operationRevenue, payPeriods, payrollLines, payrollRuns, reportImports, users, workView } from '~/db/schema';
+import { auditLog, exceptions, operationRevenue, payAdjustments, routeExecutions, payPeriods, payrollLines, payrollRuns, reportImports, users, workView } from '~/db/schema';
 import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { importHovership, resolveUnknownCode, setBonus } from './hovership';
 import { approveRun, markRunPaid, reopenRun } from './payroll';
@@ -41,6 +41,8 @@ describe('audit log (rule 4)', () => {
         pay_periods: periodIds,
         payroll_runs: runIds,
         payroll_lines: (await tx.select({ id: payrollLines.id }).from(payrollLines).where(inArray(payrollLines.runId, runIds))).map((r) => r.id),
+        pay_adjustments: (await tx.select({ id: payAdjustments.id }).from(payAdjustments).innerJoin(routeExecutions, eq(routeExecutions.id, payAdjustments.executionId))
+          .where(eq(routeExecutions.operationId, op.id))).map((r) => r.id),
       };
       for (const [table, ids] of Object.entries(checks)) {
         expect(ids.length, `${table} has rows`).toBeGreaterThan(0);
@@ -51,7 +53,8 @@ describe('audit log (rule 4)', () => {
         .where(and(eq(auditLog.tableName, 'payroll_runs'), inArray(auditLog.recordId, runIds))).groupBy(auditLog.action);
       expect(Object.fromEntries(actions.map((a) => [a.action, a.n]))).toEqual({ approve: 2, reopen: 1, update: 1 });
 
-      const bonusEdit = await tx.select().from(auditLog).where(and(eq(auditLog.tableName, 'work_records'), eq(auditLog.action, 'update'), eq(auditLog.userId, u!.id)));
-      expect(bonusEdit.some((a) => (a.after as { bonusCents: number }).bonusCents === 12_34 && a.source === 'portal')).toBe(true);
+      // Bonuses are pay adjustments since stage 4 of the redesign.
+      const bonusEdit = await tx.select().from(auditLog).where(and(eq(auditLog.tableName, 'pay_adjustments'), eq(auditLog.action, 'update'), eq(auditLog.userId, u!.id)));
+      expect(bonusEdit.some((a) => (a.after as { amountCents: number }).amountCents === 12_34 && a.source === 'portal')).toBe(true);
     }));
 });

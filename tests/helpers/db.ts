@@ -25,12 +25,13 @@ export const ALL_ROLES: Role[] = ['owner', 'dispatcher', 'finance', 'viewer'];
 import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
 import { and, inArray } from 'drizzle-orm';
-import { claims, exceptions, operationRevenue, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, routeExecutions, settlementLines, workRecords } from '~/db/schema';
+import { claims, exceptions, payAdjustments, operationRevenue, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, routeExecutions, settlementLines, workRecords } from '~/db/schema';
 
-/** Work records of an operation (they hang from its executions). */
+/** Work records and pay adjustments of an operation (they hang from its executions). */
 async function clearWork(tx: Tx, operationId: string) {
   const ex = tx.select({ id: routeExecutions.id }).from(routeExecutions).where(eq(routeExecutions.operationId, operationId));
   await tx.delete(workRecords).where(inArray(workRecords.executionId, ex));
+  await tx.delete(payAdjustments).where(inArray(payAdjustments.executionId, ex));
 }
 
 export const HOVERSHIP_CSV = readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8');

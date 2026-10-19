@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { auditLog, users, workView } from '~/db/schema';
 import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
-import { importHovership, setBonus } from './hovership';
+import { importHovership, loadHovershipWeek, setBonus } from './hovership';
 import { approveRun, exportRun, listRuns, loadRun, markRunPaid, reopenRun } from './payroll';
 
 const RUN = 'hovership-2026-06-08';
@@ -42,7 +42,7 @@ describe('payroll runs (server)', () => {
       expect(run).toMatchObject({ status: 'approved', canReopen: true, canMarkPaid: true });
       expect(run.lines).toHaveLength(20);
       // rates are snapshotted on every work record
-      const recs = await tx.select().from(workView).where(and(eq(workView.date, '2026-06-15'), eq(workView.tier, 't4')));
+      const recs = await tx.select().from(workView).where(and(eq(workView.date, '2026-06-15'), eq(workView.tierCode, 'T4')));
       expect(recs.every((r) => r.driverRateCents === 175 && r.clientRateCents === 200 && r.payrollRunId)).toBe(true);
       // locked: bonuses can't change, and a second approval is refused
       const robert = await driverWithCode(tx, 'DUB061');
@@ -61,8 +61,9 @@ describe('payroll runs (server)', () => {
       await expect(reopenRun(tx, owner, RUN, new Date('2026-06-23T17:00:01Z'))).rejects.toMatchObject({ code: 'reopen_expired' });
       await reopenRun(tx, owner, RUN, new Date('2026-06-23T16:59:00Z'));
       const robert = await driverWithCode(tx, 'DUB061');
-      const [rec] = await tx.select().from(workView).where(and(eq(workView.driverId, robert!.id), eq(workView.date, '2026-06-15'), eq(workView.tier, 't1_3')));
-      await setBonus(tx, owner, { driverId: robert!.id, date: '2026-06-15', bonusCents: rec!.bonusCents + 10_00 });
+      const week = await loadHovershipWeek(tx, owner, '2026-06-15');
+      const day = week.drivers.find((d) => d.driverId === robert!.id)!.days.find((d) => d.date === '2026-06-15')!;
+      await setBonus(tx, owner, { driverId: robert!.id, date: '2026-06-15', bonusCents: day.bonusCents + 10_00 });
       const reopened = await loadRun(tx, owner, RUN);
       expect(reopened.status).toBe('reopened');
       expect(reopened.totals.payCents).toBe(13_399_00);

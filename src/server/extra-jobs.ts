@@ -1,13 +1,13 @@
-import { and, asc, desc, eq, getViewSelectedFields, gte, inArray, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, getViewSelectedFields, gte, lte } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { extraJobView, extraJobs, rates, routes, serviceTypes, settlementLines, users, workRecords } from '~/db/schema';
+import { extraJobView, extraJobs, routes, serviceTypes, settlementLines, users, workRecords } from '~/db/schema';
 import { addDays, todayLA } from '~/domain/dates';
-import { rateFor, type RateRow } from '~/domain/rates';
+import { rateFor } from '~/domain/rates';
 import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
-import { assertNotLocked, getOperation } from './ops';
+import { assertNotLocked, getOperation, rateRows as rateRows_ } from './ops';
 import { extraDay } from './executions';
 import { contractorProfiles, driverProfiles, payeeNameMaps } from './people';
 
@@ -171,11 +171,11 @@ export async function extraJobOptions(tx: Tx, actor: Actor, today = todayLA()) {
   const op = await getOperation(tx, 'tforce');
   const services = await extraServices(tx, op.id);
   const showMoney = can(actor.role, 'money.view');
-  const rateRows = services.length ? (await tx.select().from(rates).where(inArray(rates.serviceTypeId, services.map((x) => x.id)))) as RateRow[] : [];
+  const rateRows = await rateRows_(tx, services.map((x) => x.id));
   return {
     showMoney,
     services: services.map((x) => {
-      const r = rateFor(rateRows, x.id, null, {}, today);
+      const r = rateFor(rateRows, x.id, null, null, today);
       return {
         code: x.code, name: x.name, nameEs: x.nameEs, requiresOrderNumber: x.requiresOrderNumber, requiresNote: x.requiresNote,
         // Default amounts are a starting point; the person can still type what was agreed for this job.

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { rates, serviceTypes, workView } from '~/db/schema';
+import { serviceTypes, workView } from '~/db/schema';
 import { TFORCE_CSV, actorAs, clearTforceReports, withRollback, contractorNamed } from '../../tests/helpers/db';
 import { approveRun, loadRun } from './payroll';
 import { importTforce, loadTforceWeek, resolveTforceException } from './tforce';
+import { addRate } from './setup';
 
 const RUN = 'tforce-2026-06-15';
 const owner = actorAs('owner');
@@ -29,7 +30,7 @@ describe('T-Force payroll (server)', () => {
       }
       // Illustrative rate for the test only (open question 4): client $1.50, driver $1.10 per piece.
       const [ecom] = await tx.select().from(serviceTypes).where(eq(serviceTypes.code, 'ecommerce'));
-      await tx.insert(rates).values({ serviceTypeId: ecom!.id, clientRateCents: 150, driverRateCents: 110, effectiveFrom: '2026-06-01' });
+      await addRate(tx, owner, { serviceTypeId: ecom!.id, tierId: null, clientRateCents: 150, driverRateCents: 110, effectiveFrom: '2026-06-01' });
       const run = await loadRun(tx, owner, RUN);
       expect(run.status).toBe('ready');
       // 4,910 pieces minus the 34 on 9000Z Thursday marked "not our route".
