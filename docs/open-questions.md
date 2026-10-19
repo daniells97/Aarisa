@@ -28,6 +28,7 @@ Claude Code: when you hit one of these, build behind a setting or a placeholder 
 | 41 | Discovery says rates can vary by route type. Which route types exist and which ones change the rate? The redesign keeps an optional `route_types` catalog and rate key, empty until confirmed. | Rates redesign |
 | 42 | Puma is the partner paid on collection. Does Aarisa transfer everything T-Force pays for Puma's routes, or keep a percentage or a fixed fee? | Contractor redesign |
 | 43 | Can one driver drive two T-Force routes on the same day? The portal allows it but raises a weekly-check exception to review. | Daily list |
+| 44 | Messages reach only the Aarisa team (owner, dispatcher, finance), never drivers. Which channel does the team use every day: WhatsApp, or Microsoft Teams (Microsoft 365)? WhatsApp is built (spec §7); Teams would need a bot registered in their Microsoft 365 for the morning list buttons and replies. | Phase 2 messaging |
 
 ## Need Dimetrics / Leanova
 
