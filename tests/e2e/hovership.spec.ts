@@ -18,6 +18,17 @@ test.describe('Hovership weekly report', () => {
     await expect(page.getByRole('heading', { name: 'Lost money' })).toBeVisible();
   });
 
+  test('STEM with no reason waits for review, and dispatchers never see it', async ({ page }) => {
+    // The June file has a $1,075 STEM with no reason on July 3 (stage 5a of the redesign).
+    await signInAs(page, 'finance', '/hovership/week/2026-06-29');
+    const panel = page.getByRole('region', { name: /STEM to review/ });
+    await expect(panel).toContainText('$1,075.00');
+    await expect(panel).toContainText('Arrived with no reason');
+    await expect(panel.getByLabel('What is it?')).toBeVisible();
+    await signInAs(page, 'dispatcher', '/hovership/week/2026-06-29');
+    await expect(page.getByText('STEM to review')).toHaveCount(0);
+  });
+
   test('bonus is typed per day and can be undone', async ({ page }) => {
     await signInAs(page, 'finance', '/hovership/week/2026-06-15');
     await page.getByRole('button', { name: 'Show days for Robert Arteaga' }).click();

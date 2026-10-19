@@ -364,16 +364,53 @@ export const payAdjustments = core.table('pay_adjustments', {
   check('pay_adjustments_not_zero', sql`${t.amountCents} <> 0`),
 ]);
 
-// STEM and other revenue Hovership pays that isn't tied to one driver.
-export const operationRevenue = core.table('operation_revenue', {
-  id: id('operation_revenue_id'),
+// Places, shared by every client (a STEM reason names one). How a zone arrives written is kept in
+// zone_aliases, lower-case and trimmed, so "DIablo" and "Diablo" are the same zone.
+export const zones = core.table('zones', {
+  id: id('zone_id'),
+  code: text('zone_code').notNull().unique(),
+  name: text('zone_name').notNull(),
+  active: boolean('is_active').notNull().default(true),
+  createdAt: createdAt(),
+});
+
+export const zoneAliases = core.table('zone_aliases', {
+  id: id('zone_alias_id'),
+  zoneId: uuid('zone_id').notNull().references(() => zones.id),
+  aliasText: text('alias_text').notNull().unique(),
+});
+
+// Revenue that isn't driver work, per operation (Hovership: STEM). It never enters driver pay or margin.
+export const revenueTypes = core.table('revenue_types', {
+  id: id('revenue_type_id'),
+  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  code: text('revenue_type_code').notNull(),
+  name: text('revenue_type_name').notNull(),
+  countsInPayeeMargin: boolean('counts_in_payee_margin').notNull().default(false),
+}, (t) => [uniqueIndex('revenue_types_op_code').on(t.operationId, t.code)]);
+
+export const classificationStatusEnum = core.enum('classification_status', ['classified', 'needs_review', 'lump_adjustment']);
+
+// STEM and other revenue the client pays that isn't paid to a driver (spec §5.2, rule 7). Each row keeps
+// the reason as it arrived; an unknown or missing zone, or an unusually large amount, waits for review.
+export const otherRevenues = core.table('other_revenues', {
+  id: id('other_revenue_id'),
   operationId: uuid('operation_id').notNull().references(() => operations.id),
   date: date('revenue_date').notNull(),
-  kind: text('revenue_kind').notNull(), // 'stem'
-  reason: text('reason_text'), // e.g. Benicia, Disco Bay
+  typeId: uuid('revenue_type_id').notNull().references(() => revenueTypes.id),
+  executionId: uuid('route_execution_id').references(() => routeExecutions.id), // the driver-day it came with
+  zoneId: uuid('zone_id').references(() => zones.id),
+  reason: text('reason_text'), // e.g. "DIablo", as received
   amountCents: cents('amount_cents').notNull(),
+  status: classificationStatusEnum('classification_status').notNull().default('classified'),
+  reviewNote: text('review_note'),
   importId: uuid('report_import_id').references(() => reportImports.id),
-});
+  createdAt: createdAt(),
+}, (t) => [
+  index('other_revenues_op_date').on(t.operationId, t.date),
+  check('other_revenues_zone', sql`${t.status} <> 'classified' or ${t.zoneId} is not null`),
+  check('other_revenues_lump_note', sql`${t.status} <> 'lump_adjustment' or ${t.reviewNote} is not null`),
+]);
 
 export const exceptions = core.table('exceptions', {
   id: id('exception_id'),

@@ -6,6 +6,7 @@ import { read, run } from './fn';
 import { requireSignedIn } from './auth';
 import { importHovership, latestHovershipWeek, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
 import { REQUIRED, OPTIONAL } from '~/integrations/hovership';
+import { classifyOtherRevenue } from './revenue';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const fields = z.enum([...REQUIRED, ...OPTIONAL] as [string, ...string[]]);
@@ -40,3 +41,14 @@ export const resolveHovershipCode = createServerFn({ method: 'POST' })
 export const saveBonus = createServerFn({ method: 'POST' })
   .validator(z.object({ driverId: z.string().uuid(), date: isoDate, bonusCents: z.number().int().min(0).max(5_000_00) }))
   .handler(({ data }) => run('hovership.enter_bonus', async (tx, actor) => (await setBonus(tx, actor, data)).bonusCents));
+
+export const classifyStem = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    id: z.string().uuid(),
+    classification: z.union([
+      z.object({ zoneId: z.string().uuid() }),
+      z.object({ newZone: z.string().min(1).max(80) }),
+      z.object({ lumpAdjustment: z.string().min(1).max(200) }),
+    ]),
+  }))
+  .handler(({ data }) => run('reports.import', async (tx, actor) => (await classifyOtherRevenue(tx, actor, data.id, data.classification)).id));

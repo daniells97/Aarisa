@@ -2,7 +2,7 @@ import { Fragment, useRef, useState } from 'react';
 import { Link, createFileRoute, notFound, useRouter } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, weekStart } from '~/domain/dates';
-import { getHovershipWeek, resolveHovershipCode, saveBonus, uploadHovershipReport } from '~/server/hovership-fns';
+import { classifyStem, getHovershipWeek, resolveHovershipCode, saveBonus, uploadHovershipReport } from '~/server/hovership-fns';
 import { getSetup } from '~/server/setup-fns';
 import type { ImportOutcome } from '~/server/hovership';
 import {
@@ -95,6 +95,7 @@ function HovershipWeek() {
       {week.missingRates > 0 && (
         <p className="notice" role="alert" style={{ margin: 0 }}><WarningDiamond size={22} />{t('hs.missingRates', { count: week.missingRates })}</p>
       )}
+      {week.stemToReview.length > 0 && <StemReview week={week} />}
       {week.drivers.length > 0 ? <DriversTable week={week} /> : !reading && week.importState && <Panel><p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('hs.noData')}</p></Panel>}
       {week.drivers.length > 0 && (
         <div className="grid-2" style={{ alignItems: 'start' }}>
@@ -103,6 +104,69 @@ function HovershipWeek() {
         </div>
       )}
     </>
+  );
+}
+
+/** STEM that arrived with no known zone, no reason, or an unusual amount: someone says what it is (owner decision, Oct 18, 2026). */
+function StemReview({ week }: { week: Week }) {
+  const t = useT();
+  const f = useFormat();
+  return (
+    <Panel title={t('stem.reviewTitle', { count: week.stemToReview.length })} id="stem-review">
+      <div className="panel-body stack">
+        <p className="muted" style={{ margin: 0 }}>{t('stem.reviewLead')}</p>
+        {week.stemToReview.map((r) => (
+          <div key={r.id} className="code-row">
+            <div>
+              <strong className="num">{f.money(r.amountCents)}</strong> · {f.date(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}
+              <span className="sub">{r.reason ? t('stem.arrivedAs', { reason: r.reason }) : t('stem.noReason')}{r.unusual ? ` · ${t('stem.unusual')}` : ''}</span>
+            </div>
+            {week.canClassifyStem && <StemClassify id={r.id} zones={week.zones} />}
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function StemClassify({ id, zones }: { id: string; zones: Week['zones'] }) {
+  const t = useT();
+  const router = useRouter();
+  const toast = useToast();
+  const [choice, setChoice] = useState('');
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const classification = choice === 'new' ? { newZone: text } : choice === 'lump' ? { lumpAdjustment: text } : { zoneId: choice };
+    setBusy(true);
+    try {
+      const res = await classifyStem({ data: { id, classification } });
+      if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
+      toast(t('stem.saved'));
+      await router.invalidate();
+    } catch {
+      setError(t('error.generic'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={submit} className="row" style={{ alignItems: 'flex-end' }}>
+      <SelectField label={t('stem.whatIsIt')} required value={choice} onChange={(e) => { setChoice(e.target.value); setText(''); }}>
+        <option value="" />
+        {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+        <option value="new">{t('stem.newZone')}</option>
+        <option value="lump">{t('stem.lump')}</option>
+      </SelectField>
+      {(choice === 'new' || choice === 'lump') && (
+        <TextField label={t(choice === 'new' ? 'stem.newZoneName' : 'stem.lumpNote')} required maxLength={choice === 'new' ? 80 : 200}
+          value={text} onChange={(e) => setText(e.target.value)} />
+      )}
+      <Button type="submit" variant="primary" disabled={busy}>{t('stem.save')}</Button>
+      {error && <p className="notice" role="alert" style={{ margin: 0 }}><WarningDiamond size={20} />{error}</p>}
+    </form>
   );
 }
 
@@ -170,6 +234,7 @@ function ImportState({ week, range, reading, outcome, onUseColumn, uploadButton 
       {imp?.receivedAt && <p className="muted" style={{ margin: 0 }}>{t('imp.doneVia', { channel: t(`imp.channel.${imp.channel === 'email' ? 'email' : 'upload'}`), when: f.dateTime(imp.receivedAt) })}</p>}
       {!!problems.badLines?.length && <p style={{ margin: 0 }}>{t('imp.badLines', { count: problems.badLines.length, lines: problems.badLines.map((b) => b.line).join(', ') })}</p>}
       {!!problems.totalsMismatch?.length && <p style={{ margin: 0 }}>{t('imp.mismatch', { count: problems.totalsMismatch.length })}</p>}
+      {!!week.stemToReview.length && <p style={{ margin: 0 }}>{t('imp.stemToReview', { count: week.stemToReview.length })}</p>}
     </ImportNotice>
   );
 }

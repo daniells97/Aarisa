@@ -57,6 +57,13 @@
       "when": 1792384765982,
       "tag": "0007_tiers_rate_agreements_pay_adjustments",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792412641850,
+      "tag": "0008_zones_and_other_revenues",
+      "breakpoints": true
     }
   ]
 }

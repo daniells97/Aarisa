@@ -25,7 +25,7 @@ export const ALL_ROLES: Role[] = ['owner', 'dispatcher', 'finance', 'viewer'];
 import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
 import { and, inArray } from 'drizzle-orm';
-import { claims, exceptions, payAdjustments, operationRevenue, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, routeExecutions, settlementLines, workRecords } from '~/db/schema';
+import { claims, exceptions, payAdjustments, otherRevenues, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, routeExecutions, settlementLines, workRecords } from '~/db/schema';
 
 /** Work records and pay adjustments of an operation (they hang from its executions). */
 async function clearWork(tx: Tx, operationId: string) {
@@ -51,7 +51,7 @@ export async function clearHovership(tx: Tx) {
   await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
   await clearSettlements(tx, op!.id);
   await tx.delete(routeExecutions).where(eq(routeExecutions.operationId, op!.id));
-  await tx.delete(operationRevenue).where(eq(operationRevenue.operationId, op!.id));
+  await tx.delete(otherRevenues).where(eq(otherRevenues.operationId, op!.id));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;
 }

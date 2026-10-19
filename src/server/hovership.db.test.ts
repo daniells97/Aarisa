@@ -14,13 +14,14 @@ describe('Hovership import (server)', () => {
     withRollback(async (tx) => {
       await clearHovership(tx);
       const out = await importHovership(tx, owner, { fileName: 'hovership_details_jun2026.csv', text: HOVERSHIP_CSV });
-      expect(out).toMatchObject({ status: 'done', rows: 319, unknownCodes: [], badLines: [], totalsMismatch: [] });
+      // Two STEM amounts in the file have no reason ($1,075 and $102): the import waits for someone to classify them.
+      expect(out).toMatchObject({ status: 'partial', rows: 319, unknownCodes: [], badLines: [], totalsMismatch: [], stemToReview: 2 });
       const week = await loadHovershipWeek(tx, actorAs('finance'), '2026-06-15');
       expect(week.totals).toMatchObject({
         rows: 51, drivers: 17, t13: 2496, t4: 57, stat: 19, bonusCents: 909_75, driverPayCents: 7_344_50,
         revenueCents: 7_792_00, stemCents: 775_00, operationProfitCents: 1_222_50, marginSumCents: 447_50,
       });
-      expect(week.importState?.status).toBe('done');
+      expect(week.importState?.status).toBe('partial');
       expect(week.period).toEqual({ start: '2026-06-08', end: '2026-06-21' });
       expect(week.lostMoney.length).toBeGreaterThan(0);
       await expect(importHovership(tx, owner, { fileName: 'again.csv', text: HOVERSHIP_CSV })).rejects.toMatchObject({ code: 'already_imported' });

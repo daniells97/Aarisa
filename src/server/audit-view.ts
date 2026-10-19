@@ -13,7 +13,7 @@ export function changedFields(before: unknown, after: unknown): string[] {
   return [...keys].filter((k) => !IGNORED.has(k) && JSON.stringify(b[k]) !== JSON.stringify(a[k])).sort();
 }
 
-export const AUDIT_TABLES = ['work_records', 'route_executions', 'pay_adjustments', 'extra_jobs', 'rates', 'rate_agreements', 'drivers', 'contractors', 'route_ownerships', 'report_imports', 'operation_revenue', 'exceptions', 'payroll_runs', 'payroll_lines', 'pay_periods', 'users', 'operations', 'service_types'] as const;
+export const AUDIT_TABLES = ['work_records', 'route_executions', 'pay_adjustments', 'extra_jobs', 'rates', 'rate_agreements', 'drivers', 'contractors', 'route_ownerships', 'report_imports', 'other_revenues', 'zones', 'zone_aliases', 'exceptions', 'payroll_runs', 'payroll_lines', 'pay_periods', 'users', 'operations', 'service_types'] as const;
 
 export async function listAudit(tx: Tx, actor: Actor, opts: { table?: string; before?: string; limit?: number }) {
   assertCan(actor, 'audit.view');

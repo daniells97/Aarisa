@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { createDb } from './client';
-import { contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, serviceTiers } from './schema';
+import { contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, revenueTypes, serviceTiers } from './schema';
 import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TIERS, SERVICE_TYPES } from './seed-data';
 import { addRate } from '~/server/setup';
 import { tierIdsByCode } from '~/server/ops';
@@ -53,6 +53,9 @@ export async function seedMasterData(database = createDb()) {
       const rows = tiers.map((t, i) => ({ serviceTypeId: services[service]!, code: t.code, name: t.name, sortOrder: i + 1 }));
       for (const row of await tx.insert(serviceTiers).values(rows).onConflictDoNothing().returning()) log('service_tiers', row);
     }
+
+    // STEM is Hovership revenue that never reaches driver pay (rule 7).
+    for (const row of await tx.insert(revenueTypes).values({ operationId: ops.hovership!, code: 'stem', name: 'STEM' }).onConflictDoNothing().returning()) log('revenue_types', row);
 
     // Through the same path the portal uses: one agreement per side, skipped when already loaded.
     for (const r of RATES) {

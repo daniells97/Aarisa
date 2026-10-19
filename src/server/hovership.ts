@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { executionView, exceptions, operationRevenue, reportImports, workRecords, workView } from '~/db/schema';
+import { executionView, exceptions, otherRevenues, reportImports, workRecords, workView } from '~/db/schema';
 import { addDays, todayLA, weekStart } from '~/domain/dates';
 import { hovershipSummary, type HovershipDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
@@ -14,18 +14,21 @@ import { assertNotLocked, getOperation, hovershipRateFn, lockedPeriodStarts, ser
 import { adjustmentsByExecution, setManualBonus } from './adjustments';
 import { driverDay } from './executions';
 import { createDriver, driverIdsByCode, driverProfile, driverProfiles, setHovershipCode } from './people';
+import { otherRevenueTotal, recordOtherRevenue, revenueToReview, zoneLookup, zoneOptions } from './revenue';
+import { refreshImportStatus } from './import-status';
 import { saveImportFile } from './storage';
 import { refreshWeeklyLines } from './settlements';
 
 export type ImportOutcome =
   | { status: 'layout_changed'; importId: string; missing: Field[]; suggestions: { field: Field; header: string | null }[]; header: string[] }
-  | { status: 'done' | 'partial'; importId: string; rows: number; unknownCodes: { code: string; name: string; days: number; packages: number }[]; badLines: { line: number; message: string }[]; totalsMismatch: number[] }
+  | { status: 'done' | 'partial'; importId: string; rows: number; unknownCodes: { code: string; name: string; days: number; packages: number }[]; badLines: { line: number; message: string }[]; totalsMismatch: number[]; stemToReview: number }
   | { status: 'failed'; reason: 'dates_already_imported' | 'no_rows'; dates?: string[] };
 
 export interface ImportProblems {
   badLines?: { line: number; message: string }[];
   unknownCodes?: string[];
   totalsMismatch?: number[];
+  stemToReview?: number;
   missing?: string[];
   suggestions?: { field: string; header: string | null }[];
   header?: string[];
@@ -37,6 +40,7 @@ interface UnknownDetails { code: string; name: string; importId: string; rows: H
 async function writeRows(tx: Tx, actor: Actor, ctx: { operationId: string; importId: string; ids: Record<string, string> }, driverId: string, rows: HovershipRow[]) {
   const trail: AuditEntry[] = [];
   const tiers = await tierIdsByCode(tx, ctx.ids.hovership_packages!);
+  const zoneOf = await zoneLookup(tx);
   for (const r of rows) {
     const { row: ex, created } = await driverDay(tx, { operationId: ctx.operationId, date: r.date, driverId, importId: ctx.importId });
     if (created) trail.push({ table: 'route_executions', recordId: ex.id, action: 'insert', after: ex, userId: actor.userId, source: actor.source });
@@ -51,9 +55,10 @@ async function writeRows(tx: Tx, actor: Actor, ctx: { operationId: string; impor
     for (const w of inserted) trail.push({ table: 'work_records', recordId: w.id, action: 'insert', after: w, userId: actor.userId, source: actor.source });
     // A bonus only comes in Aarisa's own workbook (the client report has none); it starts as a manual bonus.
     if (r.bonusCents) await setManualBonus(tx, actor, { executionId: ex.id, payeeId: ex.payeeId!, amountCents: r.bonusCents, reason: 'From the imported file' });
+    // STEM: Aarisa's revenue, never driver pay (rule 7). It keeps the driver-day it came with and its zone.
     if (r.stemCents) {
-      const [s] = await tx.insert(operationRevenue).values({ operationId: ctx.operationId, date: r.date, kind: 'stem', reason: r.stemReason, amountCents: r.stemCents, importId: ctx.importId }).returning();
-      trail.push({ table: 'operation_revenue', recordId: s!.id, action: 'insert', after: s, userId: actor.userId, source: actor.source });
+      const s = await recordOtherRevenue(tx, { operationId: ctx.operationId, date: r.date, typeCode: 'stem', executionId: ex.id, reason: r.stemReason, amountCents: r.stemCents, importId: ctx.importId }, zoneOf);
+      trail.push({ table: 'other_revenues', recordId: s.id, action: 'insert', after: s, userId: actor.userId, source: actor.source });
     }
   }
   await audit(tx, trail);
@@ -134,9 +139,19 @@ export async function importHovership(tx: Tx, actor: Actor, input: { fileName: s
     await audit(tx, { table: 'exceptions', recordId: ex!.id, action: 'insert', after: ex, userId: actor.userId, source: 'system' });
   }
 
+  // STEM with no known zone or an unusual amount keeps the import partly read until someone classifies it.
+  const stemToReview = (await tx.select({ id: otherRevenues.id }).from(otherRevenues)
+    .where(and(eq(otherRevenues.importId, row.id), eq(otherRevenues.status, 'needs_review')))).length;
+  let finalStatus: 'done' | 'partial' = status;
+  if (stemToReview) {
+    finalStatus = 'partial';
+    const [after] = await tx.update(reportImports).set({ status: 'partial', problems: { ...(row.problems as ImportProblems), stemToReview } }).where(eq(reportImports.id, row.id)).returning();
+    await audit(tx, { table: 'report_imports', recordId: row.id, action: 'update', before: row, after, userId: actor.userId, source: actor.source });
+  }
+
   await refreshWeeklyLines(tx, actor, 'hovership', [...new Set(dates.map(weekStart))]);
   return {
-    status, importId: row.id, rows: parsed.rows.length, badLines: parsed.problems, totalsMismatch,
+    status: finalStatus, importId: row.id, rows: parsed.rows.length, badLines: parsed.problems, totalsMismatch, stemToReview,
     unknownCodes: [...unknown].map(([code, rows]) => ({ code, name: rows.find((r) => r.driverName)?.driverName ?? '', days: rows.length, packages: rows.reduce((s, r) => s + r.t1 + r.t2 + r.t3 + r.t4, 0) })),
   };
 }
@@ -177,17 +192,6 @@ export async function resolveUnknownCode(tx: Tx, actor: Actor, exceptionId: stri
   return { driverId };
 }
 
-async function refreshImportStatus(tx: Tx, actor: Actor, importId: string) {
-  const [imp] = await tx.select().from(reportImports).where(eq(reportImports.id, importId));
-  const problems = (imp!.problems ?? {}) as { badLines?: unknown[] };
-  const open = await tx.select({ details: exceptions.details }).from(exceptions).where(and(
-    eq(exceptions.operationId, imp!.operationId), eq(exceptions.type, 'unknown_driver_code'), eq(exceptions.status, 'open')));
-  const stillOpen = open.some((o) => (o.details as UnknownDetails).importId === importId);
-  if (!stillOpen && !problems.badLines?.length && imp!.status === 'partial') {
-    const [after] = await tx.update(reportImports).set({ status: 'done' }).where(eq(reportImports.id, imp!.id)).returning();
-    await audit(tx, { table: 'report_imports', recordId: imp!.id, action: 'update', before: imp, after, userId: actor.userId, source: 'system' });
-  }
-}
 
 /** Bonus is typed per driver per day; it sits on that day's Tier 1–3 record. */
 export async function setBonus(tx: Tx, actor: Actor, input: { driverId: string; date: string; bonusCents: number }) {
@@ -226,9 +230,7 @@ export async function loadHovershipDays(tx: Tx, operationId: string, ids: Record
     else if (item === 'T4') d.t4 += w.pieces;
     else d.t13 += w.pieces;
   }
-  const [stem] = await tx.select({ total: sql<string>`coalesce(sum(${operationRevenue.amountCents}), 0)` }).from(operationRevenue)
-    .where(and(eq(operationRevenue.operationId, operationId), eq(operationRevenue.kind, 'stem'), gte(operationRevenue.date, from), lte(operationRevenue.date, to)));
-  return { records, days: [...dayMap.values()], stemCents: Number(stem?.total ?? 0) };
+  return { records, days: [...dayMap.values()], stemCents: await otherRevenueTotal(tx, operationId, from, to) };
 }
 
 /** Everything the Hovership weekly screen needs for the week starting Monday `start`. */
@@ -279,6 +281,10 @@ export async function loadHovershipWeek(tx: Tx, actor: Actor, start: string) {
     missingRates: summary.missingRates.length,
     rates: [current('t1_3'), current('t4'), current('stat')],
     hasRates: rateRows.length > 0,
+    // STEM is Aarisa's revenue, so only money roles see and classify it.
+    canClassifyStem: showMoney && can(actor.role, 'reports.import'),
+    stemToReview: showMoney ? await revenueToReview(tx, op.id, start, end) : [],
+    zones: showMoney && can(actor.role, 'reports.import') ? await zoneOptions(tx) : [],
     unknownCodes: weekCodes.map((e) => {
       const d = e.details as UnknownDetails;
       return { exceptionId: e.id, code: d.code, name: d.name, days: d.rows.length, packages: d.rows.reduce((s, r) => s + r.t1 + r.t2 + r.t3 + r.t4, 0) };
