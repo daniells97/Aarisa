@@ -223,6 +223,7 @@ Design impact:
 | 0 | Hovership importer reads the client report without bonus or totals | ae1edde | Oct 18, 2026 |
 | 1 | All 23 tables and 16 enums moved to `core`; columns and constraints renamed to the convention | see git log | Oct 19, 2026, backup `aarisa_db-20261019T034513Z-before-stage1.dump` |
 | 2 | `payees`, Aarisa as own company, driver codes, aliases and company links with history, route owners with history. Transaction tables keep `driver_id`/`contractor_id` until stage 3 (executions), so the hot path changes once | 4546a1e | Oct 19, 2026, backup `aarisa_db-20261019T040546Z-before-stage2.dump` |
+| 3 | `route_executions` replace `daily_assignments` (same ids); work records, extra jobs and exceptions hang from an execution; `extra` executions pay without counting as route days; payroll lines use `payee_id`; work records get FKs to payroll runs and settlement lines; read views `v_work_records`, `v_extra_jobs`, `v_route_executions`. Rates keep `driver_id`/`contractor_id` until stage 4 | 93a9613 | Oct 19, 2026, backup `aarisa_db-20261019T042413Z-before-stage3.dump` |
 
 Note: Puma is marked `pay_trigger = on_collection`, but payroll still pays contractor routes weekly until the receivables stage builds pay-on-collection.
 
