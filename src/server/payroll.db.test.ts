@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, drivers, users, workRecords } from '~/db/schema';
-import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback } from '../../tests/helpers/db';
+import { auditLog, users, workRecords } from '~/db/schema';
+import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { importHovership, setBonus } from './hovership';
 import { approveRun, exportRun, listRuns, loadRun, markRunPaid, reopenRun } from './payroll';
@@ -45,7 +45,7 @@ describe('payroll runs (server)', () => {
       const recs = await tx.select().from(workRecords).where(and(eq(workRecords.date, '2026-06-15'), eq(workRecords.tier, 't4')));
       expect(recs.every((r) => r.driverRateCents === 175 && r.clientRateCents === 200 && r.payrollRunId)).toBe(true);
       // locked: bonuses can't change, and a second approval is refused
-      const [robert] = await tx.select().from(drivers).where(eq(drivers.hovershipCode, 'DUB061'));
+      const robert = await driverWithCode(tx, 'DUB061');
       await expect(setBonus(tx, owner, { driverId: robert!.id, date: '2026-06-15', bonusCents: 1 })).rejects.toMatchObject({ code: 'period_locked' });
       await expect(approveRun(tx, owner, RUN, 13_389_00, now)).rejects.toMatchObject({ code: 'already_approved' });
       const trail = await tx.select().from(auditLog).where(and(eq(auditLog.tableName, 'payroll_runs'), eq(auditLog.action, 'approve')));
@@ -60,7 +60,7 @@ describe('payroll runs (server)', () => {
       await expect(reopenRun(tx, actorAs('finance'), RUN, approvedAt)).rejects.toBeInstanceOf(ForbiddenError);
       await expect(reopenRun(tx, owner, RUN, new Date('2026-06-23T17:00:01Z'))).rejects.toMatchObject({ code: 'reopen_expired' });
       await reopenRun(tx, owner, RUN, new Date('2026-06-23T16:59:00Z'));
-      const [robert] = await tx.select().from(drivers).where(eq(drivers.hovershipCode, 'DUB061'));
+      const robert = await driverWithCode(tx, 'DUB061');
       const [rec] = await tx.select().from(workRecords).where(and(eq(workRecords.driverId, robert!.id), eq(workRecords.date, '2026-06-15'), eq(workRecords.tier, 't1_3')));
       await setBonus(tx, owner, { driverId: robert!.id, date: '2026-06-15', bonusCents: rec!.bonusCents + 10_00 });
       const reopened = await loadRun(tx, owner, RUN);

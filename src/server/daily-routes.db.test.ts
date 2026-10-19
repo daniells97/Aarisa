@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { driverProfile } from './people';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, contractors, drivers, routes } from '~/db/schema';
-import { actorAs, withRollback } from '../../tests/helpers/db';
+import { auditLog, routes } from '~/db/schema';
+import { actorAs, withRollback, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { addRoute, assignNewDriver, loadDay } from './daily';
 
@@ -11,7 +12,7 @@ describe("adding routes and drivers from Today's drivers (server)", () => {
   it('adds a route with an existing driver as its usual driver, confirmed for the day', () =>
     withRollback(async (tx) => {
       const d = actorAs('dispatcher');
-      const [norwin] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Norwin Saloman'));
+      const norwin = await driverNamed(tx, 'Norwin Saloman');
       const r = await addRoute(tx, d, { date: DATE, code: ' 9000t ', payee: { driverId: norwin!.id } });
       expect(r).toMatchObject({ code: '9000T', usualDriverId: norwin!.id, contractorId: null });
       const row = (await loadDay(tx, d, DATE)).rows.find((x) => x.code === '9000T')!;
@@ -25,10 +26,10 @@ describe("adding routes and drivers from Today's drivers (server)", () => {
   it('a contractor makes it a contractor route; a new name creates the driver first', () =>
     withRollback(async (tx) => {
       const o = actorAs('owner');
-      const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
+      const puma = await contractorNamed(tx, 'Puma');
       expect(await addRoute(tx, o, { date: DATE, code: '9000U', payee: { contractorId: puma!.id } })).toMatchObject({ contractorId: puma!.id, usualDriverId: null });
       const r = await addRoute(tx, o, { date: DATE, code: '9000X', payee: { newDriverName: 'Carla  Mendez' } });
-      const [carla] = await tx.select().from(drivers).where(eq(drivers.id, r.usualDriverId!));
+      const carla = await driverProfile(tx, r.usualDriverId!, '2026-06-30');
       expect(carla).toMatchObject({ fullName: 'Carla Mendez', setupComplete: false });
       await expect(addRoute(tx, o, { date: DATE, code: '9000Q', payee: { newDriverName: 'carla mendez' } })).rejects.toMatchObject({ code: 'driver_exists' });
     }));

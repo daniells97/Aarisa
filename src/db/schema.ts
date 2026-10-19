@@ -73,33 +73,102 @@ export const operations = core.table('operations', {
   paymentTermsDays: integer('payment_terms_days').notNull(), // hovership ~21, tforce 30
 });
 
-export const contractors = core.table('contractors', {
-  id: id('contractor_id'),
-  name: text('contractor_name').notNull().unique(), // e.g. Puma
+// ---------- payees: everyone Aarisa pays (docs/db-model.md §2.3) ----------
+export const payeeTypeEnum = core.enum('payee_type', ['driver', 'contractor']);
+export const paymentMethodEnum = core.enum('payment_method', ['ach', 'check', 'zelle', 'cash']);
+export const payTriggerEnum = core.enum('pay_trigger', ['payroll', 'on_collection']);
+export const payBasisEnum = core.enum('pay_basis', ['per_unit', 'per_route_day', 'fixed']);
+
+// The name, phone and active flag of a driver or a contractor live only here.
+export const payees = core.table('payees', {
+  id: id('payee_id'),
+  payeeType: payeeTypeEnum('payee_type').notNull(),
+  displayName: text('display_name').notNull(),
+  taxIdMasked: text('tax_id_masked'),
+  paymentMethod: paymentMethodEnum('payment_method'),
+  email: text('email'),
+  phone: text('phone_e164').unique(),
+  postalAddress: text('postal_address'),
   active: boolean('is_active').notNull().default(true),
   createdAt: createdAt(), updatedAt: updatedAt(),
-});
+}, (t) => [
+  // One active driver per name, one contractor per name (case-insensitive).
+  uniqueIndex('payees_active_driver_name').on(t.payeeType, sql`lower(${t.displayName})`).where(sql`${t.payeeType} = 'driver' and ${t.active}`),
+  uniqueIndex('payees_contractor_name').on(sql`lower(${t.displayName})`).where(sql`${t.payeeType} = 'contractor'`),
+]);
+
+// Companies that own routes. Aarisa itself is the one row with is_own_company: it owns routes but is
+// never paid; its drivers are paid one by one. Puma is paid when the client pays (on_collection).
+export const contractors = core.table('contractors', {
+  id: id('contractor_id'),
+  payeeId: uuid('payee_id').notNull().unique().references(() => payees.id),
+  legalName: text('legal_name'),
+  contactName: text('contact_name'),
+  isOwnCompany: boolean('is_own_company').notNull().default(false),
+  payTrigger: payTriggerEnum('pay_trigger').notNull().default('payroll'),
+  payBasis: payBasisEnum('pay_basis'),
+  feeBp: integer('fee_bp'),
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  createdAt: createdAt(), updatedAt: updatedAt(),
+}, (t) => [uniqueIndex('contractors_one_own_company').on(t.isOwnCompany).where(sql`${t.isOwnCompany}`)]);
 
 export const drivers = core.table('drivers', {
   id: id('driver_id'),
-  fullName: text('full_name').notNull(),
-  contractorId: uuid('contractor_id').references(() => contractors.id), // null = Aarisa's own
-  hovershipCode: text('hovership_code').unique(), // e.g. DUB061
-  phone: text('phone_e164'),
-  aliases: text('aliases').array().notNull().default(sql`'{}'::text[]`), // names used in WhatsApp
+  payeeId: uuid('payee_id').notNull().unique().references(() => payees.id),
+  hireDate: date('hire_date'),
+  terminationDate: date('termination_date'),
   setupComplete: boolean('is_setup_complete').notNull().default(true),
-  active: boolean('is_active').notNull().default(true),
   createdAt: createdAt(), updatedAt: updatedAt(),
 });
+
+// Names people use for a driver on WhatsApp and in the daily list, stored lower-case and trimmed.
+export const driverAliases = core.table('driver_aliases', {
+  id: id('driver_alias_id'),
+  driverId: uuid('driver_id').notNull().references(() => drivers.id),
+  aliasText: text('alias_text').notNull().unique(),
+});
+
+// The code each client uses for a driver (Hovership: DUB006).
+export const driverClientCodes = core.table('driver_client_codes', {
+  id: id('driver_client_code_id'),
+  driverId: uuid('driver_id').notNull().references(() => drivers.id),
+  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  driverCode: text('driver_code').notNull(),
+  validFrom: date('valid_from').notNull(),
+  validTo: date('valid_to'),
+}, (t) => [uniqueIndex('driver_client_codes_op_code').on(t.operationId, t.driverCode)]);
+
+// Which company a driver belongs to, with history (Aarisa or a contractor; never empty).
+export const driverAffiliations = core.table('driver_affiliations', {
+  id: id('driver_affiliation_id'),
+  driverId: uuid('driver_id').notNull().references(() => drivers.id),
+  contractorId: uuid('contractor_id').notNull().references(() => contractors.id),
+  validFrom: date('valid_from').notNull(),
+  validTo: date('valid_to'),
+}, (t) => [
+  index('driver_affiliations_driver').on(t.driverId, t.validFrom),
+  check('driver_affiliations_range', sql`${t.validTo} is null or ${t.validTo} >= ${t.validFrom}`),
+]);
 
 export const routes = core.table('routes', {
   id: id('route_id'),
   operationId: uuid('operation_id').notNull().references(() => operations.id),
   code: text('route_code').notNull(), // 9000A
-  contractorId: uuid('contractor_id').references(() => contractors.id), // contractor-owned route
   usualDriverId: uuid('usual_driver_id').references(() => drivers.id),
   active: boolean('is_active').notNull().default(true),
 }, (t) => [uniqueIndex('routes_op_code').on(t.operationId, t.code)]);
+
+// Who owns a route from a date: Aarisa or a contractor. Never edited; the next row ends the previous one.
+export const routeOwnerships = core.table('route_ownerships', {
+  id: id('route_ownership_id'),
+  routeId: uuid('route_id').notNull().references(() => routes.id),
+  contractorId: uuid('contractor_id').notNull().references(() => contractors.id),
+  effectiveFrom: date('effective_from').notNull(),
+  note: text('note'),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('route_ownerships_route_from').on(t.routeId, t.effectiveFrom)]);
 
 export const serviceTypes = core.table('service_types', {
   id: id('service_type_id'),

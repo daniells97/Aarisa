@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { contractors, drivers, routes, settlementLines, workRecords } from '~/db/schema';
-import { TFORCE_CSV, actorAs, clearTforceReports, withRollback } from '../../tests/helpers/db';
+import { routes, settlementLines, workRecords } from '~/db/schema';
+import { TFORCE_CSV, actorAs, clearTforceReports, withRollback, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { addDriverForRoute, setAssignment } from './daily';
 import { importTforce, loadTforceWeek, recheckForDate, resolveTforceException } from './tforce';
@@ -37,7 +37,7 @@ describe('T-Force weekly check (server)', () => {
   it('clearing all three lets the week through; Ask T-Force creates a claim line', () =>
     withRollback(async (tx) => {
       const { week } = await imported(tx);
-      const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
+      const puma = await contractorNamed(tx, 'Puma');
       const open = week.exceptions.filter((e) => e.status === 'open');
       const unknown = open.find((e) => e.type === 'unknown_name')!;
       const [z] = await tx.select().from(routes).where(eq(routes.code, '9000Z'));
@@ -61,7 +61,7 @@ describe('T-Force weekly check (server)', () => {
     withRollback(async (tx) => {
       const { week } = await imported(tx);
       const unknown = week.exceptions.find((e) => e.type === 'unknown_name')!;
-      const [marcus] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Marcus Dub'));
+      const marcus = await driverNamed(tx, 'Marcus Dub');
       const done = await resolveTforceException(tx, actorAs('finance'), unknown.id, { action: 'assign', payee: { driverId: marcus!.id } });
       expect(done.status).toBe('resolved');
       await expect(resolveTforceException(tx, owner, unknown.id, { action: 'not_ours' })).rejects.toMatchObject({ code: 'already_resolved' });
@@ -81,7 +81,7 @@ describe('T-Force weekly check (server)', () => {
     withRollback(async (tx) => {
       await imported(tx);
       const [v] = await tx.select().from(routes).where(eq(routes.code, '9000V'));
-      const [w] = await tx.select().from(drivers).where(eq(drivers.fullName, 'William Joseph'));
+      const w = await driverNamed(tx, 'William Joseph');
       await setAssignment(tx, owner, { date: '2026-06-20', routeId: v!.id, payee: { driverId: w!.id } });
       await recheckForDate(tx, owner, '2026-06-20');
       const week = await loadTforceWeek(tx, owner, WEEK);

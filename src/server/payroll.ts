@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { contractors, drivers, exceptions, payPeriods, payrollLines, payrollRuns, rates, users, workRecords } from '~/db/schema';
-import { addDays } from '~/domain/dates';
+import { exceptions, payPeriods, payrollLines, payrollRuns, rates, users, workRecords } from '~/db/schema';
+import { addDays, todayLA } from '~/domain/dates';
 import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
 import { buildRun, hovershipItems, payeeKey, payrollCsv, type Blocker, type PayrollTotals, type RunItem } from '~/domain/payroll';
@@ -12,6 +12,7 @@ import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { loadHovershipDays } from './hovership';
 import { getOperation, hovershipRateFn, serviceIds } from './ops';
+import { contractorProfiles, driverProfiles } from './people';
 
 // Payroll runs (spec §5.5, rule 3). A run is identified as `<operation>-<period start>`;
 // rows in payroll_runs exist once a run has been approved.
@@ -124,12 +125,12 @@ async function payeeInfo(tx: Tx, keys: string[]) {
   const contractorIds = keys.filter((k) => k.startsWith('c:')).map((k) => k.slice(2));
   const map = new Map<string, { name: string; code: string; contractor: boolean }>();
   if (driverIds.length) {
-    for (const d of await tx.select({ id: drivers.id, name: drivers.fullName, code: drivers.hovershipCode }).from(drivers).where(inArray(drivers.id, driverIds))) {
-      map.set(`d:${d.id}`, { name: d.name, code: d.code ?? '', contractor: false });
+    for (const d of await driverProfiles(tx, todayLA(), driverIds)) {
+      map.set(`d:${d.id}`, { name: d.fullName, code: d.hovershipCode ?? '', contractor: false });
     }
   }
   if (contractorIds.length) {
-    for (const c of await tx.select({ id: contractors.id, name: contractors.name }).from(contractors).where(inArray(contractors.id, contractorIds))) {
+    for (const c of await contractorProfiles(tx, { ids: contractorIds })) {
       map.set(`c:${c.id}`, { name: c.name, code: '', contractor: true });
     }
   }

@@ -1,15 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { contractors, drivers, rates, routes, serviceTypes, settlementLines, workRecords } from '~/db/schema';
-import { TFORCE_CSV, actorAs, clearTforceReports, withRollback } from '../../tests/helpers/db';
+import { rates, routes, serviceTypes, settlementLines, workRecords } from '~/db/schema';
+import { TFORCE_CSV, actorAs, clearTforceReports, withRollback, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { completeExtraJob, createExtraJob, listExtraJobs } from './extra-jobs';
 import { loadRun } from './payroll';
 import { importTforce, loadTforceWeek, resolveTforceException } from './tforce';
 
 type T = Parameters<Parameters<typeof withRollback>[0]>[0];
-const puma = async (tx: T) => (await tx.select().from(contractors).where(eq(contractors.name, 'Puma')))[0]!;
+const puma = async (tx: T) => contractorNamed(tx, 'Puma');
 const route = async (tx: T, code: string) => (await tx.select().from(routes).where(eq(routes.code, code)))[0]!;
 
 describe('extra jobs (server)', () => {
@@ -29,7 +29,7 @@ describe('extra jobs (server)', () => {
   it('sending the same job twice (offline retry) creates it once', () =>
     withRollback(async (tx) => {
       const id = randomUUID();
-      const [robert] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Robert Arteaga'));
+      const robert = await driverNamed(tx, 'Robert Arteaga');
       const input = { clientUuid: id, service: 'grainger' as const, date: '2026-06-18', nearRouteId: null, payee: { driverId: robert!.id }, clientAmountCents: null, driverAmountCents: 40_00, orderNumber: null, note: null };
       const a = await createExtraJob(tx, actorAs('dispatcher'), input);
       const b = await createExtraJob(tx, actorAs('dispatcher'), input);
@@ -38,7 +38,7 @@ describe('extra jobs (server)', () => {
 
   it('dispatchers log jobs without what T-Force pays; finance adds it later (rule 9)', () =>
     withRollback(async (tx) => {
-      const [robert] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Robert Arteaga'));
+      const robert = await driverNamed(tx, 'Robert Arteaga');
       const input = { clientUuid: randomUUID(), service: 'pickup' as const, date: '2026-06-19', nearRouteId: null, payee: { driverId: robert!.id }, driverAmountCents: 35_00, orderNumber: null, note: null };
       await expect(createExtraJob(tx, actorAs('dispatcher'), { ...input, clientAmountCents: 50_00 })).rejects.toMatchObject({ code: 'client_amount_not_allowed' });
       const { job } = await createExtraJob(tx, actorAs('dispatcher'), { ...input, clientAmountCents: null });

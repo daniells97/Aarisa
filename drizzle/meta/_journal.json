@@ -36,6 +36,13 @@
       "when": 1792381264890,
       "tag": "0004_core_schema_and_naming",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792382364992,
+      "tag": "0005_payees_and_route_owners",
+      "breakpoints": true
     }
   ]
 }

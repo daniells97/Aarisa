@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Tx } from '~/db/client';
-import { aiSuggestions, contractors, drivers, extraJobs, messages, routes, serviceTypes, users } from '~/db/schema';
+import { aiSuggestions, extraJobs, messages, routes, serviceTypes, users } from '~/db/schema';
 import { can, isRole } from '~/domain/permissions';
 import { isLocale } from '~/i18n';
 import type { Actor } from './actor';
@@ -12,6 +12,7 @@ import { confirmUsual, loadDay, setAssignment, setUnknownName } from './daily';
 import { RuleError } from './errors';
 import { extraServices } from './extra-jobs';
 import { getOperation } from './ops';
+import { contractorProfiles, driverProfiles } from './people';
 import { seal, unseal } from './session';
 import { recheckForDate } from './tforce';
 
@@ -119,8 +120,8 @@ export async function applyDailyChanges(tx: Tx, input: z.infer<typeof dailyChang
 
   const op = await getOperation(tx, 'tforce');
   const routeRows = await tx.select().from(routes).where(eq(routes.operationId, op.id));
-  const driverIds = new Set((await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.active, true))).map((d) => d.id));
-  const contractorIds = new Set((await tx.select({ id: contractors.id }).from(contractors)).map((c) => c.id));
+  const driverIds = new Set((await driverProfiles(tx, input.date)).filter((d) => d.active).map((d) => d.id));
+  const contractorIds = new Set((await contractorProfiles(tx)).map((c) => c.id));
   const applied: { route: string; name: string | null }[] = [];
   const unresolved: Unresolved[] = [];
 
@@ -238,8 +239,8 @@ export async function confirmExtraJobDraft(tx: Tx, actor: Actor, suggestionId: s
 export async function aiContext(tx: Tx, date: string) {
   const op = await getOperation(tx, 'tforce');
   const day = await morningList(tx, date);
-  const people = await tx.select({ id: drivers.id, name: drivers.fullName, aliases: drivers.aliases, contractorId: drivers.contractorId }).from(drivers).where(eq(drivers.active, true));
-  const companies = await tx.select({ id: contractors.id, name: contractors.name }).from(contractors).where(eq(contractors.active, true));
+  const people = (await driverProfiles(tx, date)).filter((d) => d.active).map((d) => ({ id: d.id, name: d.fullName, aliases: d.aliases, contractorId: d.contractorId }));
+  const companies = (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name }));
   return {
     date,
     routes: day.routes,

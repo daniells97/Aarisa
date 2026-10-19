@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { driverProfile } from './people';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, drivers, payPeriods, payrollRuns, workRecords } from '~/db/schema';
-import { ALL_ROLES, HOVERSHIP_CSV, actorAs, clearHovership, withRollback } from '../../tests/helpers/db';
+import { auditLog, payPeriods, payrollRuns, workRecords } from '~/db/schema';
+import { ALL_ROLES, HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { importHovership, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
 
@@ -68,7 +69,7 @@ describe('Hovership import (server)', () => {
       await expect(resolveUnknownCode(tx, actorAs('viewer'), week.unknownCodes[0]!.exceptionId, { action: 'new_driver', fullName: 'Nuevo Uno' }))
         .rejects.toBeInstanceOf(ForbiddenError);
       const { driverId } = await resolveUnknownCode(tx, actorAs('dispatcher'), week.unknownCodes[0]!.exceptionId, { action: 'new_driver', fullName: 'Nuevo Uno' });
-      const [d] = await tx.select().from(drivers).where(eq(drivers.id, driverId));
+      const d = await driverProfile(tx, driverId, '2026-06-30');
       expect(d).toMatchObject({ hovershipCode: 'NEW001', setupComplete: false });
       week = await loadHovershipWeek(tx, owner, '2026-09-07');
       expect(week.totals).toMatchObject({ rows: 3, t13: 60, t4: 2 });
@@ -80,7 +81,7 @@ describe('Hovership import (server)', () => {
     withRollback(async (tx) => {
       const op = await clearHovership(tx);
       await importHovership(tx, owner, { fileName: 'f.csv', text: HOVERSHIP_CSV });
-      const [robert] = await tx.select().from(drivers).where(eq(drivers.hovershipCode, 'DUB061'));
+      const robert = await driverWithCode(tx, 'DUB061');
       const input = { driverId: robert!.id, date: '2026-06-15', bonusCents: 25_00 };
       for (const role of ALL_ROLES.filter((r) => r === 'dispatcher' || r === 'viewer')) {
         await expect(setBonus(tx, actorAs(role), input)).rejects.toBeInstanceOf(ForbiddenError);

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { createDb } from './client';
-import { contractors, dailyAssignments, drivers, operations, paymentsReceived, rates, routes, serviceTypes, settlementLines } from './schema';
+import { contractors, dailyAssignments, operations, paymentsReceived, rates, routes, serviceTypes, settlementLines } from './schema';
 import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TYPES } from './seed-data';
 import { parseCsvObjects } from '~/integrations/csv';
 import { audit, type AuditEntry } from '~/server/audit';
@@ -11,6 +11,8 @@ import { importHovership } from '~/server/hovership';
 import { setAssignment, setUnknownName } from '~/server/daily';
 import { importTforce } from '~/server/tforce';
 import { createExtraJob } from '~/server/extra-jobs';
+import { contractorProfiles, createContractor, createDriver, createRoute, driverIdsByCode, driverProfiles } from '~/server/people';
+import { todayLA } from '~/domain/dates';
 import { recordPayment, refreshWeeklyLines } from '~/server/settlements';
 
 /** Idempotent: running twice inserts nothing new. Every insert is audited as `system`. */
@@ -60,9 +62,12 @@ export async function seedMasterData(database = createDb()) {
       log('rates', row!);
     }
 
+    // Aarisa itself is created by the migration that introduced payees. Puma is paid when T-Force pays.
+    const known = new Set((await contractorProfiles(tx)).map((c) => c.name));
     for (const name of CONTRACTORS) {
-      const [row] = await tx.insert(contractors).values({ name }).onConflictDoNothing().returning();
-      if (row) log('contractors', row);
+      if (known.has(name)) continue;
+      const c = await createContractor(tx, SYSTEM_ACTOR, name);
+      if (name === 'Puma') await tx.update(contractors).set({ payTrigger: 'on_collection' }).where(eq(contractors.id, c.id));
     }
 
     // Drivers: one per Hovership code; take the first non-blank name seen for the code.
@@ -72,13 +77,16 @@ export async function seedMasterData(database = createDb()) {
       const code = rec.driver_code!;
       if (code && rec.driver_name && !byCode.has(code)) byCode.set(code, rec.driver_name);
     }
+    const codes = await driverIdsByCode(tx, ops.hovership!);
+    let newDrivers = 0;
     for (const [hovershipCode, fullName] of byCode) {
-      const [row] = await tx.insert(drivers).values({ hovershipCode, fullName }).onConflictDoNothing().returning();
-      if (row) log('drivers', row);
+      if (codes.has(hovershipCode)) continue;
+      await createDriver(tx, SYSTEM_ACTOR, { fullName, hovershipCode, contractorId: null, phone: null, aliases: [], active: true, setupComplete: true }, todayLA());
+      newDrivers++;
     }
 
     await audit(tx, trail);
-    console.log(`Seed: ${trail.length} new rows (${byCode.size} drivers in the sample file)`);
+    console.log(`Seed: ${trail.length + newDrivers} new rows (${byCode.size} drivers in the sample file)`);
   });
   return database;
 }
@@ -106,10 +114,9 @@ export async function seedTforceSample(database: ReturnType<typeof createDb>) {
   const pieces = parseCsvObjects(readFileSync(new URL('../../docs/seed/tforce_pieces_jun2026.csv', import.meta.url), 'utf8')).records;
   await database.transaction(async (tx) => {
     const [op] = await tx.select().from(operations).where(eq(operations.code, 'tforce'));
-    const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
-    const driverRows = await tx.select().from(drivers);
-    const byName = new Map(driverRows.map((d) => [d.fullName, d.id]));
-    const trail: AuditEntry[] = [];
+    const puma = (await contractorProfiles(tx)).find((c) => c.name === 'Puma');
+    const byName = new Map((await driverProfiles(tx, todayLA())).map((d) => [d.fullName, d.id]));
+    const known = new Set((await tx.select({ code: routes.code }).from(routes).where(eq(routes.operationId, op!.id))).map((r) => r.code));
 
     const codes = [...new Set([...list.map((r) => r.route!), ...pieces.map((r) => r.paid_driver!)])].sort();
     for (const code of codes) {
@@ -118,12 +125,11 @@ export async function seedTforceSample(database: ReturnType<typeof createDb>) {
       const counts = new Map<string, number>();
       for (const n of names) if (!n.startsWith('CONTRACTOR:')) counts.set(n, (counts.get(n) ?? 0) + 1);
       const usual = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
-      const [row] = await tx.insert(routes).values({
+      if (known.has(code)) continue;
+      await createRoute(tx, SYSTEM_ACTOR, {
         operationId: op!.id, code, contractorId: contractorRoute ? puma!.id : null, usualDriverId: !contractorRoute && usual ? byName.get(usual) ?? null : null,
-      }).onConflictDoNothing().returning();
-      if (row) trail.push({ table: 'routes', recordId: row.id, action: 'insert', after: row, source: 'system' });
+      });
     }
-    await audit(tx, trail);
 
     const routeRows = await tx.select().from(routes).where(eq(routes.operationId, op!.id));
     const routeId = new Map(routeRows.map((r) => [r.code, r.id]));
@@ -154,8 +160,8 @@ export async function seedTforceSample(database: ReturnType<typeof createDb>) {
 /** Two illustrative extra jobs on June 18, as in the Mobile-Offline design (amounts are made up). */
 export async function seedExtraJobs(database: ReturnType<typeof createDb>) {
   await database.transaction(async (tx) => {
-    const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
-    const [robert] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Robert Arteaga'));
+    const puma = (await contractorProfiles(tx)).find((c) => c.name === 'Puma');
+    const robert = (await driverProfiles(tx, todayLA())).find((d) => d.fullName === 'Robert Arteaga');
     const [r9000r] = await tx.select().from(routes).where(eq(routes.code, '9000R'));
     const a = await createExtraJob(tx, SYSTEM_ACTOR, {
       clientUuid: '6f0c1a52-5d0e-4c2f-9a51-000000000001', service: 'recovery_route', date: '2026-06-18', nearRouteId: r9000r!.id,

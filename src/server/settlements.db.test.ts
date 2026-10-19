@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { contractors } from '~/db/schema';
-import { HOVERSHIP_CSV, actorAs, clearHovership, clearTforceReports, withRollback } from '../../tests/helpers/db';
+import { HOVERSHIP_CSV, actorAs, clearHovership, clearTforceReports, withRollback, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { createExtraJob } from './extra-jobs';
 import { importHovership } from './hovership';
@@ -56,7 +54,7 @@ describe('settlements (server)', () => {
   it('an extra job left out of the settlement is claimed with its order number and agreement', () =>
     withRollback(async (tx) => {
       await clearTforceReports(tx);
-      const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
+      const puma = await contractorNamed(tx, 'Puma');
       const { job } = await createExtraJob(tx, owner, { clientUuid: randomUUID(), service: 'recovery_route', date: '2026-06-18', nearRouteId: null, payee: { contractorId: puma!.id }, clientAmountCents: 180_00, driverAmountCents: 120_00, orderNumber: 'TF-55821', note: 'Agreed with T-Force dispatch by phone' });
       let s = await loadSettlements(tx, finance, '2026-07-01', 'tforce');
       const line = s.lines.find((l) => l.job?.orderNumber === 'TF-55821')!;

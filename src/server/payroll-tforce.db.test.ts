@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { contractors, rates, serviceTypes, workRecords } from '~/db/schema';
-import { TFORCE_CSV, actorAs, clearTforceReports, withRollback } from '../../tests/helpers/db';
+import { rates, serviceTypes, workRecords } from '~/db/schema';
+import { TFORCE_CSV, actorAs, clearTforceReports, withRollback, contractorNamed } from '../../tests/helpers/db';
 import { approveRun, loadRun } from './payroll';
 import { importTforce, loadTforceWeek, resolveTforceException } from './tforce';
 
@@ -34,7 +34,7 @@ describe('T-Force payroll (server)', () => {
       expect(run.status).toBe('ready');
       // 4,910 pieces minus the 34 on 9000Z Thursday marked "not our route".
       expect(run.totals).toMatchObject({ packages: 4_876, routeDays: 73, payCents: 4_876 * 110 });
-      const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
+      const puma = await contractorNamed(tx, 'Puma');
       const pumaLine = run.lines.find((l) => l.contractorId === puma!.id)!;
       expect(pumaLine).toMatchObject({ name: 'Puma', contractor: true, routeDays: 10, packages: 685 });
       await approveRun(tx, owner, RUN, run.totals.payCents);

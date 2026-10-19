@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { aiSuggestions, contractors, drivers, users } from '~/db/schema';
-import { actorAs, withRollback, activeTforceRouteCount } from '../../tests/helpers/db';
+import { aiSuggestions, users } from '~/db/schema';
+import { actorAs, withRollback, activeTforceRouteCount, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { loadDay } from './daily';
 import { createExtraJob } from './extra-jobs';
@@ -25,7 +25,7 @@ describe('integration API (server)', () => {
   it('"E is Norwin today. Z the new guy from Puma": applies the known name and asks about the other', () =>
     withRollback(async (tx) => {
       await person(tx, 'dispatcher', '+1 925 555 0101');
-      const [norwin] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Norwin Saloman'));
+      const norwin = await driverNamed(tx, 'Norwin Saloman');
       const res = await applyDailyChanges(tx, {
         phone: '+19255550101', date: '2026-09-03', inputText: 'E is Norwin today. Z the new guy from Puma', model: 'test-model',
         output: { changes: [
@@ -65,7 +65,7 @@ describe('integration API (server)', () => {
   it('an extra-job draft is only a suggestion until the person saves it from the link (rule 5)', () =>
     withRollback(async (tx) => {
       const u = await person(tx, 'dispatcher', '+19255550104');
-      const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
+      const puma = await contractorNamed(tx, 'Puma');
       const msg = await logMessage(tx, { waMessageId: 'wamid.TEST1', direction: 'in', phone: '+19255550104', type: 'audio', transcript: 'Recovery near R for Puma, T-Force pays 180, Puma gets 120, order TF-55821' });
       expect((await logMessage(tx, { waMessageId: 'wamid.TEST1', direction: 'in', phone: '+19255550104', type: 'audio' })).id).toBe(msg.id);
       const draft = await createExtraJobDraft(tx, {
@@ -115,7 +115,7 @@ describe('AI context and reminders (server)', () => {
     withRollback(async (tx) => {
       const { orderNumberReminders } = await import('./integrations');
       const u = await person(tx, 'dispatcher', '+19255550107');
-      const [robert] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Robert Arteaga'));
+      const robert = await driverNamed(tx, 'Robert Arteaga');
       await createExtraJob(tx, actorAs('dispatcher', u.id), { clientUuid: crypto.randomUUID(), service: 'pickup', date: '2026-09-05', nearRouteId: null, payee: { driverId: robert!.id }, clientAmountCents: null, driverAmountCents: 30_00, orderNumber: null, note: null });
       await createExtraJob(tx, actorAs('dispatcher', u.id), { clientUuid: crypto.randomUUID(), service: 'pickup', date: '2026-09-05', nearRouteId: null, payee: { driverId: robert!.id }, clientAmountCents: null, driverAmountCents: 30_00, orderNumber: 'TF-9', note: null });
       const r = await orderNumberReminders(tx, '2026-09-05');

@@ -84,3 +84,17 @@ export async function activeTforceRouteCount(tx: Tx) {
   const [op] = await tx.select().from(operations).where(eqOp(operations.code, 'tforce'));
   return (await tx.select({ id: routesTable.id }).from(routesTable).where(andOp(eqOp(routesTable.operationId, op!.id), eqOp(routesTable.active, true)))).length;
 }
+
+/** A seeded driver by name or Hovership code, and a contractor by name (payee model, docs/db-model.md). */
+export async function driverNamed(tx: Tx, fullName: string) {
+  const { driverProfiles } = await import('~/server/people');
+  return (await driverProfiles(tx, '2026-06-30')).find((d) => d.fullName === fullName)!;
+}
+export async function driverWithCode(tx: Tx, code: string) {
+  const { driverProfiles } = await import('~/server/people');
+  return (await driverProfiles(tx, '2026-06-30')).find((d) => d.hovershipCode === code)!;
+}
+export async function contractorNamed(tx: Tx, name: string) {
+  const { contractorProfiles } = await import('~/server/people');
+  return (await contractorProfiles(tx)).find((c) => c.name === name)!;
+}

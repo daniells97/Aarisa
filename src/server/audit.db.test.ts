@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { auditLog, drivers, exceptions, operationRevenue, payPeriods, payrollLines, payrollRuns, reportImports, users, workRecords } from '~/db/schema';
-import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback } from '../../tests/helpers/db';
+import { auditLog, exceptions, operationRevenue, payPeriods, payrollLines, payrollRuns, reportImports, users, workRecords } from '~/db/schema';
+import { HOVERSHIP_CSV, actorAs, clearHovership, withRollback, driverWithCode } from '../../tests/helpers/db';
 import { importHovership, resolveUnknownCode, setBonus } from './hovership';
 import { approveRun, markRunPaid, reopenRun } from './payroll';
 
@@ -17,7 +17,7 @@ describe('audit log (rule 4)', () => {
       await importHovership(tx, owner, { fileName: 'f.csv', text: HOVERSHIP_CSV + extra });
       const [ex] = await tx.select().from(exceptions).where(and(eq(exceptions.operationId, op.id), eq(exceptions.status, 'open')));
       await resolveUnknownCode(tx, owner, ex!.id, { action: 'new_driver', fullName: 'New Person' });
-      const [robert] = await tx.select().from(drivers).where(eq(drivers.hovershipCode, 'DUB061'));
+      const robert = await driverWithCode(tx, 'DUB061');
       await setBonus(tx, owner, { driverId: robert!.id, date: '2026-06-15', bonusCents: 12_34 });
       const start = new Date('2026-06-22T17:00:00Z');
       await approveRun(tx, owner, 'hovership-2026-06-08', 13_389_00 - 40_00 + 12_34, start);

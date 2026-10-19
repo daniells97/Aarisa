@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { contractors, dailyAssignments, drivers, exceptions, reportImports, routes, settlementLines, workRecords } from '~/db/schema';
+import { dailyAssignments, exceptions, reportImports, routes, settlementLines, workRecords } from '~/db/schema';
 import { addDays, weekStart } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { crossCheck, pieceGrid, type CheckException, type ListEntry, type Payee, type ReportRow } from '~/domain/tforce';
@@ -11,6 +11,7 @@ import { audit, type AuditEntry } from './audit';
 import { assignRoute, type PayeeInput } from './daily';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation, lockedPeriodStarts, serviceIds } from './ops';
+import { createRoute, payeeNameMaps, routeOwners } from './people';
 import { saveImportFile } from './storage';
 import { refreshWeeklyLines } from './settlements';
 import type { ImportProblems } from './hovership';
@@ -66,10 +67,9 @@ export async function importTforce(tx: Tx, actor: Actor, input: { fileName: stri
   const newRoutes: string[] = [];
   for (const code of new Set(parsed.rows.map((r) => r.route))) {
     if (routeId.has(code)) continue;
-    const [r] = await tx.insert(routes).values({ operationId: op.id, code }).returning();
-    routeId.set(code, r!.id);
+    const r = await createRoute(tx, actor, { operationId: op.id, code, contractorId: null, usualDriverId: null });
+    routeId.set(code, r.id);
     newRoutes.push(code);
-    trail.push({ table: 'routes', recordId: r!.id, action: 'insert', after: r, userId: actor.userId, source: actor.source });
   }
   const ids = await serviceIds(tx, op.id);
   const inserted = await tx.insert(workRecords).values(parsed.rows.map((r) => ({
@@ -233,10 +233,8 @@ export async function loadTforceWeek(tx: Tx, actor: Actor, start: string) {
   const report: ReportRow[] = records.map((w) => ({ date: w.date, route: codeOf.get(w.routeId!)!, pieces: w.pieces }));
   const shownDays = days.filter((d, i) => i < 6 || report.some((r) => r.date === d)); // Sunday only if it has work
 
-  const driverRows = await tx.select({ id: drivers.id, name: drivers.fullName }).from(drivers);
-  const contractorRows = await tx.select({ id: contractors.id, name: contractors.name }).from(contractors);
-  const dName = new Map(driverRows.map((d) => [d.id, d.name]));
-  const cName = new Map(contractorRows.map((c) => [c.id, c.name]));
+  const { driver: dName, contractor: cName } = await payeeNameMaps(tx);
+  const owners = await routeOwners(tx, start, routeRows.map((r) => r.id));
   const payeeName = (p: { driverId?: string | null; contractorId?: string | null } | null | undefined) =>
     p?.driverId ? dName.get(p.driverId) ?? null : p?.contractorId ? cName.get(p.contractorId) ?? null : null;
 
@@ -250,7 +248,7 @@ export async function loadTforceWeek(tx: Tx, actor: Actor, start: string) {
       ...g,
       missingDay: missing,
       driver: payees.size === 1 && !missing ? [...payees][0]! : null, drivers: payees.size,
-      contractorRoute: !!routeRows.find((r) => r.code === g.route)?.contractorId,
+      contractorRoute: !!owners.get(routeRows.find((r) => r.code === g.route)?.id ?? ''),
       flags: shownDays.map((d) => flagged.has(`${g.route}|${d}`)),
     };
   });
@@ -290,8 +288,8 @@ export async function loadTforceWeek(tx: Tx, actor: Actor, start: string) {
       };
     }),
     options: {
-      drivers: driverRows.sort((a, b) => a.name.localeCompare(b.name)),
-      contractors: contractorRows.sort((a, b) => a.name.localeCompare(b.name)),
+      drivers: [...dName].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
+      contractors: [...cName].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
     },
     runId: `tforce-${start}`,
   };

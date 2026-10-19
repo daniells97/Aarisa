@@ -1,11 +1,13 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { auditLog, contractors, dailyAssignments, drivers, routes, users } from '~/db/schema';
+import { todayLA } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation } from './ops';
+import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners } from './people';
 
 // Today's drivers (spec 6.3): who drove each T-Force route each day. No money here.
 
@@ -19,9 +21,13 @@ function payeeCols(p: PayeeInput) {
   return { driverId: p && 'driverId' in p ? p.driverId : null, contractorId: p && 'contractorId' in p ? p.contractorId : null };
 }
 
-/** Usual payee of a route: its contractor if it is a contractor route, else its usual driver. */
-function usualOf(r: typeof routes.$inferSelect) {
-  return r.contractorId ? { driverId: null, contractorId: r.contractorId } : { driverId: r.usualDriverId, contractorId: null };
+/** Usual payee of a route: its owner if a contractor owns it that day, else its usual driver. */
+function usualOf(r: typeof routes.$inferSelect, owner: string | null) {
+  return owner ? { driverId: null, contractorId: owner } : { driverId: r.usualDriverId, contractorId: null };
+}
+
+async function ownerOn(tx: Tx, routeId: string, date: string) {
+  return (await routeOwners(tx, date, [routeId])).get(routeId) ?? null;
 }
 
 export async function loadDay(tx: Tx, actor: Actor, date: string) {
@@ -31,20 +37,22 @@ export async function loadDay(tx: Tx, actor: Actor, date: string) {
   const assignments = routeRows.length
     ? await tx.select().from(dailyAssignments).where(and(eq(dailyAssignments.date, date), inArray(dailyAssignments.routeId, routeRows.map((r) => r.id))))
     : [];
-  const driverRows = await tx.select({ id: drivers.id, name: drivers.fullName, contractorId: drivers.contractorId, active: drivers.active, setupComplete: drivers.setupComplete }).from(drivers).orderBy(asc(drivers.fullName));
-  const contractorRows = await tx.select({ id: contractors.id, name: contractors.name }).from(contractors).where(eq(contractors.active, true)).orderBy(asc(contractors.name));
-  const dName = new Map(driverRows.map((d) => [d.id, d.name]));
+  const owners = await routeOwners(tx, date, routeRows.map((r) => r.id));
+  const driverRows = await driverProfiles(tx, date);
+  const contractorRows = (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name }));
+  const dName = new Map(driverRows.map((d) => [d.id, d.fullName]));
   const cName = new Map(contractorRows.map((c) => [c.id, c.name]));
   const label = (p: { driverId: string | null; contractorId: string | null }) =>
     p.driverId ? dName.get(p.driverId) ?? '' : p.contractorId ? cName.get(p.contractorId) ?? '' : null;
 
   const rows = routeRows.map((r) => {
     const a = assignments.find((x) => x.routeId === r.id);
-    const usual = usualOf(r);
+    const owner = owners.get(r.id) ?? null;
+    const usual = usualOf(r, owner);
     const today = a ? { driverId: a.driverId, contractorId: a.contractorId } : usual;
     const status: DayStatus = a ? a.status : usual.driverId || usual.contractorId ? 'proposed' : 'no_driver';
     return {
-      routeId: r.id, code: r.code, contractorRoute: !!r.contractorId,
+      routeId: r.id, code: r.code, contractorRoute: !!owner,
       usual: { ...usual, name: label(usual) },
       today: { ...today, name: label(today) },
       rawName: a?.rawName ?? null,
@@ -84,7 +92,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string) {
       noDriver: rows.filter((r) => r.status === 'no_driver').length,
     },
     options: {
-      drivers: driverRows.filter((d) => d.active).map((d) => ({ id: d.id, name: d.name, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : null })),
+      drivers: driverRows.filter((d) => d.active).map((d) => ({ id: d.id, name: d.fullName, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : null })),
       contractors: contractorRows,
     },
     changes,
@@ -133,7 +141,8 @@ export async function assignRoute(tx: Tx, actor: Actor, input: { date: string; r
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
   const cols = payeeCols(input.payee);
-  const status: DayStatus = !cols.driverId && !cols.contractorId ? 'no_driver' : samePayee(cols, usualOf(route)) ? 'confirmed' : 'changed';
+  const usual = usualOf(route, await ownerOn(tx, route.id, input.date));
+  const status: DayStatus = !cols.driverId && !cols.contractorId ? 'no_driver' : samePayee(cols, usual) ? 'confirmed' : 'changed';
   const { before, after } = await writeAssignment(tx, actor, input.date, input.routeId, { ...cols, status });
   return { assignmentId: after.id, previous: before ? { driverId: before.driverId, contractorId: before.contractorId, rawName: before.rawName, status: before.status } : null };
 }
@@ -145,7 +154,7 @@ export async function undoAssignment(tx: Tx, actor: Actor, input: {
   assertCan(actor, 'drivers.confirm_today');
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
-  const values = input.previous ?? { ...usualOf(route), rawName: null, status: 'proposed' as const };
+  const values = input.previous ?? { ...usualOf(route, await ownerOn(tx, route.id, input.date)), rawName: null, status: 'proposed' as const };
   await writeAssignment(tx, actor, input.date, input.routeId, values, 'undo');
 }
 
@@ -175,13 +184,7 @@ export async function addDriverForRoute(tx: Tx, actor: Actor, input: { date: str
  * phone, codes and aliases later. Refuses a name that already exists, so the list doesn't get duplicates.
  */
 async function createQuickDriver(tx: Tx, actor: Actor, fullName: string, contractorId: string | null) {
-  const name = fullName.trim().replace(/\s+/g, ' ');
-  if (!name) throw new RuleError('name_required');
-  const [same] = await tx.select({ id: drivers.id }).from(drivers).where(sql`lower(${drivers.fullName}) = lower(${name})`);
-  if (same) throw new RuleError('driver_exists');
-  const [d] = await tx.insert(drivers).values({ fullName: name, contractorId, setupComplete: false }).returning();
-  await audit(tx, { table: 'drivers', recordId: d!.id, action: 'insert', after: d, userId: actor.userId, source: actor.source });
-  return d!;
+  return createDriver(tx, actor, { fullName, contractorId, hovershipCode: null, phone: null, aliases: [], active: true, setupComplete: false }, todayLA());
 }
 
 export type NewRoutePayee = { driverId: string } | { contractorId: string } | { newDriverName: string };
@@ -206,10 +209,9 @@ export async function addRoute(tx: Tx, actor: Actor, input: { date: string; code
   if (cols.driverId && !(await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.id, cols.driverId))).length) throw new RuleError('not_found');
   if (cols.contractorId && !(await tx.select({ id: contractors.id }).from(contractors).where(eq(contractors.id, cols.contractorId))).length) throw new RuleError('not_found');
 
-  const [route] = await tx.insert(routes).values({ operationId: op.id, code, contractorId: cols.contractorId, usualDriverId: cols.driverId }).returning();
-  await audit(tx, { table: 'routes', recordId: route!.id, action: 'insert', after: route, userId: actor.userId, source: actor.source });
-  await writeAssignment(tx, actor, input.date, route!.id, { ...cols, status: 'confirmed' });
-  return route!;
+  const route = await createRoute(tx, actor, { operationId: op.id, code, contractorId: cols.contractorId, usualDriverId: cols.driverId });
+  await writeAssignment(tx, actor, input.date, route.id, { ...cols, status: 'confirmed' });
+  return route;
 }
 
 /** Assigns someone typed in the driver picker who isn't on the list: creates them, then assigns. */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, contractors, drivers, operations, payPeriods, payrollRuns, routes } from '~/db/schema';
-import { actorAs, withRollback, activeTforceRouteCount } from '../../tests/helpers/db';
+import { auditLog, operations, payPeriods, payrollRuns, routes } from '~/db/schema';
+import { actorAs, withRollback, activeTforceRouteCount, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
 import { addDriverForRoute, confirmUsual, loadDay, setAssignment, undoAssignment } from './daily';
 
@@ -34,7 +34,7 @@ describe("today's drivers (server)", () => {
     withRollback(async (tx) => {
       const d = actorAs('dispatcher');
       const e = await route(tx, '9000E');
-      const [norwin] = await tx.select().from(drivers).where(eq(drivers.fullName, 'Norwin Saloman'));
+      const norwin = await driverNamed(tx, 'Norwin Saloman');
       const res = await setAssignment(tx, d, { date: '2026-09-03', routeId: e.id, payee: { driverId: norwin!.id } });
       let row = (await loadDay(tx, d, '2026-09-03')).rows.find((r) => r.code === '9000E')!;
       expect(row).toMatchObject({ status: 'changed', today: { name: 'Norwin Saloman' } });
@@ -57,7 +57,7 @@ describe("today's drivers (server)", () => {
   it('adds "the new guy" under Puma and assigns him', () =>
     withRollback(async (tx) => {
       const z = await route(tx, '9000Z');
-      const [puma] = await tx.select().from(contractors).where(eq(contractors.name, 'Puma'));
+      const puma = await contractorNamed(tx, 'Puma');
       const d = await addDriverForRoute(tx, actorAs('owner'), { date: '2026-06-18', routeId: z.id, fullName: 'Pedro (Puma)', contractorId: puma!.id });
       expect(d).toMatchObject({ contractorId: puma!.id, setupComplete: false });
       const row = (await loadDay(tx, actorAs('owner'), '2026-06-18')).rows.find((r) => r.code === '9000Z')!;

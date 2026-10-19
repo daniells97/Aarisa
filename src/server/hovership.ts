@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { drivers, exceptions, operationRevenue, reportImports, workRecords } from '~/db/schema';
-import { addDays, weekStart } from '~/domain/dates';
+import { exceptions, operationRevenue, reportImports, workRecords } from '~/db/schema';
+import { addDays, todayLA, weekStart } from '~/domain/dates';
 import { hovershipSummary, type HovershipDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
 import { periodFor } from '~/domain/periods';
@@ -11,6 +11,7 @@ import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation, hovershipRateFn, lockedPeriodStarts, serviceIds } from './ops';
+import { createDriver, driverIdsByCode, driverProfile, driverProfiles, setHovershipCode } from './people';
 import { saveImportFile } from './storage';
 import { refreshWeeklyLines } from './settlements';
 
@@ -88,8 +89,8 @@ export async function importHovership(tx: Tx, actor: Actor, input: { fileName: s
 
   // Driver codes: known → records now; unknown → one exception per code holding its rows.
   const codes = [...new Set(parsed.rows.map((r) => r.driverCode))];
-  const known = await tx.select({ id: drivers.id, code: drivers.hovershipCode }).from(drivers).where(inArray(drivers.hovershipCode, codes));
-  const idByCode = new Map(known.map((d) => [d.code!, d.id]));
+  const byCode = await driverIdsByCode(tx, op.id);
+  const idByCode = new Map(codes.filter((c) => byCode.has(c)).map((c) => [c, byCode.get(c)!]));
   const unknown = new Map<string, HovershipRow[]>();
   for (const r of parsed.rows) if (!idByCode.has(r.driverCode)) unknown.set(r.driverCode, [...(unknown.get(r.driverCode) ?? []), r]);
 
@@ -147,19 +148,13 @@ export async function resolveUnknownCode(tx: Tx, actor: Actor, exceptionId: stri
   if (resolution.action === 'new_driver') {
     const name = resolution.fullName.trim() || details.name;
     if (!name) throw new RuleError('name_required');
-    const [taken] = await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.hovershipCode, details.code));
-    if (taken) throw new RuleError('code_taken');
     // Created from an import: the owner finishes phone, contractor and aliases in Drivers and rates.
-    const [d] = await tx.insert(drivers).values({ fullName: name, hovershipCode: details.code, setupComplete: false }).returning();
-    await audit(tx, { table: 'drivers', recordId: d!.id, action: 'insert', after: d, userId: actor.userId, source: actor.source });
-    driverId = d!.id;
+    const d = await createDriver(tx, actor, { fullName: name, hovershipCode: details.code, contractorId: null, phone: null, aliases: [], active: true, setupComplete: false }, todayLA());
+    driverId = d.id;
   } else {
-    const [d] = await tx.select().from(drivers).where(eq(drivers.id, resolution.driverId));
+    const d = await driverProfile(tx, resolution.driverId, todayLA());
     if (!d) throw new RuleError('not_found');
-    if (!d.hovershipCode) {
-      const [after] = await tx.update(drivers).set({ hovershipCode: details.code, updatedAt: new Date() }).where(eq(drivers.id, d.id)).returning();
-      await audit(tx, { table: 'drivers', recordId: d.id, action: 'update', before: d, after, userId: actor.userId, source: actor.source });
-    }
+    if (!d.hovershipCode) await setHovershipCode(tx, actor, d.id, details.code, todayLA());
     driverId = d.id;
   }
 
@@ -229,7 +224,7 @@ export async function loadHovershipWeek(tx: Tx, actor: Actor, start: string) {
   const summary = hovershipSummary(hsDays, stemCents, rate);
 
   const driverRows = summary.drivers.length
-    ? await tx.select({ id: drivers.id, name: drivers.fullName, code: drivers.hovershipCode }).from(drivers).where(inArray(drivers.id, summary.drivers.map((d) => d.driverId)))
+    ? (await driverProfiles(tx, end, summary.drivers.map((d) => d.driverId))).map((d) => ({ id: d.id, name: d.fullName, code: d.hovershipCode }))
     : [];
   const names = new Map(driverRows.map((d) => [d.id, d]));
 

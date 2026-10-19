@@ -1,11 +1,13 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { contractors, drivers, operations, rates, routes, serviceTypes } from '~/db/schema';
+import { operations, rates, routes, serviceTypes } from '~/db/schema';
+import { todayLA } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { currentGeneralRates, type RateRow } from '~/domain/rates';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
+import { contractorProfiles, createContractor, createDriver, driverProfiles, routeOwners, updateDriverProfile, type DriverInput } from './people';
 import { refreshWeeklyLines } from './settlements';
 
 // Drivers, contractors, services and rates (spec 6.10). Anyone signed in can read;
@@ -43,9 +45,10 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
   }).sort((a, b) => a.operation.localeCompare(b.operation) || a.serviceCode.localeCompare(b.serviceCode)
     || (a.tier ?? '').localeCompare(b.tier ?? '') || b.effectiveFrom.localeCompare(a.effectiveFrom));
 
-  const contractorRows = await tx.select().from(contractors).orderBy(asc(contractors.name));
-  const driverRows = await tx.select().from(drivers).orderBy(asc(drivers.fullName));
+  const contractorRows = await contractorProfiles(tx);
+  const driverRows = await driverProfiles(tx, today);
   const routeRows = await tx.select().from(routes);
+  const owner = await routeOwners(tx, today);
   return {
     showMoney,
     canEdit: can(actor.role, 'setup.edit'),
@@ -55,7 +58,7 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
       requiresOrderNumber: s.requiresOrderNumber, requiresNote: s.requiresNote, active: s.active,
     })),
     rates: rateViews,
-    contractors: contractorRows.map((c) => ({ id: c.id, name: c.name, active: c.active, routes: routeRows.filter((r) => r.contractorId === c.id).map((r) => r.code) })),
+    contractors: contractorRows.map((c) => ({ id: c.id, name: c.name, active: c.active, routes: routeRows.filter((r) => owner.get(r.id) === c.id).map((r) => r.code) })),
     drivers: driverRows.map((d) => ({
       id: d.id, fullName: d.fullName, hovershipCode: d.hovershipCode, contractorId: d.contractorId, phone: d.phone,
       aliases: d.aliases, active: d.active, setupComplete: d.setupComplete,
@@ -93,63 +96,22 @@ export async function addRate(tx: Tx, actor: Actor, input: NewRate) {
   return row!;
 }
 
-export interface DriverInput {
-  fullName: string;
-  hovershipCode: string | null;
-  contractorId: string | null;
-  phone: string | null;
-  aliases: string[];
-  active: boolean;
-}
-
-function clean(input: DriverInput) {
-  return {
-    fullName: input.fullName.trim(),
-    hovershipCode: input.hovershipCode?.trim().toUpperCase() || null,
-    contractorId: input.contractorId || null,
-    phone: input.phone?.trim() || null,
-    aliases: [...new Set(input.aliases.map((a) => a.trim()).filter(Boolean))],
-    active: input.active,
-  };
-}
-
-async function assertCodeFree(tx: Tx, code: string | null, exceptId?: string) {
-  if (!code) return;
-  const [other] = await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.hovershipCode, code));
-  if (other && other.id !== exceptId) throw new RuleError('code_taken');
-}
+export type { DriverInput } from './people';
 
 export async function addDriver(tx: Tx, actor: Actor, input: DriverInput) {
   assertCan(actor, 'setup.edit');
-  const values = clean(input);
-  if (!values.fullName) throw new RuleError('name_required');
-  await assertCodeFree(tx, values.hovershipCode);
-  const [row] = await tx.insert(drivers).values({ ...values, setupComplete: true }).returning();
-  await audit(tx, { table: 'drivers', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
-  return row!;
+  return createDriver(tx, actor, { ...input, setupComplete: true }, todayLA());
 }
 
+/** Saving from Drivers and rates also marks a quick-added driver as set up. */
 export async function updateDriver(tx: Tx, actor: Actor, id: string, input: DriverInput) {
   assertCan(actor, 'setup.edit');
-  const [before] = await tx.select().from(drivers).where(eq(drivers.id, id));
-  if (!before) throw new RuleError('not_found');
-  const values = clean(input);
-  if (!values.fullName) throw new RuleError('name_required');
-  await assertCodeFree(tx, values.hovershipCode, id);
-  const [after] = await tx.update(drivers).set({ ...values, setupComplete: true, updatedAt: new Date() }).where(eq(drivers.id, id)).returning();
-  await audit(tx, { table: 'drivers', recordId: id, action: 'update', before, after, userId: actor.userId, source: actor.source });
-  return after!;
+  return updateDriverProfile(tx, actor, id, { ...input, setupComplete: true }, todayLA());
 }
 
 export async function addContractor(tx: Tx, actor: Actor, name: string) {
   assertCan(actor, 'setup.edit');
-  const trimmed = name.trim();
-  if (!trimmed) throw new RuleError('name_required');
-  const [existing] = await tx.select({ id: contractors.id }).from(contractors).where(eq(contractors.name, trimmed));
-  if (existing) throw new RuleError('name_taken');
-  const [row] = await tx.insert(contractors).values({ name: trimmed }).returning();
-  await audit(tx, { table: 'contractors', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
-  return row!;
+  return createContractor(tx, actor, name);
 }
 
 // ---------- services (spec 6.10; decision of Oct 9, 2026: the list is kept here, not fixed in code) ----------

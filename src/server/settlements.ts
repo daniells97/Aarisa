@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { aiSuggestions, claims, contractors, drivers, extraJobs, operations, paymentAllocations, paymentsReceived, payrollRuns, rates, routes, serviceTypes, settlementLines, workRecords } from '~/db/schema';
+import { aiSuggestions, claims, extraJobs, operations, paymentAllocations, paymentsReceived, payrollRuns, rates, routes, serviceTypes, settlementLines, workRecords } from '~/db/schema';
 import { addDays, weekStart } from '~/domain/dates';
 import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
@@ -11,6 +11,7 @@ import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { loadHovershipDays } from './hovership';
 import { getOperation, hovershipRateFn, serviceIds } from './ops';
+import { payeeNameMaps } from './people';
 
 // Settlements (spec §5.6, 6.9): what each client is expected to pay, what arrived, what is late,
 // and claims for money paid out to drivers but left out by the client.
@@ -110,8 +111,7 @@ export async function loadSettlements(tx: Tx, actor: Actor, today: string, filte
   const jobIds = lines.map((l) => l.extraJobId).filter((x): x is string => !!x);
   const jobs = jobIds.length ? await tx.select({ job: extraJobs, service: serviceTypes.name, route: routes.code }).from(extraJobs)
     .innerJoin(serviceTypes, eq(serviceTypes.id, extraJobs.serviceTypeId)).leftJoin(routes, eq(routes.id, extraJobs.nearRouteId)).where(inArray(extraJobs.id, jobIds)) : [];
-  const dName = new Map((await tx.select({ id: drivers.id, n: drivers.fullName }).from(drivers)).map((d) => [d.id, d.n]));
-  const cName = new Map((await tx.select({ id: contractors.id, n: contractors.name }).from(contractors)).map((c) => [c.id, c.n]));
+  const { driver: dName, contractor: cName } = await payeeNameMaps(tx);
 
   const view = lines.map((l) => {
     const rec = received.get(l.id) ?? { cents: 0, lastDate: null };

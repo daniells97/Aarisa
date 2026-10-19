@@ -8,6 +8,7 @@ import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperation } from './ops';
+import { contractorProfiles, driverProfiles, payeeNameMaps } from './people';
 
 // Extra jobs (spec §5.4, 6.6): T-Force work agreed by phone that never shows in the weekly report.
 // Each job is one work record (paid at the agreed amount) and one expected settlement line.
@@ -144,8 +145,9 @@ export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: stri
     .orderBy(desc(extraJobs.date), desc(extraJobs.createdAt));
   const dIds = rows.map((r) => r.job.driverId).filter((x): x is string => !!x);
   const cIds = rows.map((r) => r.job.contractorId).filter((x): x is string => !!x);
-  const dName = new Map((dIds.length ? await tx.select({ id: drivers.id, n: drivers.fullName }).from(drivers).where(inArray(drivers.id, dIds)) : []).map((d) => [d.id, d.n]));
-  const cName = new Map((cIds.length ? await tx.select({ id: contractors.id, n: contractors.name }).from(contractors).where(inArray(contractors.id, cIds)) : []).map((c) => [c.id, c.n]));
+  const names = dIds.length || cIds.length ? await payeeNameMaps(tx) : null;
+  const dName = names?.driver ?? new Map<string, string>();
+  const cName = names?.contractor ?? new Map<string, string>();
   return {
     showMoney,
     canLog: can(actor.role, 'extra_jobs.log'),
@@ -178,7 +180,7 @@ export async function extraJobOptions(tx: Tx, actor: Actor, today = todayLA()) {
       };
     }),
     routes: (await tx.select({ id: routes.id, code: routes.code }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, true))).orderBy(asc(routes.code))),
-    drivers: (await tx.select({ id: drivers.id, name: drivers.fullName }).from(drivers).where(eq(drivers.active, true)).orderBy(asc(drivers.fullName))),
-    contractors: (await tx.select({ id: contractors.id, name: contractors.name }).from(contractors).where(eq(contractors.active, true)).orderBy(asc(contractors.name))),
+    drivers: (await driverProfiles(tx, todayLA())).filter((d) => d.active).map((d) => ({ id: d.id, name: d.fullName })),
+    contractors: (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name })),
   };
 }
