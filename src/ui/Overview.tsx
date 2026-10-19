@@ -120,8 +120,8 @@ function Need({ item }: { item: NeedItem }) {
       break;
     case 'late_payment': {
       const client = clientName(item.operation);
-      const what = item.lineKind === 'hovership_invoice' && item.periodEnd ? t('st.weekEnding', { date: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
-        : item.lineKind === 'tforce_weekly' && item.periodStart && item.periodEnd ? t('st.ecommerce', { start: f.date(item.periodStart, { month: 'short', day: 'numeric' }), end: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
+      const what = item.lineKind === 'invoice' && item.periodEnd ? t('st.weekEnding', { date: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
+        : item.lineKind === 'weekly_statement' && item.periodStart && item.periodEnd ? t('st.ecommerce', { start: f.date(item.periodStart, { month: 'short', day: 'numeric' }), end: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
           : item.reference ?? '';
       title = t('ov.latePayment', { client, what });
       body = t('ov.latePaymentBody', { amount: f.money(item.missingCents), days: item.daysLate, count: item.count });

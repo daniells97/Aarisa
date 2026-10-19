@@ -1,17 +1,18 @@
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { exceptions, payPeriods, payrollLines, payrollRuns, users, workRecords, workView } from '~/db/schema';
+import { executionView, exceptions, payPeriods, payrollLines, payrollRuns, users, workRecords, workView } from '~/db/schema';
 import { addDays, todayLA } from '~/domain/dates';
-import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
-import { buildRun, hovershipItems, payeeKey, payrollCsv, type Blocker, type PayrollTotals, type RunItem } from '~/domain/payroll';
+import { buildRun, payeeKey, payrollCsv, type Blocker, type PayrollTotals, type RunItem } from '~/domain/payroll';
 import { rateFor } from '~/domain/rates';
 import { periodFor, periodsFor } from '~/domain/periods';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
-import { loadHovershipDays } from './hovership';
-import { getOperation, hovershipRateFn, rateRows as rateRowsOf, serviceIds } from './ops';
+import { adjustmentsByExecution } from './adjustments';
+import { getOperation, listOperations, type Operation } from './ops';
+import { otherRevenueTotal } from './revenue';
+import { counts, valuationContext } from './valuation';
 import { payeeIdsByKey, payeeRefs } from './executions';
 import { contractorProfiles, driverProfiles } from './people';
 
@@ -22,9 +23,9 @@ export const REOPEN_HOURS = 24;
 export type RunStatus = 'draft' | 'ready' | 'approved' | 'reopened' | 'paid';
 
 export function parseRunId(runId: string) {
-  const m = /^(hovership|tforce)-(\d{4}-\d{2}-\d{2})$/.exec(runId);
+  const m = /^([a-z0-9_]+)-(\d{4}-\d{2}-\d{2})$/.exec(runId);
   if (!m) throw new RuleError('not_found');
-  return { operation: m[1] as 'hovership' | 'tforce', start: m[2]! };
+  return { operation: m[1]!, start: m[2]! };
 }
 
 async function storedRun(tx: Tx, operationId: string, start: string) {
@@ -33,8 +34,6 @@ async function storedRun(tx: Tx, operationId: string, start: string) {
     .where(and(eq(payPeriods.operationId, operationId), eq(payPeriods.startDate, start)));
   return row;
 }
-
-type Operation = Awaited<ReturnType<typeof getOperation>>;
 
 /** Values copied onto a work record when its run is approved (spec §4). */
 interface Snapshot {
@@ -59,64 +58,63 @@ async function openExceptionCount(tx: Tx, operationId: string, from: string, to:
   return open?.n ?? 0;
 }
 
-/** Live Hovership run: driver-days valued with the rate valid on each date; STEM as other revenue. */
-async function computeHovership(tx: Tx, op: Operation, start: string) {
-  const period = periodFor(op.cycleAnchor, op.payCycle, start);
-  if (period.start !== start) throw new RuleError('not_found');
-  const { fn: rate, ids } = await hovershipRateFn(tx, op.id);
-  const { days, stemCents, records } = await loadHovershipDays(tx, op.id, ids, period.start, period.end);
-  const valued = days.map((d) => valueDay(d, rate));
-  const weeks = [period.start, ...(op.payCycle === 'biweekly' ? [addDays(period.start, 7)] : [])];
-  const covered = weeks.filter((w) => records.some((r) => r.date >= w && r.date <= addDays(w, 6)));
-  const result = buildRun({
-    items: hovershipItems(valued), otherRevenueCents: stemCents, expectedWeeks: weeks, coveredWeeks: covered,
-    openExceptions: op.blocksPayrollOnExceptions ? await openExceptionCount(tx, op.id, period.start, period.end) : 0, previousPayees: await previousPayees(tx, op.id, period.start),
-  });
-  // Bonuses are pay adjustments of their own; a work record's pay is pieces × rate.
-  const snapshots = (): Snapshot[] => records.filter((w) => w.driverId).map((w) => {
-    const item = w.serviceTypeId === ids.stat ? 'stat' : w.tierCode ?? 'T1-3';
-    const r = rate(item, w.driverId!, w.date);
-    if (!r.ok) throw new RuleError('run_not_ready');
-    return { record: w, values: { clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: w.pieces * r.driverCents, revenueCents: w.pieces * (r.clientCents ?? 0) } };
-  });
-  return { period, weeks, covered, snapshots, ...result };
-}
-
 /**
- * Live T-Force run (weekly): each report route-day with a payee from the daily list, paid per piece at
- * the e-commerce rate valid that day (contractor or driver override first). Rows without a payee
- * (not our route) are not paid. No rate → blocked (open question 4: T-Force rates not provided yet).
+ * Live run for any contract and its own pay cycle (rule 8): one item per execution of a payee in the
+ * period. Route executions pay pieces × the payee rate valid that day (a special rate first) plus their
+ * pay adjustments (bonuses); extra executions pay each job at its agreed amount and are not route days.
+ * Executions with no payee (not our route) are not paid. Other revenue (STEM) only enters profit.
  */
-async function computeTforce(tx: Tx, op: Operation, start: string) {
+async function computeLive(tx: Tx, op: Operation, start: string) {
   const period = periodFor(op.cycleAnchor, op.payCycle, start);
   if (period.start !== start) throw new RuleError('not_found');
-  const ids = await serviceIds(tx, op.id);
-  const rateRows = await rateRowsOf(tx, [ids.ecommerce!]);
+  const ctx = await valuationContext(tx, op.id);
+  const executions = await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), gte(executionView.date, period.start), lte(executionView.date, period.end)));
   const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), gte(workView.date, period.start), lte(workView.date, period.end)));
-  const paid = records.filter((w) => w.driverId || w.contractorId);
-  // Report route-days use the e-commerce rate valid that day; extra jobs carry their agreed amounts.
-  const priced = paid.map((w) => w.source === 'tforce_report'
-    ? { w, extra: false, r: rateFor(rateRows, ids.ecommerce!, null, w.payeeId, w.date) }
-    : { w, extra: true, r: { ok: true as const, rateId: '', clientRateId: null, clientCents: w.clientRateCents, driverCents: w.driverRateCents ?? 0, effectiveFrom: w.date } });
-  const items: RunItem[] = priced.map(({ w, r, extra }) => ({
-    driverId: w.driverId, contractorId: w.contractorId, date: w.date, packages: extra ? 0 : w.pieces, stops: 0, bonusCents: 0, extraJob: extra,
-    payCents: r.ok ? w.pieces * (r.driverCents ?? 0) : 0, revenueCents: r.ok ? w.pieces * (r.clientCents ?? 0) : 0, missingRate: !r.ok,
-  }));
-  const weeks = [period.start];
-  const covered = weeks.filter((wk) => records.some((r) => r.source === 'tforce_report' && r.date >= wk && r.date <= addDays(wk, 6)));
-  const result = buildRun({
-    items, otherRevenueCents: 0, expectedWeeks: weeks, coveredWeeks: covered,
-    openExceptions: op.blocksPayrollOnExceptions ? await openExceptionCount(tx, op.id, period.start, period.end) : 0, previousPayees: await previousPayees(tx, op.id, period.start),
-  });
-  const snapshots = (): Snapshot[] => priced.map(({ w, r }) => {
-    if (!r.ok) throw new RuleError('run_not_ready');
-    return { record: w, values: { clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: w.pieces * r.driverCents, revenueCents: w.pieces * (r.clientCents ?? 0) } };
-  });
-  return { period, weeks, covered, snapshots, ...result };
-}
+  const adjustments = await adjustmentsByExecution(tx, executions.map((e) => e.id));
+  const workOf = new Map<string, (typeof records)[number][]>();
+  for (const w of records) workOf.set(w.executionId, [...(workOf.get(w.executionId) ?? []), w]);
 
-function computeLive(tx: Tx, op: Operation, start: string) {
-  return op.code === 'tforce' ? computeTforce(tx, op, start) : computeHovership(tx, op, start);
+  const items: RunItem[] = [];
+  const snapshots: Snapshot[] = [];
+  for (const e of executions.sort((a, b) => a.date.localeCompare(b.date))) {
+    if (!e.payeeId) continue;
+    const payee = { driverId: e.payeeDriverId, contractorId: e.payeeContractorId };
+    const work = workOf.get(e.id) ?? [];
+    if (e.kind === 'extra') {
+      // An extra job pays the amount agreed for it.
+      for (const w of work) {
+        const pay = w.pieces * (w.driverRateCents ?? 0), revenue = w.pieces * (w.clientRateCents ?? 0);
+        items.push({ ...payee, date: e.date, packages: 0, stops: 0, bonusCents: 0, extraJob: true, payCents: pay, revenueCents: revenue, missingRate: false });
+        snapshots.push({ record: w, values: { clientRateCents: w.clientRateCents, driverRateCents: w.driverRateCents, driverPayCents: pay, revenueCents: revenue } });
+      }
+      continue;
+    }
+    const bonus = adjustments.get(e.id) ?? 0;
+    if (!work.length && !bonus) continue;
+    let pay = 0, revenue = 0, missing = false;
+    for (const w of work) {
+      const r = rateFor(ctx.rows, w.serviceTypeId, w.tierId, e.payeeId, w.date);
+      if (!r.ok) { missing = true; continue; }
+      pay += w.pieces * r.driverCents;
+      revenue += w.pieces * (r.clientCents ?? 0);
+      snapshots.push({ record: w, values: { clientRateCents: r.clientCents, driverRateCents: r.driverCents, driverPayCents: w.pieces * r.driverCents, revenueCents: w.pieces * (r.clientCents ?? 0) } });
+    }
+    const c = counts(ctx, work.map((w) => ({ serviceTypeId: w.serviceTypeId, tierId: w.tierId, quantity: w.pieces })));
+    items.push({ ...payee, date: e.date, packages: c.packages, stops: c.stops, bonusCents: bonus, payCents: pay + bonus, revenueCents: revenue, missingRate: missing });
+  }
+
+  const weeks = op.payCycle === 'biweekly' ? [period.start, addDays(period.start, 7)] : [period.start];
+  const covered = weeks.filter((w) => records.some((r) => r.source === 'client_report' && r.date >= w && r.date <= addDays(w, 6)));
+  const result = buildRun({
+    items, otherRevenueCents: await otherRevenueTotal(tx, op.id, period.start, period.end), expectedWeeks: weeks, coveredWeeks: covered,
+    openExceptions: op.blocksPayrollOnExceptions ? await openExceptionCount(tx, op.id, period.start, period.end) : 0,
+    previousPayees: await previousPayees(tx, op.id, period.start),
+  });
+  const snapshotsFn = (): Snapshot[] => {
+    if (items.some((i) => i.missingRate)) throw new RuleError('run_not_ready');
+    return snapshots;
+  };
+  return { period, weeks, covered, snapshots: snapshotsFn, ...result };
 }
 
 async function payeeInfo(tx: Tx, keys: string[]) {
@@ -199,8 +197,8 @@ export async function listRuns(tx: Tx, actor: Actor, now = new Date()) {
   assertCan(actor, 'payroll.view');
   const runs = [];
   const payCycles: Record<string, string> = {};
-  for (const code of ['hovership', 'tforce'] as const) {
-    const op = await getOperation(tx, code);
+  for (const op of await listOperations(tx)) {
+    const code = op.code;
     payCycles[code] = op.payCycle;
     const dates = await tx.selectDistinct({ date: workView.date }).from(workView).where(eq(workView.operationId, op.id));
     for (const p of periodsFor(op.cycleAnchor, op.payCycle, dates.map((d) => d.date))) {
@@ -209,7 +207,7 @@ export async function listRuns(tx: Tx, actor: Actor, now = new Date()) {
     }
   }
   runs.sort((a, b) => b.period.end.localeCompare(a.period.end) || a.operation.localeCompare(b.operation));
-  return { runs, payCycles: payCycles as { hovership: string; tforce: string } };
+  return { runs, payCycles };
 }
 
 /** Rule 3 + §6.8: approve with the exact amount the owner saw; snapshot rates and lock the period. */

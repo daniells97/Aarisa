@@ -32,7 +32,7 @@ export interface RateView {
 export async function loadSetup(tx: Tx, actor: Actor, today: string) {
   assertCan(actor, 'payroll.view');
   const showMoney = can(actor.role, 'money.view');
-  const ops = await tx.select().from(operations).orderBy(asc(operations.code));
+  const ops = await tx.select().from(operations).orderBy(asc(operations.createdAt), asc(operations.code));
   const services = await tx.select().from(serviceTypes);
   const opCode = new Map(ops.map((o) => [o.id, o.code]));
   const svc = new Map(services.map((s) => [s.id, s]));
@@ -60,7 +60,7 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
   return {
     showMoney,
     canEdit: can(actor.role, 'setup.edit'),
-    operations: ops.map((o) => ({ id: o.id, code: o.code, name: o.name, payCycle: o.payCycle })),
+    operations: ops.map((o) => ({ id: o.id, code: o.code, name: o.name, payCycle: o.payCycle, driverSource: o.driverSource })),
     services: services.map((s) => ({
       id: s.id, operation: opCode.get(s.operationId)!, code: s.code, name: s.name, nameEs: s.nameEs, unit: s.unit, fromReport: s.fromReport,
       requiresOrderNumber: s.requiresOrderNumber, requiresNote: s.requiresNote, active: s.active,
@@ -127,7 +127,7 @@ export async function addRate(tx: Tx, actor: Actor, input: NewRate) {
   }
   // A new rate changes what clients are expected to pay for weeks not yet paid.
   const [op] = await tx.select({ code: operations.code }).from(operations).where(eq(operations.id, service.operationId));
-  await refreshWeeklyLines(tx, actor, op!.code as 'hovership' | 'tforce');
+  await refreshWeeklyLines(tx, actor, op!.code);
   return first!;
 }
 
@@ -167,7 +167,7 @@ export function serviceCode(name: string) {
  * New services are extra-job services: agreed by phone, logged as a job, paid at the agreed amount.
  * Report services (packages, stat, e-commerce) come from the client files and can't be created here.
  */
-export async function addService(tx: Tx, actor: Actor, input: ServiceInput & { operation: 'tforce' | 'hovership' }) {
+export async function addService(tx: Tx, actor: Actor, input: ServiceInput & { operation: string }) {
   assertCan(actor, 'setup.edit');
   const name = input.name.trim();
   if (!name) throw new RuleError('name_required');

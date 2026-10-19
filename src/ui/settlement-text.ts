@@ -14,8 +14,8 @@ const short = (f: F, d: string) => f.date(d, { month: 'short', day: 'numeric' })
 
 /** "Week ending Jun 21", "Jun 15 to Jun 21, e-commerce", "Recovery route, Jun 18". */
 export function coversText(l: LineLike, t: T, f: F) {
-  if (l.kind === 'hovership_invoice' && l.periodEnd) return t('st.weekEnding', { date: short(f, l.periodEnd) });
-  if (l.kind === 'tforce_weekly' && l.periodStart && l.periodEnd) return t('st.ecommerce', { start: short(f, l.periodStart), end: short(f, l.periodEnd) });
+  if (l.kind === 'invoice' && l.periodEnd) return t('st.weekEnding', { date: short(f, l.periodEnd) });
+  if (l.kind === 'weekly_statement' && l.periodStart && l.periodEnd) return t('st.ecommerce', { start: short(f, l.periodStart), end: short(f, l.periodEnd) });
   if (l.job) return `${l.job.service}, ${short(f, l.job.date)}`;
   return l.reference ?? '';
 }

@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { createDb } from './client';
-import { clients, contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, revenueTypes, serviceTiers } from './schema';
-import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, SERVICE_TIERS, SERVICE_TYPES } from './seed-data';
+import { clients, contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, reportLayoutColumns, reportLayouts, revenueTypes, serviceTiers } from './schema';
+import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, REPORT_LAYOUTS, SERVICE_TIERS, SERVICE_TYPES } from './seed-data';
 import { addRate } from '~/server/setup';
 import { tierIdsByCode } from '~/server/ops';
 import { parseCsvObjects } from '~/integrations/csv';
@@ -60,6 +60,24 @@ export async function seedMasterData(database = createDb()) {
 
     // STEM is Hovership revenue that never reaches driver pay (rule 7).
     for (const row of await tx.insert(revenueTypes).values({ operationId: ops.hovership!, code: 'stem', name: 'STEM' }).onConflictDoNothing().returning()) log('revenue_types', row);
+
+    // How each client's report is read (premise 1), unless the operation already has a layout.
+    for (const [code, columns] of Object.entries(REPORT_LAYOUTS)) {
+      const opId = ops[code]!;
+      if ((await tx.select({ id: reportLayouts.id }).from(reportLayouts).where(eq(reportLayouts.operationId, opId))).length) continue;
+      const [layout] = await tx.insert(reportLayouts).values({ operationId: opId, name: `${code} report` }).returning();
+      log('report_layouts', layout!);
+      const tierOf = async (service: string, tier?: string) => (tier ? (await tierIdsByCode(tx, services[service]!)).get(tier) ?? null : null);
+      const [stem] = await tx.select({ id: revenueTypes.id }).from(revenueTypes).where(and(eq(revenueTypes.operationId, opId), eq(revenueTypes.code, 'stem')));
+      for (const [i, c] of columns.entries()) {
+        const [row] = await tx.insert(reportLayoutColumns).values({
+          layoutId: layout!.id, sourceName: c.sourceName, aliases: c.aliases, meaning: c.meaning, required: c.required, sortOrder: i,
+          serviceTypeId: c.service ? services[c.service]! : null, tierId: c.service ? await tierOf(c.service, c.tier) : null,
+          revenueTypeId: c.revenueType ? stem!.id : null,
+        }).returning();
+        log('report_layout_columns', row!);
+      }
+    }
 
     // Through the same path the portal uses: one agreement per side, skipped when already loaded.
     for (const r of RATES) {
@@ -146,7 +164,7 @@ export async function seedTforceSample(database: ReturnType<typeof createDb>) {
     const routeRows = await tx.select().from(routes).where(eq(routes.operationId, op!.id));
     const routeId = new Map(routeRows.map((r) => [r.code, r.id]));
     const existing = await tx.select({ id: routeExecutions.id }).from(routeExecutions)
-      .where(and(eq(routeExecutions.operationId, op!.id), ne(routeExecutions.source, 'tforce_report'), eq(routeExecutions.kind, 'route'))).limit(1);
+      .where(and(eq(routeExecutions.operationId, op!.id), ne(routeExecutions.source, 'client_report'), eq(routeExecutions.kind, 'route'))).limit(1);
     if (existing.length) return console.log('T-Force sample: daily list already loaded');
     for (const r of list) {
       const id = routeId.get(r.route!)!;
@@ -196,7 +214,7 @@ export async function seedSettlements(database: ReturnType<typeof createDb>) {
     const [op] = await tx.select().from(operations).where(eq(operations.code, 'hovership'));
     const existing = await tx.select({ id: paymentsReceived.id }).from(paymentsReceived).where(eq(paymentsReceived.operationId, op!.id)).limit(1);
     if (existing.length) return console.log('Settlements: payments already loaded');
-    const lines = await tx.select().from(settlementLines).where(and(eq(settlementLines.operationId, op!.id), eq(settlementLines.kind, 'hovership_invoice')));
+    const lines = await tx.select().from(settlementLines).where(and(eq(settlementLines.operationId, op!.id), eq(settlementLines.kind, 'invoice')));
     for (const [start, paidOn] of [['2026-06-01', '2026-06-26'], ['2026-06-08', '2026-07-02']] as const) {
       const line = lines.find((l) => l.periodStart === start);
       if (!line?.expectedCents) continue;

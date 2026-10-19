@@ -39,7 +39,7 @@ const serviceFields = {
 };
 
 export const createService = createServerFn({ method: 'POST' })
-  .validator(z.object({ ...serviceFields, operation: z.enum(['tforce', 'hovership']) }))
+  .validator(z.object({ ...serviceFields, operation: z.string().regex(/^[a-z0-9_]{1,40}$/) }))
   .handler(({ data }) => run('setup.edit', async (tx, actor) => (await addService(tx, actor, data)).id));
 
 export const saveService = createServerFn({ method: 'POST' })

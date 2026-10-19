@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { and, eq, inArray, like, or } from 'drizzle-orm';
 import { createDb } from '../../src/db/client';
 import {
+  clientContacts, clients, operations, rateAgreements, rates, reportLayoutColumns, reportLayouts, revenueTypes, serviceTiers, serviceTypes,
   driverAffiliations, payAdjustments, driverAliases, driverClientCodes, drivers, payees, routeExecutions, routeOwnerships, routes, workRecords,
 } from '../../src/db/schema';
 
@@ -11,6 +12,26 @@ export default async function globalTeardown() {
   if (!process.env.DATABASE_URL) return;
   const db = createDb();
   try {
+    // Clients the new-client test creates (codes start with e2e_): their contract and everything set up for it.
+    await db.transaction(async (tx) => {
+      const ops = await tx.select({ id: operations.id, clientId: operations.clientId }).from(operations).where(like(operations.code, 'e2e%'));
+      for (const op of ops) {
+        const layouts = await tx.select({ id: reportLayouts.id }).from(reportLayouts).where(eq(reportLayouts.operationId, op.id));
+        if (layouts.length) await tx.delete(reportLayoutColumns).where(inArray(reportLayoutColumns.layoutId, layouts.map((l) => l.id)));
+        await tx.delete(reportLayouts).where(eq(reportLayouts.operationId, op.id));
+        const svcs = await tx.select({ id: serviceTypes.id }).from(serviceTypes).where(eq(serviceTypes.operationId, op.id));
+        if (svcs.length) {
+          await tx.delete(rates).where(inArray(rates.serviceTypeId, svcs.map((x) => x.id)));
+          await tx.delete(serviceTiers).where(inArray(serviceTiers.serviceTypeId, svcs.map((x) => x.id)));
+        }
+        await tx.delete(rateAgreements).where(eq(rateAgreements.operationId, op.id));
+        await tx.delete(serviceTypes).where(eq(serviceTypes.operationId, op.id));
+        await tx.delete(revenueTypes).where(eq(revenueTypes.operationId, op.id));
+        await tx.delete(operations).where(eq(operations.id, op.id));
+        await tx.delete(clientContacts).where(eq(clientContacts.clientId, op.clientId));
+        await tx.delete(clients).where(eq(clients.id, op.clientId));
+      }
+    });
     await db.transaction(async (tx) => {
       const testRoutes = await tx.select({ id: routes.id }).from(routes).where(like(routes.code, 'E2E%'));
       const testDrivers = await tx.select({ id: drivers.id, payeeId: drivers.payeeId }).from(drivers).innerJoin(payees, eq(payees.id, drivers.payeeId))

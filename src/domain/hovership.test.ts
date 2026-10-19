@@ -1,26 +1,22 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { parseHovership } from '~/integrations/hovership';
+import { hovershipSampleRows } from '../../tests/helpers/hovership-sample';
 import { hovershipSummary, type HovershipDay, type RateFn } from './hovership';
 
 // Spec §9 fixtures, from docs/seed/hovership_details_jun2026.csv with the spec §5.1 rates.
-const csv = readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8');
-const parsed = parseHovership(csv);
-if (parsed.kind !== 'ok') throw new Error('seed file should parse');
+const sample = hovershipSampleRows();
 
 const RATES = { t1_3: [300, 250], t4: [200, 175], stat: [1000, 500] } as const;
 const rate: RateFn = (item) => ({ ok: true, rateId: item, clientRateId: item, clientCents: RATES[item as keyof typeof RATES][0], driverCents: RATES[item as keyof typeof RATES][1], effectiveFrom: '2026-06-01' });
 
 function period(from: string, to: string) {
-  const rows = parsed.kind === 'ok' ? parsed.rows.filter((r) => r.date >= from && r.date <= to) : [];
+  const rows = sample.filter((r) => r.date >= from && r.date <= to);
   const days: HovershipDay[] = rows.map((r) => ({ date: r.date, driverId: r.driverCode, t13: r.t1 + r.t2 + r.t3, t4: r.t4, stat: r.stat, bonusCents: r.bonusCents }));
   return { rows, summary: hovershipSummary(days, rows.reduce((s, r) => s + r.stemCents, 0), rate) };
 }
 
 describe('Hovership seed file', () => {
   it('parses all 319 rows without problems', () => {
-    expect(parsed.rows).toHaveLength(319);
-    expect(parsed.problems).toEqual([]);
+    expect(sample).toHaveLength(319);
   });
 
   it('reproduces the week of June 15 to 21 (spec §9)', () => {
@@ -59,27 +55,5 @@ describe('Hovership seed file', () => {
     const noStat: RateFn = (item, d, date) => (item === 'stat' ? { ok: false, reason: 'missing_rate' } : rate(item, d, date));
     const days: HovershipDay[] = [{ date: '2026-06-15', driverId: 'x', t13: 10, t4: 0, stat: 2, bonusCents: 0 }];
     expect(hovershipSummary(days, 0, noStat).missingRates[0]!.missing).toEqual(['stat']);
-  });
-});
-
-describe('parseHovership', () => {
-  it('reads the client column names', () => {
-    const text = 'POD Date,DriverCode,DriverNameCode,Tier 1,Tier 2,Tier 3,Tier 4,Stat,Stem,Stem Reason,Bonus,Total Route,Total Profit\n6/15/2026,dub061,Robert Arteaga,1,2,3,0,0,$20.00,Diablo,"$1,000.50",0,0\n';
-    const r = parseHovership(text);
-    expect(r.kind).toBe('ok');
-    if (r.kind === 'ok') expect(r.rows[0]).toMatchObject({ date: '2026-06-15', driverCode: 'DUB061', t1: 1, stemCents: 2000, bonusCents: 100050 });
-  });
-
-  it('stops with a suggestion when a column was renamed', () => {
-    const text = 'POD Date,Driver #,Tier 1,Tier 2,Tier 3,Tier 4,Stat,Stem,Bonus\n2026-06-15,DUB1,1,0,0,0,0,0,0\n';
-    const r = parseHovership(text);
-    expect(r).toMatchObject({ kind: 'layout_changed', missing: ['driver_code'] });
-    const withMap = parseHovership(text, { driver_code: 'Driver #' });
-    expect(withMap.kind).toBe('ok');
-  });
-
-  it('lists bad rows as problems', () => {
-    const r = parseHovership('pod_date,driver_code,tier1,tier2,tier3,tier4,stat,stem,bonus\nnope,DUB1,1,0,0,0,0,0,0\n2026-06-15,DUB1,x,0,0,0,0,0,0\n');
-    expect(r.kind === 'ok' && r.problems.map((p) => p.line)).toEqual([2, 3]);
   });
 });

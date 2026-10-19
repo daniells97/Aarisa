@@ -5,26 +5,29 @@ import { db } from '~/db/client';
 import { read, run } from './fn';
 import { requireSignedIn } from './auth';
 import { importHovership, latestHovershipWeek, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
-import { REQUIRED, OPTIONAL } from '~/integrations/hovership';
 import { classifyOtherRevenue } from './revenue';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const fields = z.enum([...REQUIRED, ...OPTIONAL] as [string, ...string[]]);
+// Any contract whose report names the driver; omitted = the first one (Hovership).
+const operation = z.string().regex(/^[a-z0-9_]{1,40}$/).optional();
 
-export const getDefaultHovershipWeek = createServerFn({ method: 'GET' }).handler(async () => {
-  await requireSignedIn();
-  return db().transaction((tx) => latestHovershipWeek(tx, todayLA()));
-});
+export const getDefaultHovershipWeek = createServerFn({ method: 'GET' })
+  .validator(z.object({ operation }).optional())
+  .handler(async ({ data }) => {
+    await requireSignedIn();
+    return db().transaction((tx) => latestHovershipWeek(tx, todayLA(), data?.operation));
+  });
 
 export const getHovershipWeek = createServerFn({ method: 'GET' })
-  .validator(z.object({ start: isoDate }))
-  .handler(({ data }) => read('payroll.view', (tx, actor) => loadHovershipWeek(tx, actor, data.start)));
+  .validator(z.object({ start: isoDate, operation }))
+  .handler(({ data }) => read('payroll.view', (tx, actor) => loadHovershipWeek(tx, actor, data.start, data.operation)));
 
 export const uploadHovershipReport = createServerFn({ method: 'POST' })
   .validator(z.object({
     fileName: z.string().max(200),
     text: z.string().max(5_000_000),
-    columnOverride: z.record(fields, z.string().max(100)).optional(),
+    columnOverride: z.record(z.string().uuid(), z.string().max(100)).optional(),
+    operation,
   }))
   .handler(({ data }) => run('reports.import', (tx, actor) => importHovership(tx, actor, data)));
 
@@ -39,7 +42,7 @@ export const resolveHovershipCode = createServerFn({ method: 'POST' })
   .handler(({ data }) => run('exceptions.clear', async (tx, actor) => (await resolveUnknownCode(tx, actor, data.exceptionId, data.resolution)).driverId));
 
 export const saveBonus = createServerFn({ method: 'POST' })
-  .validator(z.object({ driverId: z.string().uuid(), date: isoDate, bonusCents: z.number().int().min(0).max(5_000_00) }))
+  .validator(z.object({ driverId: z.string().uuid(), date: isoDate, bonusCents: z.number().int().min(0).max(5_000_00), operation }))
   .handler(({ data }) => run('hovership.enter_bonus', async (tx, actor) => (await setBonus(tx, actor, data)).bonusCents));
 
 export const classifyStem = createServerFn({ method: 'POST' })

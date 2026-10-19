@@ -8,16 +8,29 @@ import { Badge } from './Pill';
 
 export interface ShellUser { name: string; role: Role }
 
-interface NavItem { to: string; label: MessageKey; icon: IconName; show?: (r: Role) => boolean; badge?: number }
-interface NavGroup { label?: MessageKey; items: NavItem[] }
+interface NavItem { to: string; label: MessageKey; icon: IconName; show?: (r: Role) => boolean; badge?: number; op?: string }
+interface NavGroup { label?: MessageKey; title?: string; items: NavItem[] }
+export interface ShellOperation { code: string; name: string; driverSource: 'report_code' | 'daily_list' }
 
-const groups: NavGroup[] = [
-  { items: [{ to: '/', label: 'nav.overview', icon: 'home' }] },
-  { label: 'nav.group.tforce', items: [
-    { to: '/tforce/today', label: 'nav.todayDrivers', icon: 'calendar' },
-    { to: '/tforce/week', label: 'nav.weeklyCheck', icon: 'swap' },
-  ] },
-  { label: 'nav.group.hovership', items: [{ to: '/hovership', label: 'nav.weeklyReport', icon: 'file' }] },
+/**
+ * One menu group per contract, with the screens its driver source needs (stage 6c): the daily list and
+ * weekly check when Aarisa's list names the driver, the weekly report when the client's report does.
+ * The first contract of each kind keeps the plain address; others add ?op=<code>.
+ */
+function operationGroups(ops: ShellOperation[]): NavGroup[] {
+  const firstOf = (src: ShellOperation['driverSource']) => ops.find((o) => o.driverSource === src)?.code;
+  return ops.map((o) => {
+    const op = o.code === firstOf(o.driverSource) ? undefined : o.code;
+    return {
+      title: o.name,
+      items: o.driverSource === 'daily_list'
+        ? [{ to: '/tforce/today', label: 'nav.todayDrivers' as const, icon: 'calendar' as const, op }, { to: '/tforce/week', label: 'nav.weeklyCheck' as const, icon: 'swap' as const, op }]
+        : [{ to: '/hovership', label: 'nav.weeklyReport' as const, icon: 'file' as const, op }],
+    };
+  });
+}
+
+const fixedGroups: NavGroup[] = [
   { label: 'nav.group.money', items: [
     { to: '/payroll', label: 'nav.payroll', icon: 'cash' },
     { to: '/settlements', label: 'nav.settlements', icon: 'receipt', show: (r) => can(r, 'money.view') },
@@ -44,9 +57,12 @@ function isActive(path: string, to: string) {
   return to === '/' ? path === '/' : path === to || path.startsWith(`${to}/`);
 }
 
-export function AppShell({ user, children, badges = {} }: { user: ShellUser; children: ReactNode; badges?: Record<string, number> }) {
+export function AppShell({ user, children, badges = {}, operations = [] }: { user: ShellUser; children: ReactNode; badges?: Record<string, number>; operations?: ShellOperation[] }) {
   const t = useT();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const currentOp = useRouterState({ select: (s) => (s.location.search as { op?: string }).op });
+  const groups: NavGroup[] = [{ items: [{ to: '/', label: 'nav.overview', icon: 'home' }] }, ...operationGroups(operations), ...fixedGroups];
+  const active = (i: NavItem) => isActive(path, i.to) && (i.op ?? undefined) === (currentOp ?? undefined);
   return (
     <div className="shell">
       <aside className="side">
@@ -57,9 +73,9 @@ export function AppShell({ user, children, badges = {} }: { user: ShellUser; chi
             if (!items.length) return null;
             return (
               <div key={gi} style={{ display: 'contents' }}>
-                {g.label && <div className="side-group">{t(g.label)}</div>}
+                {(g.label || g.title) && <div className="side-group">{g.title ?? t(g.label!)}</div>}
                 {items.map((i) => (
-                  <Link key={i.to} to={i.to} aria-current={isActive(path, i.to) ? 'page' : undefined}>
+                  <Link key={`${i.to}${i.op ?? ''}`} to={i.to} search={(i.op ? { op: i.op } : {}) as never} aria-current={active(i) ? 'page' : undefined}>
                     <Icon name={i.icon} />{t(i.label)}
                     <Badge count={badges[i.to] ?? 0} label={String(badges[i.to] ?? 0)} />
                   </Link>

@@ -7,7 +7,7 @@ import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
-import { assertNotLocked, getOperation, rateRows as rateRows_ } from './ops';
+import { assertNotLocked, getOperationById, operationFor, rateRows as rateRows_ } from './ops';
 import { extraDay } from './executions';
 import { contractorProfiles, driverProfiles, payeeNameMaps } from './people';
 
@@ -39,6 +39,7 @@ export interface ExtraJobInput {
   orderNumber: string | null;
   note: string | null;
   aiSuggestionId?: string | null;
+  operation?: string;
 }
 
 /** What still needs a person, shown on the job card (Mobile-Synced design). */
@@ -54,7 +55,7 @@ export async function createExtraJob(tx: Tx, actor: Actor, input: ExtraJobInput)
   const [existing] = await tx.select().from(extraJobView).where(eq(extraJobView.clientUuid, input.clientUuid));
   if (existing) return { job: existing, created: false };
 
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, input.operation, 'daily_list');
   await assertNotLocked(tx, op, input.date);
   const service = (await extraServices(tx, op.id)).find((x) => x.code === input.service);
   if (!service) throw new RuleError('unknown_service');
@@ -106,10 +107,10 @@ export async function completeExtraJob(tx: Tx, actor: Actor, id: string, patch: 
     assertCan(actor, 'settlements.record');
   }
   if (patch.orderNumber !== undefined) assertCan(actor, 'extra_jobs.log');
-  const [job] = await tx.select({ date: extraJobView.date }).from(extraJobView).where(eq(extraJobView.id, id));
+  const [job] = await tx.select({ date: extraJobView.date, operationId: extraJobView.operationId }).from(extraJobView).where(eq(extraJobView.id, id));
   const [before] = await tx.select().from(extraJobs).where(eq(extraJobs.id, id));
   if (!before || !job) throw new RuleError('not_found');
-  const op = await getOperation(tx, 'tforce');
+  const op = await getOperationById(tx, job.operationId);
   await assertNotLocked(tx, op, job.date);
   const values = {
     ...(patch.orderNumber !== undefined ? { orderNumber: patch.orderNumber?.trim() || null } : {}),
@@ -138,10 +139,10 @@ export async function completeExtraJob(tx: Tx, actor: Actor, id: string, patch: 
   return after!;
 }
 
-export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: string) {
+export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: string, operation?: string) {
   assertCan(actor, 'payroll.view');
   const showMoney = can(actor.role, 'money.view');
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, operation, 'daily_list');
   const rows = await tx.select({ job: getViewSelectedFields(extraJobView), service: serviceTypes, route: routes.code, by: users.name })
     .from(extraJobView).innerJoin(serviceTypes, eq(serviceTypes.id, extraJobView.serviceTypeId))
     .leftJoin(routes, eq(routes.id, extraJobView.nearRouteId)).leftJoin(users, eq(users.id, extraJobView.createdBy))
@@ -166,9 +167,9 @@ export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: stri
 }
 
 /** Choices for the form: services (with default amounts from their rate, if any), routes, people. */
-export async function extraJobOptions(tx: Tx, actor: Actor, today = todayLA()) {
+export async function extraJobOptions(tx: Tx, actor: Actor, today = todayLA(), operation?: string) {
   assertCan(actor, 'extra_jobs.log');
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, operation, 'daily_list');
   const services = await extraServices(tx, op.id);
   const showMoney = can(actor.role, 'money.view');
   const rateRows = await rateRows_(tx, services.map((x) => x.id));

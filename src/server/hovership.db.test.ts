@@ -52,9 +52,11 @@ describe('Hovership import (server)', () => {
       const op = await clearHovership(tx);
       const text = 'POD Date,Driver #,Tier 1,Tier 2,Tier 3,Tier 4,Stat,Stem,Bonus\n2026-09-07,DUB061,10,0,0,0,0,0,0\n';
       const first = await importHovership(tx, owner, { fileName: 'x.csv', text });
-      expect(first).toMatchObject({ status: 'layout_changed', missing: ['driver_code'] });
+      expect(first).toMatchObject({ status: 'layout_changed', suggestions: [{ column: 'DriverCode', header: 'Driver #' }] });
       expect(await tx.select().from(workView).where(eq(workView.operationId, op.id))).toHaveLength(0);
-      const second = await importHovership(tx, owner, { fileName: 'x.csv', text, columnOverride: { driver_code: 'Driver #' } });
+      // The confirmation names the layout column (its id) and the header to read it from.
+      const field = (first as { suggestions: { field: string }[] }).suggestions[0]!.field;
+      const second = await importHovership(tx, owner, { fileName: 'x.csv', text, columnOverride: { [field]: 'Driver #' } });
       expect(second).toMatchObject({ status: 'done', rows: 1 });
     }));
 

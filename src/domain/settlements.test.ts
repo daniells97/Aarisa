@@ -25,10 +25,10 @@ describe('settlementStatus (spec §5.6)', () => {
 describe('settlementSummary', () => {
   it('splits not-yet-due from late and counts work paid out but not collected', () => {
     const lines = [
-      { ...line(), operation: 'hovership', kind: 'hovership_invoice', paidToPayee: true }, // late $8,271.20
-      { ...line({ expectedCents: 9_919_40, expectedDate: '2026-06-26' }), operation: 'hovership', kind: 'hovership_invoice', paidToPayee: false },
+      { ...line(), operation: 'hovership', kind: 'invoice', paidToPayee: true }, // late $8,271.20
+      { ...line({ expectedCents: 9_919_40, expectedDate: '2026-06-26' }), operation: 'hovership', kind: 'invoice', paidToPayee: false },
       { ...line({ expectedCents: 180_00, expectedDate: '2026-07-18', claim: 'ready' }), operation: 'tforce', kind: 'extra_job', paidToPayee: true },
-      { ...line({ expectedCents: null, expectedDate: '2026-07-20' }), operation: 'tforce', kind: 'tforce_weekly', paidToPayee: false },
+      { ...line({ expectedCents: null, expectedDate: '2026-07-20' }), operation: 'tforce', kind: 'weekly_statement', paidToPayee: false },
     ];
     const s = settlementSummary(lines, '2026-06-22', { start: '2026-05-01', end: '2026-05-31' }, [{ date: '2026-05-22', amountCents: 17_614_50 }, { date: '2026-06-02', amountCents: 1 }]);
     expect(s).toMatchObject({ expectedNotDue: 9_919_40 + 180_00, late: 8_271_20, lateCount: 1, unknownAmounts: 1, paidNotByClient: 2, receivedInMonth: 17_614_50 });

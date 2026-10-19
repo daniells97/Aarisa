@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { getCookie, getRequestHeader, setCookie } from '@tanstack/react-start/server';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '~/db/client';
 import { clients, operations, users } from '~/db/schema';
@@ -17,14 +17,21 @@ export interface SessionInfo {
   devLogin: boolean;
   /** Client name per operation code, for screens. */
   clients: Record<string, string>;
+  /** Active contracts, for the menu: each gets the screens its driver source needs. */
+  operations: { code: string; name: string; driverSource: 'report_code' | 'daily_list' }[];
 }
 
 export const getSession = createServerFn({ method: 'GET' }).handler(async (): Promise<SessionInfo> => {
   const actor = await currentActor();
   const cookieLang = getCookie(LANG_COOKIE);
   const locale = actor?.locale ?? (isLocale(cookieLang) ? cookieLang : localeFromHeader(getRequestHeader('accept-language')));
-  const clientRows = actor ? await db().select({ code: operations.code, name: clients.displayName }).from(operations).innerJoin(clients, eq(clients.id, operations.clientId)) : [];
-  return { user: actor ? { name: actor.name, role: actor.role } : null, locale, devLogin: devLoginEnabled(), clients: Object.fromEntries(clientRows.map((c) => [c.code, c.name])) };
+  const clientRows = actor ? await db().select({ code: operations.code, name: clients.displayName, opName: operations.name, driverSource: operations.driverSource, active: operations.active })
+    .from(operations).innerJoin(clients, eq(clients.id, operations.clientId)).orderBy(asc(operations.createdAt), asc(operations.code)) : [];
+  return {
+    user: actor ? { name: actor.name, role: actor.role } : null, locale, devLogin: devLoginEnabled(),
+    clients: Object.fromEntries(clientRows.map((c) => [c.code, c.name])),
+    operations: clientRows.filter((c) => c.active).map((c) => ({ code: c.code, name: c.opName, driverSource: c.driverSource })),
+  };
 });
 
 /** Changes the interface language; saved on the user when signed in. */

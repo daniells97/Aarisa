@@ -2,8 +2,8 @@
 export const RATES_EFFECTIVE_FROM = '2026-06-01';
 
 export const OPERATIONS = [
-  { code: 'hovership', name: 'Hovership', driverSource: 'report_code', payCycle: 'biweekly', cycleAnchor: '2026-06-08', paymentTermsDays: 21 },
-  { code: 'tforce', name: 'T-Force', driverSource: 'daily_list', payCycle: 'weekly', cycleAnchor: '2026-06-15', paymentTermsDays: 30 },
+  { code: 'hovership', name: 'Hovership', driverSource: 'report_code', weeklySettlementKind: 'invoice', payCycle: 'biweekly', cycleAnchor: '2026-06-08', paymentTermsDays: 21 },
+  { code: 'tforce', name: 'T-Force', driverSource: 'daily_list', weeklySettlementKind: 'weekly_statement', payCycle: 'weekly', cycleAnchor: '2026-06-15', paymentTermsDays: 30 },
 ] as const;
 
 type Unit = 'package' | 'stop' | 'piece' | 'job';
@@ -35,3 +35,40 @@ export const RATES: { service: string; tiers: string[] | null; client: number | 
 ];
 
 export const CONTRACTORS = ['Puma'];
+
+/** How each client's report is read (premise 1). Services, tiers and revenue types are named by code. */
+export interface LayoutSeed {
+  sourceName: string;
+  aliases: string[];
+  meaning: 'work_date' | 'driver_code' | 'driver_name' | 'route_code' | 'quantity' | 'bonus' | 'other_revenue' | 'other_revenue_reason' | 'expected_pay' | 'ignore';
+  required: boolean;
+  service?: string;
+  tier?: string;
+  revenueType?: string;
+}
+
+export const REPORT_LAYOUTS: Record<string, LayoutSeed[]> = {
+  // Hovership sends POD Date, DriverCode, DriverNameCode, Tier 1–4, Stat, Stem, Stem Reason. Bonus,
+  // Total Route and Total Profit only exist in Aarisa's own workbook (the June 2026 sample).
+  hovership: [
+    { sourceName: 'POD Date', aliases: ['date', 'service date'], meaning: 'work_date', required: true },
+    { sourceName: 'DriverCode', aliases: ['code'], meaning: 'driver_code', required: true },
+    { sourceName: 'DriverNameCode', aliases: ['driver name', 'name'], meaning: 'driver_name', required: false },
+    { sourceName: 'Tier 1', aliases: ['t1'], meaning: 'quantity', required: true, service: 'hovership_packages', tier: 'T1' },
+    { sourceName: 'Tier 2', aliases: ['t2'], meaning: 'quantity', required: true, service: 'hovership_packages', tier: 'T2' },
+    { sourceName: 'Tier 3', aliases: ['t3'], meaning: 'quantity', required: true, service: 'hovership_packages', tier: 'T3' },
+    { sourceName: 'Tier 4', aliases: ['t4'], meaning: 'quantity', required: true, service: 'hovership_packages', tier: 'T4' },
+    { sourceName: 'Stat', aliases: ['stats', 'stat stops'], meaning: 'quantity', required: true, service: 'stat' },
+    { sourceName: 'Stem', aliases: [], meaning: 'other_revenue', required: true, revenueType: 'stem' },
+    { sourceName: 'Stem Reason', aliases: [], meaning: 'other_revenue_reason', required: false },
+    { sourceName: 'Bonus', aliases: [], meaning: 'bonus', required: false },
+    { sourceName: 'Total Route', aliases: [], meaning: 'expected_pay', required: false },
+    { sourceName: 'Total Profit', aliases: [], meaning: 'ignore', required: false },
+  ],
+  // T-Force sends Order Date, Paid Driver # (the route letter, not the driver) and Pieces.
+  tforce: [
+    { sourceName: 'Order Date', aliases: ['date'], meaning: 'work_date', required: true },
+    { sourceName: 'Paid Driver #', aliases: ['paid driver number', 'route'], meaning: 'route_code', required: true },
+    { sourceName: 'Pieces', aliases: ['pcs', 'piece count'], meaning: 'quantity', required: true, service: 'ecommerce' },
+  ],
+};

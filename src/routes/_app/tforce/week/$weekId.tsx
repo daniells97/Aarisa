@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
+import { z } from 'zod';
 import { Link, createFileRoute, notFound, useRouter } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, weekStart } from '~/domain/dates';
 import { getTforceWeek, uploadTforceReport } from '~/server/tforce-fns';
-import type { TforceImportOutcome } from '~/server/tforce';
+import type { ImportOutcome } from '~/server/imports';
 import { Button, Figures, Icon, ImportNotice, PageHead, Panel, ReadingSteps, RoutePlate, WarningDiamond, buttonClass, useFormat, useToast } from '~/ui';
 import { ExceptionCard, ResolvedList } from '~/ui/TforceExceptions';
 
@@ -13,7 +14,9 @@ export const Route = createFileRoute('/_app/tforce/week/$weekId')({
   beforeLoad: ({ params }) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(params.weekId) || weekStart(params.weekId) !== params.weekId) throw notFound();
   },
-  loader: ({ params }) => getTforceWeek({ data: { start: params.weekId } }),
+  validateSearch: z.object({ op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional() }),
+  loaderDeps: ({ search }) => ({ op: search.op }),
+  loader: ({ params, deps }) => getTforceWeek({ data: { start: params.weekId, operation: deps.op } }),
   component: WeeklyCheck,
 });
 
@@ -25,7 +28,7 @@ function WeeklyCheck() {
   const toast = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
   const [reading, setReading] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<TforceImportOutcome | null>(null);
+  const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
   const [pending, setPending] = useState<{ fileName: string; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastDay = week.days.at(-1)!;
@@ -36,7 +39,7 @@ function WeeklyCheck() {
   const send = async (file: { fileName: string; text: string }, columnOverride?: Record<string, string>) => {
     setError(null); setOutcome(null); setReading(file.fileName);
     try {
-      const res = await uploadTforceReport({ data: { ...file, columnOverride } });
+      const res = await uploadTforceReport({ data: { ...file, columnOverride, operation: week.operation.code } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       setOutcome(res.value);
       setPending(res.value.status === 'layout_changed' ? file : null);
@@ -68,13 +71,13 @@ function WeeklyCheck() {
   const approveReason = open.length ? (open.length === 1 ? t('wk.clearFirstOne') : t('wk.clearFirst', { count: open.length })) : undefined;
   return (
     <>
-      <PageHead title={t('wk.title')} lead={hasReport ? t('wk.lead', { range }) : t('wk.leadWaiting', { range })}
+      <PageHead title={t('wk.title')} lead={hasReport ? t('wk.lead', { range, client: week.operation.name }) : t('wk.leadWaiting', { range, client: week.operation.name })}
         actions={
           <div className="row" style={{ alignItems: 'flex-start' }}>
             <div className="week-nav">
-              <Link to="/tforce/week/$weekId" params={{ weekId: addDays(week.week.start, -7) }} aria-label={t('hs.prevWeek')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+              <Link to="/tforce/week/$weekId" params={{ weekId: addDays(week.week.start, -7) }} search={{ op: Route.useSearch().op }} aria-label={t('hs.prevWeek')}><Icon name="chevronLeft" width={18} height={18} /></Link>
               <span className="num">{f.date(week.week.start, { month: 'short', day: 'numeric' })}</span>
-              <Link to="/tforce/week/$weekId" params={{ weekId: addDays(week.week.start, 7) }} aria-label={t('hs.nextWeek')}><Icon name="chevronRight" width={18} height={18} /></Link>
+              <Link to="/tforce/week/$weekId" params={{ weekId: addDays(week.week.start, 7) }} search={{ op: Route.useSearch().op }} aria-label={t('hs.nextWeek')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
             {upload()}
             {hasReport && (approveReason
@@ -95,14 +98,14 @@ function WeeklyCheck() {
             {upload('hs.uploadOther')}
           </>}>
             {outcome.suggestions.map((s) => (
-              <p key={s.field} style={{ margin: 0 }}>{t('imp.layoutMissing', { column: s.field === 'route' ? 'Paid Driver #' : s.field })} {s.header ? t('imp.layoutSuggest', { header: s.header }) : t('imp.layoutNoSuggest')}</p>
+              <p key={s.field} style={{ margin: 0 }}>{t('imp.layoutMissing', { column: s.column })} {s.header ? t('imp.layoutSuggest', { header: s.header }) : t('imp.layoutNoSuggest')}</p>
             ))}
             <p className="muted" style={{ margin: 0 }}>{t('imp.nothingSaved')}</p>
           </ImportNotice>
         ) : outcome?.status === 'failed' ? (
           <ImportNotice title={t(`imp.failed.${outcome.reason}`, { dates: (outcome.dates ?? []).map((d) => f.date(d, { month: 'short', day: 'numeric' })).join(', ') })} actions={upload('hs.uploadOther')} />
         ) : !hasReport ? (
-          <ImportNotice tone="info" title={t('wk.waitingTitle', { range })} actions={upload('hs.uploadYourself', true)}>
+          <ImportNotice tone="info" title={t('wk.waitingTitle', { range, client: week.operation.name })} actions={upload('hs.uploadYourself', true)}>
             <p style={{ margin: 0 }}>{t('wk.waitingBody')}</p>
             {week.lastImportAt && <p className="muted" style={{ margin: 0 }}>{t('imp.lastArrived', { when: f.dateTime(week.lastImportAt) })}</p>}
           </ImportNotice>
@@ -139,7 +142,7 @@ function Grid({ week }: { week: Week }) {
     <Panel title={t('wk.gridTitle')} id="grid" aside={<span className="row muted" style={{ gap: 6, fontSize: 13.5 }}><span className="legend-flag" aria-hidden="true" />{t('wk.gridLegend')}</span>}>
       <div className="table-wrap">
         <table className="grid-table">
-          <caption className="visually-hidden">{t('wk.gridCaption')}</caption>
+          <caption className="visually-hidden">{t('wk.gridCaption', { client: week.operation.name })}</caption>
           <thead>
             <tr>
               <th scope="col">{t('wk.route')}</th><th scope="col">{t('wk.driver')}</th>

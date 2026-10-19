@@ -11,7 +11,7 @@ import { audit } from './audit';
 import { confirmUsual, loadDay, setAssignment, setUnknownName } from './daily';
 import { RuleError } from './errors';
 import { extraServices } from './extra-jobs';
-import { getOperation } from './ops';
+import { operationFor } from './ops';
 import { contractorProfiles, driverProfiles } from './people';
 import { seal, unseal } from './session';
 import { recheckForDate } from './tforce';
@@ -118,7 +118,7 @@ export async function applyDailyChanges(tx: Tx, input: z.infer<typeof dailyChang
     return { suggestionId: suggestion!.id, confirmedAll: 0, applied: [], unresolved: [{ route: '', name: null, reason: 'invalid_output' as const }] };
   }
 
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, undefined, 'daily_list');
   const routeRows = await tx.select().from(routes).where(eq(routes.operationId, op.id));
   const driverIds = new Set((await driverProfiles(tx, input.date)).filter((d) => d.active).map((d) => d.id));
   const contractorIds = new Set((await contractorProfiles(tx)).map((c) => c.id));
@@ -202,7 +202,7 @@ export async function loadExtraJobDraft(tx: Tx, actor: Actor, token: string) {
   if (s.status !== 'pending') throw new RuleError('draft_used');
   const out = extraJobOutput.safeParse(s.output);
   const msg = s.messageId ? (await tx.select().from(messages).where(eq(messages.id, s.messageId)))[0] : undefined;
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, undefined, 'daily_list');
   const route = out.success && out.data.near_route
     ? (await tx.select().from(routes).where(eq(routes.operationId, op.id))).find((r) => r.code.toUpperCase().endsWith(out.data.near_route!.toUpperCase()))
     : undefined;
@@ -237,7 +237,7 @@ export async function confirmExtraJobDraft(tx: Tx, actor: Actor, suggestionId: s
 
 /** What the AI needs to match names: routes, people with aliases, contractors, services. No money. */
 export async function aiContext(tx: Tx, date: string) {
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, undefined, 'daily_list');
   const day = await morningList(tx, date);
   const people = (await driverProfiles(tx, date)).filter((d) => d.active).map((d) => ({ id: d.id, name: d.fullName, aliases: d.aliases, contractorId: d.contractorId }));
   const companies = (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name }));

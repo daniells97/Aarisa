@@ -19,7 +19,7 @@ describe('settlements (server)', () => {
   it('each Hovership week becomes an expected invoice: Jun 15 to 21 is $8,567.00 (revenue plus STEM), due 21 days after', () =>
     withRollback(async (tx) => {
       const s = await hovership(tx);
-      const wk = s.lines.find((l) => l.kind === 'hovership_invoice' && l.periodStart === '2026-06-15')!;
+      const wk = s.lines.find((l) => l.kind === 'invoice' && l.periodStart === '2026-06-15')!;
       expect(wk).toMatchObject({ expectedCents: 7_792_00 + 775_00, expectedDate: '2026-07-12', status: 'open', receivedCents: 0 });
       const first = s.lines.find((l) => l.periodStart === '2026-06-01')!;
       expect(first).toMatchObject({ status: 'late', daysLate: 3 }); // due Jun 28

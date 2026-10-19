@@ -48,8 +48,8 @@ type RateRow = Setup['rates'][number];
 type Tier = Service['tiers'][number] | null;
 
 /** One rate line per service, or one per active tier when the service has tiers (premise 2). Report services first. */
-function rateKeys(services: Service[]) {
-  const order = (x: Service) => (x.operation === 'hovership' ? 0 : 1) * 10 + (x.fromReport ? 0 : 1);
+function rateKeys(services: Service[], operations: Setup['operations']) {
+  const order = (x: Service) => operations.findIndex((o) => o.code === x.operation) * 10 + (x.fromReport ? 0 : 1);
   return services
     .filter((x) => x.active)
     .sort((a, b) => order(a) - order(b) || (a.code === 'other' ? 1 : 0) - (b.code === 'other' ? 1 : 0) || a.name.localeCompare(b.name))
@@ -71,7 +71,7 @@ function RatesTab({ data }: { data: Setup }) {
   const opName = (code: string) => data.operations.find((o) => o.code === code)?.name ?? code;
   const label = (x: Service, tier: Tier) => (tier ? `${serviceLabel(x, locale)} · ${tier.name}` : serviceLabel(x, locale));
 
-  const rows = rateKeys(data.services).map(({ service, tier }) => {
+  const rows = rateKeys(data.services, data.operations).map(({ service, tier }) => {
     const all = data.rates.filter((r) => r.serviceCode === service.code && r.operation === service.operation && r.tierId === (tier?.id ?? null));
     return {
       service, tier,
@@ -412,17 +412,18 @@ function ServicesTab({ data }: { data: Setup }) {
           </tbody>
         </table>
       </div>
-      {editing && <ServiceDialog service={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && <ServiceDialog operations={data.operations} service={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </Panel>
   );
 }
 
-function ServiceDialog({ service, onClose }: { service: Service | null; onClose: () => void }) {
+function ServiceDialog({ operations, service, onClose }: { operations: Setup['operations']; service: Service | null; onClose: () => void }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [form, setForm] = useState({
-    operation: (service?.operation ?? 'tforce') as 'tforce' | 'hovership',
+    // Extra-job services live with a daily-list contract (T-Force first).
+    operation: service?.operation ?? operations.find((o) => o.driverSource === 'daily_list')?.code ?? operations[0]?.code ?? '',
     name: service?.name ?? '', nameEs: service?.nameEs ?? '',
     requiresOrderNumber: service?.requiresOrderNumber ?? false, requiresNote: service?.requiresNote ?? false,
     active: service?.active ?? true,
@@ -454,8 +455,8 @@ function ServiceDialog({ service, onClose }: { service: Service | null; onClose:
       <form onSubmit={submit} className="stack">
         {!service && (
           <>
-            <SelectField label={t('rates.client')} value={form.operation} onChange={(e) => set('operation', e.target.value as 'tforce' | 'hovership')}>
-              <option value="tforce">T-Force</option><option value="hovership">Hovership</option>
+            <SelectField label={t('rates.client')} value={form.operation} onChange={(e) => set('operation', e.target.value)}>
+              {operations.map((o) => <option key={o.code} value={o.code}>{o.name}</option>)}
             </SelectField>
             <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('services.newHint')}</p>
           </>

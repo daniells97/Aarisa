@@ -27,7 +27,7 @@ describe('route executions (stage 3 of the redesign)', () => {
     const csv = TFORCE_CSV.split('\n').filter((l, i) => i === 0 || l.includes('9000Z')).join('\n').replaceAll('2026-06', '2027-03');
     await importTforce(tx, owner, { fileName: 'z.csv', text: csv });
     const [day] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.routeId, z!.id), eq(routeExecutions.date, '2027-03-17')));
-    expect(day).toMatchObject({ status: 'no_driver', payeeId: null, source: 'tforce_report' });
+    expect(day).toMatchObject({ status: 'no_driver', payeeId: null, source: 'client_report' });
     const [before] = await tx.select().from(workRecords).where(eq(workRecords.executionId, day!.id));
 
     const marcus = await driverNamed(tx, 'Marcus Dub');

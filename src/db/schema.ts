@@ -24,9 +24,8 @@ export const rateSideEnum = core.enum('rate_side', ['client', 'payee']);
 export const adjustmentClassEnum = core.enum('adjustment_class', ['bonus', 'goal_top_up', 'correction', 'deduction']);
 export const adjustmentSourceEnum = core.enum('adjustment_source', ['manual', 'rule', 'goal']);
 export const adjustmentStatusEnum = core.enum('adjustment_status', ['proposed', 'confirmed', 'rejected']);
-export const sourceEnum = core.enum('source', [
-  'hovership_report', 'tforce_report', 'daily_list', 'extra_job', 'manual', 'whatsapp', 'system',
-]);
+// Where a row came from. `client_report` is any client's report; the operation says which client.
+export const sourceEnum = core.enum('source', ['client_report', 'daily_list', 'extra_job', 'manual', 'whatsapp', 'system']);
 // Who or what made a change, for the audit log (CLAUDE.md rule 4).
 export const auditSourceEnum = core.enum('audit_source', ['portal', 'whatsapp', 'email-import', 'system']);
 export const importStatusEnum = core.enum('import_status', [
@@ -45,9 +44,9 @@ export const resolutionEnum = core.enum('resolution', [
   'assigned_driver', 'not_ours', 'pay_as_reported', 'ask_client', 'rate_added', 'accepted',
 ]);
 export const runStatusEnum = core.enum('run_status', ['draft', 'ready', 'approved', 'reopened', 'paid']);
-export const settlementKindEnum = core.enum('settlement_kind', [
-  'hovership_invoice', 'tforce_weekly', 'extra_job', 'claim_adjustment',
-]);
+// What a client is expected to pay: Aarisa's weekly invoice, the client's weekly statement, an extra job,
+// or a claim. Each contract says which weekly kind it uses.
+export const settlementKindEnum = core.enum('settlement_kind', ['invoice', 'weekly_statement', 'extra_job', 'claim_adjustment']);
 export const settlementStatusEnum = core.enum('settlement_status', [
   'open', 'paid', 'short', 'late', 'claim_ready', 'claimed',
 ]);
@@ -115,11 +114,15 @@ export const operations = core.table('operations', {
   paymentTermsDays: integer('payment_terms_days').notNull(), // hovership ~21, tforce 30
   blocksPayrollOnExceptions: boolean('blocks_payroll_on_exceptions').notNull().default(true), // rule 6
   lowQuantityThresholdBp: integer('low_quantity_threshold_bp').notNull().default(1000), // under 10% of the route median
+  weeklySettlementKind: settlementKindEnum('weekly_settlement_kind').notNull().default('weekly_statement'),
   startDate: date('start_date'),
   endDate: date('end_date'),
   active: boolean('is_active').notNull().default(true),
   createdAt: createdAt(), updatedAt: updatedAt(),
-}, (t) => [check('operations_threshold', sql`${t.lowQuantityThresholdBp} between 0 and 10000`)]);
+}, (t) => [
+  check('operations_threshold', sql`${t.lowQuantityThresholdBp} between 0 and 10000`),
+  check('operations_weekly_kind', sql`${t.weeklySettlementKind} in ('invoice', 'weekly_statement')`),
+]);
 
 // ---------- payees: everyone Aarisa pays (docs/db-model.md §2.3) ----------
 export const payeeTypeEnum = core.enum('payee_type', ['driver', 'contractor']);
@@ -295,6 +298,50 @@ export const reportImports = core.table('report_imports', {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('import_file_once').on(t.operationId, t.fileSha256)]);
 
+// How a client's report is read (premise 1): one active layout per operation, and what each column means.
+export const columnMeaningEnum = core.enum('column_meaning', [
+  'work_date', 'driver_code', 'driver_name', 'route_code', 'quantity', 'bonus', 'other_revenue', 'other_revenue_reason', 'expected_pay', 'ignore',
+]);
+
+export const reportLayouts = core.table('report_layouts', {
+  id: id('report_layout_id'),
+  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  name: text('layout_name').notNull(),
+  headerRow: integer('header_row').notNull().default(1),
+  active: boolean('is_active').notNull().default(true),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('report_layouts_one_active').on(t.operationId).where(sql`${t.active}`)]);
+
+export const reportLayoutColumns = core.table('report_layout_columns', {
+  id: id('report_layout_column_id'),
+  layoutId: uuid('report_layout_id').notNull().references(() => reportLayouts.id),
+  sourceName: text('source_column_name').notNull(), // as the client writes it: "Tier 1", "Paid Driver #"
+  aliases: text('aliases').array().notNull().default(sql`'{}'::text[]`), // other ways the same column has arrived
+  meaning: columnMeaningEnum('column_meaning').notNull(),
+  serviceTypeId: uuid('service_type_id').references(() => serviceTypes.id),
+  tierId: uuid('service_tier_id').references(() => serviceTiers.id),
+  revenueTypeId: uuid('revenue_type_id').references(() => revenueTypes.id),
+  required: boolean('is_required').notNull().default(false),
+  sortOrder: integer('sort_order').notNull().default(0),
+}, (t) => [
+  uniqueIndex('report_layout_columns_name').on(t.layoutId, t.sourceName),
+  check('report_layout_columns_quantity', sql`${t.meaning} <> 'quantity' or ${t.serviceTypeId} is not null`),
+  check('report_layout_columns_revenue', sql`${t.meaning} <> 'other_revenue' or ${t.revenueTypeId} is not null`),
+]);
+
+// Every row of an imported file as it arrived (stage 6b), so a record can be traced to its line.
+export const rowStatusEnum = core.enum('row_status', ['ok', 'warning', 'error', 'ignored']);
+export const reportImportRows = core.table('report_import_rows', {
+  id: id('report_import_row_id'),
+  importId: uuid('report_import_id').notNull().references(() => reportImports.id),
+  rowNumber: integer('row_number').notNull(),
+  rawData: jsonb('raw_data').notNull(),
+  status: rowStatusEnum('row_status').notNull().default('ok'),
+  problemCode: text('problem_code'),
+  problemText: text('problem_text'),
+}, (t) => [uniqueIndex('report_import_rows_line').on(t.importId, t.rowNumber)]);
+
 // One payee, one day, one route (or none) for one operation: the "execution" (docs/db-model.md §2.6).
 // T-Force executions come from the daily list (one per route and day); Hovership executions from the
 // report (one per driver and day, no route); extra jobs hang from an `extra` execution per payee and day,
@@ -360,6 +407,7 @@ export const workRecords = core.table('work_records', {
   revenueCents: cents('revenue_cents'),
   source: sourceEnum('record_source').notNull(),
   importId: uuid('report_import_id').references(() => reportImports.id),
+  importRowId: uuid('report_import_row_id').references(() => reportImportRows.id),
   extraJobId: uuid('extra_job_id').unique().references(() => extraJobs.id),
   payrollRunId: uuid('payroll_run_id').references(() => payrollRuns.id),
   settlementLineId: uuid('settlement_line_id').references(() => settlementLines.id),
@@ -589,6 +637,7 @@ export const auditLog = core.table('audit_log', {
   after: jsonb('after_data'),
   userId: uuid('user_id').references(() => users.id),
   source: auditSourceEnum('audit_source').notNull(),
+  aiSuggestionId: uuid('ai_suggestion_id').references(() => aiSuggestions.id), // the WhatsApp suggestion behind the change
   at: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('audit_record').on(t.tableName, t.recordId)]);
 

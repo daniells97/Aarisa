@@ -13,9 +13,9 @@ export const Route = createFileRoute('/_app')({
 });
 
 function AppLayout() {
-  const { user } = Route.useRouteContext();
+  const { user, session } = Route.useRouteContext();
   return (
-    <AppShell user={user}>
+    <AppShell user={user} operations={session.operations}>
       <Outlet />
     </AppShell>
   );

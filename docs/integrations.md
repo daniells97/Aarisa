@@ -13,7 +13,7 @@ Authenticated with a service token stored in Infisical (`N8N_SERVICE_TOKEN`), se
 
 | Method and path | Used by | Does |
 |---|---|---|
-| `POST /api/integrations/imports` | report ingest | Receives a file + operation; starts the import (§6.12 states) |
+| `POST /api/integrations/imports` | report ingest | Receives a file + operation code (`hovership`, `tforce`, or any contract added in Drivers and rates, Clients); reads it with that contract's saved report layout (§6.12 states) |
 | `GET /api/integrations/morning-list?date=` | morning list | Routes with proposed drivers for that date |
 | `POST /api/integrations/daily-changes` | WhatsApp inbound | Applies AI-parsed changes; returns applied and unresolved items |
 | `POST /api/integrations/extra-job-drafts` | WhatsApp inbound | Stores an AI draft; returns a short-lived signed link to the pre-filled form |

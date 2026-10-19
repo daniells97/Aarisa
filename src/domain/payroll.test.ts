@@ -1,15 +1,14 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { parseHovership } from '~/integrations/hovership';
+import { hovershipSampleRows } from '../../tests/helpers/hovership-sample';
 import { hovershipSummary, type RateFn } from './hovership';
 import { buildPayroll, payrollCsv } from './payroll';
 
-const parsed = parseHovership(readFileSync(new URL('../../docs/seed/hovership_details_jun2026.csv', import.meta.url), 'utf8'));
+const sample = hovershipSampleRows();
 const RATES = { t1_3: [300, 250], t4: [200, 175], stat: [1000, 500] } as const;
 const rate: RateFn = (item) => ({ ok: true, rateId: item, clientRateId: item, clientCents: RATES[item as keyof typeof RATES][0], driverCents: RATES[item as keyof typeof RATES][1], effectiveFrom: '2026-06-01' });
 
 function run(from: string, to: string, extra: Partial<Parameters<typeof buildPayroll>[0]> = {}) {
-  const rows = parsed.kind === 'ok' ? parsed.rows.filter((r) => r.date >= from && r.date <= to) : [];
+  const rows = sample.filter((r) => r.date >= from && r.date <= to);
   const { days } = hovershipSummary(rows.map((r) => ({ date: r.date, driverId: r.driverCode, t13: r.t1 + r.t2 + r.t3, t4: r.t4, stat: r.stat, bonusCents: r.bonusCents })), 0, rate);
   return buildPayroll({
     days, otherRevenueCents: rows.reduce((s, r) => s + r.stemCents, 0),

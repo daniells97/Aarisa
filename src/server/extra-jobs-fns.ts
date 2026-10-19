@@ -7,12 +7,16 @@ import { confirmExtraJobDraft, loadExtraJobDraft } from './integrations';
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const uuid = z.string().uuid();
 const cents = z.number().int().min(0).max(100_000_00);
+// Any contract whose drivers come from the daily list; omitted = the first one (T-Force).
+const operation = z.string().regex(/^[a-z0-9_]{1,40}$/).optional();
 
 export const getExtraJobs = createServerFn({ method: 'GET' })
-  .validator(z.object({ from: isoDate, to: isoDate }))
-  .handler(({ data }) => read('payroll.view', (tx, actor) => listExtraJobs(tx, actor, data.from, data.to)));
+  .validator(z.object({ from: isoDate, to: isoDate, operation }))
+  .handler(({ data }) => read('payroll.view', (tx, actor) => listExtraJobs(tx, actor, data.from, data.to, data.operation)));
 
-export const getExtraJobOptions = createServerFn({ method: 'GET' }).handler(() => read('extra_jobs.log', (tx, actor) => extraJobOptions(tx, actor)));
+export const getExtraJobOptions = createServerFn({ method: 'GET' })
+  .validator(z.object({ operation }).optional())
+  .handler(({ data }) => read('extra_jobs.log', (tx, actor) => extraJobOptions(tx, actor, undefined, data?.operation)));
 
 export const saveExtraJob = createServerFn({ method: 'POST' })
   .validator(z.object({
@@ -20,6 +24,7 @@ export const saveExtraJob = createServerFn({ method: 'POST' })
     payee: z.union([z.object({ driverId: uuid }), z.object({ contractorId: uuid })]),
     clientAmountCents: cents.nullable(), driverAmountCents: cents, orderNumber: z.string().max(60).nullable(), note: z.string().max(500).nullable(),
     aiSuggestionId: uuid.nullable().optional(),
+    operation,
   }))
   .handler(({ data }) => run('extra_jobs.log', async (tx, actor) => {
     const { job, created } = await createExtraJob(tx, actor, data);

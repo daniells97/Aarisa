@@ -71,6 +71,13 @@
       "when": 1792413554340,
       "tag": "0009_clients_and_contract_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792414969178,
+      "tag": "0010_generic_reports_and_raw_rows",
+      "breakpoints": true
     }
   ]
 }

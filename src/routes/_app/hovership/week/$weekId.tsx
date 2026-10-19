@@ -1,10 +1,11 @@
 import { Fragment, useRef, useState } from 'react';
+import { z } from 'zod';
 import { Link, createFileRoute, notFound, useRouter } from '@tanstack/react-router';
-import { useT, type MessageKey } from '~/i18n';
+import { useLocale, useT, type MessageKey } from '~/i18n';
 import { addDays, weekStart } from '~/domain/dates';
 import { classifyStem, getHovershipWeek, resolveHovershipCode, saveBonus, uploadHovershipReport } from '~/server/hovership-fns';
 import { getSetup } from '~/server/setup-fns';
-import type { ImportOutcome } from '~/server/hovership';
+import type { ImportOutcome } from '~/server/imports';
 import {
   Button, Figures, Icon, ImportNotice, PageHead, Panel, ReadingSteps, SelectField, TextField, WarningDiamond,
   buttonClass, centsToInput, parseAmount, useFormat, useToast,
@@ -16,7 +17,9 @@ export const Route = createFileRoute('/_app/hovership/week/$weekId')({
   beforeLoad: ({ params }) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(params.weekId) || weekStart(params.weekId) !== params.weekId) throw notFound();
   },
-  loader: ({ params }) => getHovershipWeek({ data: { start: params.weekId } }),
+  validateSearch: z.object({ op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional() }),
+  loaderDeps: ({ search }) => ({ op: search.op }),
+  loader: ({ params, deps }) => getHovershipWeek({ data: { start: params.weekId, operation: deps.op } }),
   component: HovershipWeek,
 });
 
@@ -42,7 +45,7 @@ function HovershipWeek() {
     setOutcome(null);
     setReading(file.fileName);
     try {
-      const res = await uploadHovershipReport({ data: { ...file, columnOverride } });
+      const res = await uploadHovershipReport({ data: { ...file, columnOverride, operation: week.operation.code } });
       if (!res.ok) return setUploadError(t(`error.${res.code}` as MessageKey));
       setOutcome(res.value);
       setPending(res.value.status === 'layout_changed' ? file : null);
@@ -73,7 +76,7 @@ function HovershipWeek() {
   return (
     <>
       <PageHead
-        title={t('hs.title')}
+        title={t('hs.title', { client: week.operation.name })}
         lead={t('hs.lead', { range, which, period: f.date(week.period.start, { month: 'long', day: 'numeric' }) })}
         actions={
           <div className="row">
@@ -96,7 +99,7 @@ function HovershipWeek() {
         <p className="notice" role="alert" style={{ margin: 0 }}><WarningDiamond size={22} />{t('hs.missingRates', { count: week.missingRates })}</p>
       )}
       {week.stemToReview.length > 0 && <StemReview week={week} />}
-      {week.drivers.length > 0 ? <DriversTable week={week} /> : !reading && week.importState && <Panel><p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('hs.noData')}</p></Panel>}
+      {week.drivers.length > 0 ? <DriversTable week={week} /> : !reading && week.importState && <Panel><p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('hs.noData', { client: week.operation.name })}</p></Panel>}
       {week.drivers.length > 0 && (
         <div className="grid-2" style={{ alignItems: 'start' }}>
           {week.showMoney && <LostMoney week={week} />}
@@ -175,9 +178,9 @@ function WeekNav({ start }: { start: string }) {
   const f = useFormat();
   return (
     <div className="week-nav">
-      <Link to="/hovership/week/$weekId" params={{ weekId: addDays(start, -7) }} aria-label={t('hs.prevWeek')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+      <Link to="/hovership/week/$weekId" params={{ weekId: addDays(start, -7) }} search={{ op: Route.useSearch().op }} aria-label={t('hs.prevWeek')}><Icon name="chevronLeft" width={18} height={18} /></Link>
       <span className="num">{f.date(start, { month: 'short', day: 'numeric' })}</span>
-      <Link to="/hovership/week/$weekId" params={{ weekId: addDays(start, 7) }} aria-label={t('hs.nextWeek')}><Icon name="chevronRight" width={18} height={18} /></Link>
+      <Link to="/hovership/week/$weekId" params={{ weekId: addDays(start, 7) }} search={{ op: Route.useSearch().op }} aria-label={t('hs.nextWeek')}><Icon name="chevronRight" width={18} height={18} /></Link>
     </div>
   );
 }
@@ -207,7 +210,7 @@ function ImportState({ week, range, reading, outcome, onUseColumn, uploadButton 
       </>}>
         {outcome.suggestions.map((s) => (
           <p key={s.field} style={{ margin: 0 }}>
-            {t('imp.layoutMissing', { column: s.field })} {s.header ? t('imp.layoutSuggest', { header: s.header }) : t('imp.layoutNoSuggest')}
+            {t('imp.layoutMissing', { column: s.column })} {s.header ? t('imp.layoutSuggest', { header: s.header }) : t('imp.layoutNoSuggest')}
           </p>
         ))}
         <p className="muted" style={{ margin: 0 }}>{t('imp.nothingSaved')}</p>
@@ -217,7 +220,7 @@ function ImportState({ week, range, reading, outcome, onUseColumn, uploadButton 
 
   if (!week.importState && week.drivers.length === 0) {
     return (
-      <ImportNotice tone="info" title={t('imp.waitingTitle', { range })} actions={uploadButton('hs.uploadYourself', true)}>
+      <ImportNotice tone="info" title={t('imp.waitingTitle', { range, client: week.operation.name })} actions={uploadButton('hs.uploadYourself', true)}>
         <p style={{ margin: 0 }}>{t('imp.waitingBody')}</p>
         {week.lastImportAt && <p className="muted" style={{ margin: 0 }}>{t('imp.lastArrived', { when: f.dateTime(week.lastImportAt) })}</p>}
       </ImportNotice>
@@ -318,9 +321,9 @@ function WeekFigures({ week }: { week: Week }) {
   return (
     <Panel>
       <Figures items={[
-        { label: t('hs.tier13'), value: f.number(x.t13 ?? 0) },
-        { label: t('hs.tier4'), value: f.number(x.t4 ?? 0) },
-        { label: t('hs.stat'), value: f.number(x.stat ?? 0) },
+        { label: t(week.shows.tiers ? 'hs.tier13' : 'hs.packages'), value: f.number(x.t13 ?? 0) },
+        ...(week.shows.tier4 ? [{ label: t('hs.tier4'), value: f.number(x.t4 ?? 0) }] : []),
+        ...(week.shows.stops ? [{ label: t('hs.stat'), value: f.number(x.stat ?? 0) }] : []),
         { label: t('hs.bonuses'), value: f.money(x.bonusCents) },
         week.showMoney
           ? { label: t('hs.profit'), value: <span className={(x.operationProfitCents ?? 0) < 0 ? 'neg' : undefined}>{f.money(x.operationProfitCents)}</span>, note: t('hs.profitNote', { stem: f.money(x.stemCents) }) }
@@ -345,7 +348,7 @@ function DriversTable({ week }: { week: Week }) {
           <thead>
             <tr>
               <th scope="col">{t('hs.driver')}</th><th scope="col" className="r">{t('hs.days')}</th>
-              <th scope="col" className="r">{t('hs.t13')}</th><th scope="col" className="r">{t('hs.t4')}</th><th scope="col" className="r">{t('hs.statCol')}</th>
+              <th scope="col" className="r">{t(week.shows.tiers ? 'hs.t13' : 'hs.packages')}</th>{week.shows.tier4 && <th scope="col" className="r">{t('hs.t4')}</th>}{week.shows.stops && <th scope="col" className="r">{t('hs.statCol')}</th>}
               <th scope="col" className="r">{t('hs.routePay')}</th><th scope="col" className="r">{t('hs.bonus')}</th>
               <th scope="col" className="r">{t('hs.driverTotal')}</th>{money && <th scope="col" className="r">{t('hs.margin')}</th>}
             </tr>
@@ -364,7 +367,7 @@ function DriversTable({ week }: { week: Week }) {
                       </button>
                     </td>
                     <td className="r num">{d.days.length}</td>
-                    <td className="r num">{f.number(d.t13 ?? 0)}</td><td className="r num">{f.number(d.t4 ?? 0)}</td><td className="r num">{f.number(d.stat ?? 0)}</td>
+                    <td className="r num">{f.number(d.t13 ?? 0)}</td>{week.shows.tier4 && <td className="r num">{f.number(d.t4 ?? 0)}</td>}{week.shows.stops && <td className="r num">{f.number(d.stat ?? 0)}</td>}
                     <td className="r num">{f.money(d.routePayCents)}</td><td className="r num">{f.money(d.bonusCents)}</td>
                     <td className="r num"><strong>{f.money(d.driverPayCents)}</strong></td>
                     {money && <td className={`r num${(d.marginCents ?? 0) < 0 ? ' neg' : ''}`}>{f.money(d.marginCents)}</td>}
@@ -373,11 +376,11 @@ function DriversTable({ week }: { week: Week }) {
                     <tr key={day.date} className="day-row">
                       <td style={{ paddingLeft: 44 }}>{f.date(day.date, { weekday: 'short', month: 'short', day: 'numeric' })}</td>
                       <td />
-                      <td className="r num">{day.t13}</td><td className="r num">{day.t4}</td><td className="r num">{day.stat}</td>
+                      <td className="r num">{day.t13}</td>{week.shows.tier4 && <td className="r num">{day.t4}</td>}{week.shows.stops && <td className="r num">{day.stat}</td>}
                       <td className="r num">{f.money(day.routePayCents)}</td>
                       <td className="r">
                         {week.canEditBonus
-                          ? <BonusInput driverId={d.driverId} name={d.name} date={day.date} cents={day.bonusCents ?? 0} />
+                          ? <BonusInput operation={week.operation.code} driverId={d.driverId} name={d.name} date={day.date} cents={day.bonusCents ?? 0} />
                           : <span className="num">{f.money(day.bonusCents)}</span>}
                       </td>
                       <td className="r num">{f.money(day.driverPayCents)}</td>
@@ -389,7 +392,7 @@ function DriversTable({ week }: { week: Week }) {
             })}
             <tr className="total-row">
               <td>{t('hs.total')}</td><td className="r num">{x.rows}</td>
-              <td className="r num">{f.number(x.t13 ?? 0)}</td><td className="r num">{f.number(x.t4 ?? 0)}</td><td className="r num">{f.number(x.stat ?? 0)}</td>
+              <td className="r num">{f.number(x.t13 ?? 0)}</td>{week.shows.tier4 && <td className="r num">{f.number(x.t4 ?? 0)}</td>}{week.shows.stops && <td className="r num">{f.number(x.stat ?? 0)}</td>}
               <td className="r num">{f.money(x.routePayCents)}</td><td className="r num">{f.money(x.bonusCents)}</td>
               <td className="r num">{f.money(x.driverPayCents)}</td>
               {money && <td className={`r num${(x.marginSumCents ?? 0) < 0 ? ' neg' : ''}`}>{f.money(x.marginSumCents)}</td>}
@@ -401,7 +404,7 @@ function DriversTable({ week }: { week: Week }) {
   );
 }
 
-function BonusInput({ driverId, name, date, cents }: { driverId: string; name: string; date: string; cents: number }) {
+function BonusInput({ operation, driverId, name, date, cents }: { operation: string; driverId: string; name: string; date: string; cents: number }) {
   const t = useT();
   const f = useFormat();
   const router = useRouter();
@@ -414,11 +417,11 @@ function BonusInput({ driverId, name, date, cents }: { driverId: string; name: s
     setError(false);
     const next = parsed ?? 0;
     if (next === cents) return;
-    const res = await saveBonus({ data: { driverId, date, bonusCents: next } });
+    const res = await saveBonus({ data: { driverId, date, bonusCents: next, operation } });
     if (!res.ok) { toast(t(`error.${res.code}` as MessageKey)); setValue(centsToInput(cents)); return; }
     const dateLabel = f.date(date, { month: 'short', day: 'numeric' });
     toast(t('hs.bonusSaved', { name, date: dateLabel, amount: f.money(next) }), async () => {
-      await saveBonus({ data: { driverId, date, bonusCents: cents } });
+      await saveBonus({ data: { driverId, date, bonusCents: cents, operation } });
       setValue(centsToInput(cents));
       await router.invalidate();
     });
@@ -469,7 +472,7 @@ function LostMoney({ week }: { week: Week }) {
 function RatesUsed({ week }: { week: Week }) {
   const t = useT();
   const f = useFormat();
-  const label: Record<string, MessageKey> = { t1_3: 'hs.tier13', t4: 'hs.tier4', stat: 'hs.stat' };
+  const locale = useLocale();
   return (
     <Panel title={t('hs.ratesTitle')} id="rates" aside={<Link to="/settings/rates">{t('hs.editRates')}</Link>}>
       <table>
@@ -477,7 +480,7 @@ function RatesUsed({ week }: { week: Week }) {
         <tbody>
           {week.rates.map((r) => (
             <tr key={r.item}>
-              <td>{t(label[r.item]!)}</td>
+              <td>{r.tier ?? (locale === 'es' && r.serviceEs ? r.serviceEs : r.service)}</td>
               {week.showMoney && <td className="r num">{r.missing ? t('hs.missing') : f.money(r.clientCents)}</td>}
               <td className="r num">{r.missing ? <span className="row" style={{ justifyContent: 'flex-end', gap: 6 }}><WarningDiamond size={18} />{t('hs.missing')}</span> : f.money(r.driverCents)}</td>
             </tr>

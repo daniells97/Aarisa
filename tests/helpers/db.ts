@@ -25,7 +25,7 @@ export const ALL_ROLES: Role[] = ['owner', 'dispatcher', 'finance', 'viewer'];
 import { readFileSync } from 'node:fs';
 import { eq } from 'drizzle-orm';
 import { and, inArray } from 'drizzle-orm';
-import { claims, exceptions, payAdjustments, otherRevenues, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImports, routeExecutions, settlementLines, workRecords } from '~/db/schema';
+import { claims, exceptions, payAdjustments, otherRevenues, operations, paymentAllocations, paymentsReceived, payPeriods, payrollLines, payrollRuns, reportImportRows, reportImports, routeExecutions, settlementLines, workRecords } from '~/db/schema';
 
 /** Work records and pay adjustments of an operation (they hang from its executions). */
 async function clearWork(tx: Tx, operationId: string) {
@@ -52,6 +52,7 @@ export async function clearHovership(tx: Tx) {
   await clearSettlements(tx, op!.id);
   await tx.delete(routeExecutions).where(eq(routeExecutions.operationId, op!.id));
   await tx.delete(otherRevenues).where(eq(otherRevenues.operationId, op!.id));
+  await tx.delete(reportImportRows).where(inArray(reportImportRows.importId, tx.select({ id: reportImports.id }).from(reportImports).where(eq(reportImports.operationId, op!.id))));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;
 }
@@ -73,8 +74,9 @@ export async function clearTforceReports(tx: Tx) {
   await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
   await clearSettlements(tx, op!.id);
   // Days only the report knew about go; the daily list stays (it may still point at the import it fixed).
-  await tx.delete(routeExecutions).where(and(eq(routeExecutions.operationId, op!.id), eq(routeExecutions.source, 'tforce_report')));
+  await tx.delete(routeExecutions).where(and(eq(routeExecutions.operationId, op!.id), eq(routeExecutions.source, 'client_report')));
   await tx.update(routeExecutions).set({ importId: null }).where(eq(routeExecutions.operationId, op!.id));
+  await tx.delete(reportImportRows).where(inArray(reportImportRows.importId, tx.select({ id: reportImports.id }).from(reportImports).where(eq(reportImports.operationId, op!.id))));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;
 }

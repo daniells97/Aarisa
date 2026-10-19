@@ -2,55 +2,48 @@ import { and, desc, eq, gte, inArray, lte, getViewSelectedFields } from 'drizzle
 import type { Tx } from '~/db/client';
 import { aiSuggestions, claims, extraJobView, operations, paymentAllocations, paymentsReceived, payrollRuns, routes, serviceTypes, settlementLines, workView } from '~/db/schema';
 import { addDays, weekStart } from '~/domain/dates';
-import { valueDay } from '~/domain/hovership';
 import { can } from '~/domain/permissions';
-import { rateFor } from '~/domain/rates';
 import { settlementStatus, settlementSummary, type SettlementStatus } from '~/domain/settlements';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
-import { loadHovershipDays } from './hovership';
-import { getOperation, hovershipRateFn, rateRows as rateRowsOf, serviceIds } from './ops';
+import { getOperation, type Operation } from './ops';
+import { otherRevenueTotal } from './revenue';
+import { clientRate, valuationContext } from './valuation';
 import { payeeNameMaps } from './people';
 
 // Settlements (spec §5.6, 6.9): what each client is expected to pay, what arrived, what is late,
 // and claims for money paid out to drivers but left out by the client.
 
-type Op = Awaited<ReturnType<typeof getOperation>>;
-
-/** Expected weekly amount: Hovership invoice (packages, stat and STEM); T-Force e-commerce pieces. Null when a rate is missing. */
-async function weeklyExpected(tx: Tx, op: Op, start: string, end: string): Promise<number | null> {
-  if (op.code === 'hovership') {
-    const { fn: rate, ids } = await hovershipRateFn(tx, op.id);
-    const { days, stemCents } = await loadHovershipDays(tx, op.id, ids, start, end);
-    const valued = days.map((d) => valueDay(d, rate));
-    if (valued.some((v) => v.missing.length)) return null;
-    return valued.reduce((s, v) => s + v.revenueCents, 0) + stemCents;
-  }
-  const ids = await serviceIds(tx, op.id);
-  const rateRows = await rateRowsOf(tx, [ids.ecommerce!]);
-  const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'tforce_report'), gte(workView.date, start), lte(workView.date, end)));
+/**
+ * Expected weekly amount for any client: its reported work × the client rate valid on each day, plus its
+ * other revenue (Hovership's STEM). Work with no payee (not our route) isn't billed. Null when a client
+ * rate is missing, so the line shows "amount unknown" instead of a wrong number.
+ */
+async function weeklyExpected(tx: Tx, op: Operation, start: string, end: string): Promise<number | null> {
+  const ctx = await valuationContext(tx, op.id);
+  const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'client_report'), gte(workView.date, start), lte(workView.date, end)));
   let total = 0;
   for (const w of records) {
-    if (!w.driverId && !w.contractorId) continue; // not our route: not billed
-    const r = rateFor(rateRows, ids.ecommerce!, null, w.payeeId, w.date);
-    if (!r.ok || r.clientCents == null) return null;
-    total += w.pieces * r.clientCents;
+    if (!w.payeeId) continue;
+    const cents = clientRate(ctx, w.serviceTypeId, w.tierId, w.date);
+    if (cents == null) return null;
+    total += w.pieces * cents;
   }
-  return total;
+  return total + await otherRevenueTotal(tx, op.id, start, end);
 }
 
 /**
- * Creates or updates the weekly expected line for each week that has report work.
- * Runs after a report import, a rate change or a weekly-check resolution. Paid lines are not touched.
+ * Creates or updates the weekly expected line for each week that has report work, with the kind the
+ * contract uses (Aarisa's invoice or the client's statement). Runs after a report import, a rate change
+ * or a weekly-check resolution. Paid lines are not touched.
  */
-export async function refreshWeeklyLines(tx: Tx, actor: Actor, code: 'hovership' | 'tforce', weekStarts?: string[]) {
+export async function refreshWeeklyLines(tx: Tx, actor: Actor, code: string, weekStarts?: string[]) {
   const op = await getOperation(tx, code);
-  const kind = code === 'hovership' ? 'hovership_invoice' as const : 'tforce_weekly' as const;
-  const source = code === 'hovership' ? 'hovership_report' as const : 'tforce_report' as const;
+  const kind = op.weeklySettlementKind;
   let weeks = weekStarts;
   if (!weeks) {
-    const dates = await tx.selectDistinct({ date: workView.date }).from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, source)));
+    const dates = await tx.selectDistinct({ date: workView.date }).from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'client_report')));
     weeks = [...new Set(dates.map((d) => weekStart(d.date)))];
   }
   const trail: AuditEntry[] = [];
@@ -98,7 +91,7 @@ async function paidOutLines(tx: Tx, lines: (typeof settlementLines.$inferSelect)
   return out;
 }
 
-export async function loadSettlements(tx: Tx, actor: Actor, today: string, filter: 'all' | 'hovership' | 'tforce' = 'all') {
+export async function loadSettlements(tx: Tx, actor: Actor, today: string, filter: string = 'all') {
   assertCan(actor, 'money.view');
   const ops = await tx.select().from(operations);
   const opCode = new Map(ops.map((o) => [o.id, o.code]));
@@ -143,12 +136,13 @@ export async function loadSettlements(tx: Tx, actor: Actor, today: string, filte
   );
   return {
     today, filter, canRecord: can(actor.role, 'settlements.record'), lines: view, summary, previousMonth: prevMonthStart,
+    clients: ops.filter((o) => o.active).map((o) => ({ code: o.code, name: o.name })),
     payments: payments.filter((p) => filter === 'all' || opCode.get(p.operationId) === filter).map((p) => ({ id: p.id, operation: opCode.get(p.operationId)!, receivedOn: p.receivedOn, amountCents: p.amountCents, method: p.method, reference: p.reference, note: p.note })),
   };
 }
 
 export interface PaymentInput {
-  operation: 'hovership' | 'tforce';
+  operation: string;
   receivedOn: string;
   amountCents: number;
   method: string | null;

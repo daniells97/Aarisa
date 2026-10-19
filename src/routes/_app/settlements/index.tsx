@@ -11,7 +11,7 @@ import { useClientName } from '~/ui/ClientNames';
 type Data = Awaited<ReturnType<typeof getSettlements>>;
 type Line = Data['lines'][number];
 
-const search = z.object({ client: z.enum(['all', 'hovership', 'tforce']).optional(), line: z.string().uuid().optional() });
+const search = z.object({ client: z.string().regex(/^[a-z0-9_]{1,40}$/).optional(), line: z.string().uuid().optional() });
 
 export const Route = createFileRoute('/_app/settlements/')({
   validateSearch: search,
@@ -38,7 +38,7 @@ function SettlementsPage() {
         actions={data.canRecord && <Button variant="primary" onClick={() => setPaying(true)}>{t('st.recordPayment')}</Button>} />
       {!data.canRecord && <p className="notice notice-info" style={{ margin: 0 }}>{t('st.readOnly')}</p>}
       <nav className="tabs" aria-label={t('st.filter')}>
-        {(['all', 'hovership', 'tforce'] as const).map((c) => (
+        {['all', ...data.clients.map((x) => x.code)].map((c) => (
           <Link key={c} to="/settlements" search={{ client: c }} aria-current={client === c ? 'page' : undefined}>{c === 'all' ? t('st.all') : clientName(c)}</Link>
         ))}
       </nav>
@@ -68,7 +68,7 @@ function Ledger({ data, selected, client }: { data: Data; selected?: string; cli
     if (l.paidOn) return t('st.paidOn', { date: f.date(l.paidOn, { month: 'short', day: 'numeric' }) });
     if (!l.expectedDate) return '–';
     const d = f.date(l.expectedDate, { month: 'short', day: 'numeric' });
-    return l.operation === 'tforce' && l.kind === 'tforce_weekly' ? t('st.netTerms', { date: d }) : t('st.about', { date: d });
+    return l.operation === 'tforce' && l.kind === 'weekly_statement' ? t('st.netTerms', { date: d }) : t('st.about', { date: d });
   };
   return (
     <Panel title={t('st.ledger')} id="ledger" aside={!selected && <span className="muted" style={{ fontSize: 13.5 }}>{t('st.pickLine')}</span>}>
@@ -194,7 +194,8 @@ function PaymentDialog({ data, onClose }: { data: Data; onClose: () => void }) {
   const f = useFormat();
   const router = useRouter();
   const toast = useToast();
-  const [operation, setOperation] = useState<'hovership' | 'tforce'>(data.filter === 'tforce' ? 'tforce' : 'hovership');
+  const clientName = useClientName();
+  const [operation, setOperation] = useState<string>(data.filter !== 'all' ? data.filter : data.clients[0]?.code ?? '');
   const [receivedOn, setReceivedOn] = useState(todayLA());
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('ACH');
@@ -222,8 +223,8 @@ function PaymentDialog({ data, onClose }: { data: Data; onClose: () => void }) {
     <Dialog open onClose={onClose} title={t('st.paymentTitle')}>
       <form className="stack" onSubmit={submit}>
         <div className="grid-2">
-          <SelectField label={t('st.p.client')} value={operation} onChange={(e) => { setOperation(e.target.value as 'hovership' | 'tforce'); setPicked({}); }}>
-            <option value="hovership">Hovership</option><option value="tforce">T-Force</option>
+          <SelectField label={t('st.p.client')} value={operation} onChange={(e) => { setOperation(e.target.value); setPicked({}); }}>
+            {data.clients.map((c) => <option key={c.code} value={c.code}>{clientName(c.code)}</option>)}
           </SelectField>
           <TextField label={t('st.p.date')} type="date" required value={receivedOn} onChange={(e) => setReceivedOn(e.target.value)} />
         </div>

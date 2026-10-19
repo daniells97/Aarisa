@@ -8,7 +8,7 @@ const uuid = z.string().uuid();
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const getSettlements = createServerFn({ method: 'GET' })
-  .validator(z.object({ filter: z.enum(['all', 'hovership', 'tforce']) }))
+  .validator(z.object({ filter: z.union([z.literal('all'), z.string().regex(/^[a-z0-9_]{1,40}$/)]) }))
   .handler(({ data }) => read('money.view', (tx, actor) => loadSettlements(tx, actor, todayLA(), data.filter)));
 
 export const getClaim = createServerFn({ method: 'GET' })
@@ -17,7 +17,7 @@ export const getClaim = createServerFn({ method: 'GET' })
 
 export const savePayment = createServerFn({ method: 'POST' })
   .validator(z.object({
-    operation: z.enum(['hovership', 'tforce']), receivedOn: isoDate, amountCents: z.number().int().positive().max(10_000_000_00),
+    operation: z.string().regex(/^[a-z0-9_]{1,40}$/), receivedOn: isoDate, amountCents: z.number().int().positive().max(10_000_000_00),
     method: z.string().max(40).nullable(), reference: z.string().max(80).nullable(), note: z.string().max(300).nullable(),
     allocations: z.array(z.object({ lineId: uuid, amountCents: z.number().int().positive() })).max(100),
   }))

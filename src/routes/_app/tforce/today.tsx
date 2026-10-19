@@ -10,9 +10,9 @@ type Day = Awaited<ReturnType<typeof getDay>>;
 type Row = Day['rows'][number];
 
 export const Route = createFileRoute('/_app/tforce/today')({
-  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }),
-  loaderDeps: ({ search }) => ({ date: search.date ?? todayLA() }),
-  loader: ({ deps }) => getDay({ data: { date: deps.date } }),
+  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional() }),
+  loaderDeps: ({ search }) => ({ date: search.date ?? todayLA(), op: search.op }),
+  loader: ({ deps }) => getDay({ data: { date: deps.date, operation: deps.op } }),
   component: TodayPage,
 });
 
@@ -52,7 +52,7 @@ function TodayPage() {
   };
 
   const confirm = async () => {
-    const res = await confirmAll({ data: { date: day.date } });
+    const res = await confirmAll({ data: { date: day.date, operation: day.operation.code } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     toast(t('td.confirmedAll', { count: res.value }));
     await router.invalidate();
@@ -94,13 +94,13 @@ function TodayPage() {
   const unknown = day.rows.filter((r) => r.rawName && r.status === 'no_driver');
   return (
     <>
-      <PageHead title={t('td.title')} lead={t('td.lead')}
+      <PageHead title={t('td.title')} lead={t('td.lead', { client: day.operation.name })}
         actions={
           <div className="row">
             <div className="week-nav">
-              <Link to="/tforce/today" search={{ date: addDays(day.date, -1) }} aria-label={t('td.prevDay')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+              <Link to="/tforce/today" search={{ date: addDays(day.date, -1), op: day.operation.isDefault ? undefined : day.operation.code }} aria-label={t('td.prevDay')}><Icon name="chevronLeft" width={18} height={18} /></Link>
               <span className="num">{dateLabel}</span>
-              <Link to="/tforce/today" search={{ date: addDays(day.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
+              <Link to="/tforce/today" search={{ date: addDays(day.date, 1), op: day.operation.isDefault ? undefined : day.operation.code }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
             {day.canEdit && <Button onClick={() => setAddingRoute(true)}><Icon name="plus" width={18} height={18} />{t('td.addRoute')}</Button>}
             <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>
@@ -120,7 +120,7 @@ function TodayPage() {
 
       <div className="today-layout">
         <div className="today-list"><Panel>
-          {day.rows.length === 0 ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('td.noRoutes')}</p> : (
+          {day.rows.length === 0 ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('td.noRoutes', { client: day.operation.name })}</p> : (
             <>
               <div className="table-wrap desktop-only">
                 <table>
@@ -255,7 +255,7 @@ function AddRouteDialog({ day, dateLabel, onClose }: { day: Day; dateLabel: stri
       : who.value.startsWith('d:') ? { driverId: who.value.slice(2) } : { contractorId: who.value.slice(2) };
     setBusy(true);
     try {
-      const res = await createRoute({ data: { date: day.date, code, payee } });
+      const res = await createRoute({ data: { date: day.date, code, payee, operation: day.operation.code } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       toast(t('td.routeAdded', { route: res.value.code, name: whoName ?? '' }));
       await router.invalidate();

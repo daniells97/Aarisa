@@ -82,7 +82,7 @@ export async function reportRouteDay(tx: Tx, input: { operationId: string; date:
     eq(routeExecutions.operationId, input.operationId), eq(routeExecutions.date, input.date), eq(routeExecutions.routeId, input.routeId), eq(routeExecutions.kind, 'route')));
   if (found) return { row: found, created: false };
   const [row] = await tx.insert(routeExecutions).values({
-    operationId: input.operationId, date: input.date, routeId: input.routeId, kind: 'route', status: 'no_driver', source: 'tforce_report', importId: input.importId,
+    operationId: input.operationId, date: input.date, routeId: input.routeId, kind: 'route', status: 'no_driver', source: 'client_report', importId: input.importId,
   }).returning();
   return { row: row!, created: true };
 }
@@ -95,7 +95,7 @@ export async function driverDay(tx: Tx, input: { operationId: string; date: stri
     eq(routeExecutions.kind, 'route'), isNull(routeExecutions.routeId)));
   if (found) return { row: found, created: false };
   const [row] = await tx.insert(routeExecutions).values({
-    operationId: input.operationId, date: input.date, kind: 'route', payeeId, driverId: input.driverId, status: 'confirmed', source: 'hovership_report',
+    operationId: input.operationId, date: input.date, kind: 'route', payeeId, driverId: input.driverId, status: 'confirmed', source: 'client_report',
     importId: input.importId, confirmedAt: new Date(),
   }).returning();
   return { row: row!, created: true };

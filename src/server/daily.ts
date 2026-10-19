@@ -6,7 +6,7 @@ import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
-import { assertNotLocked, getOperation } from './ops';
+import { assertNotLocked, getOperationById, operationFor } from './ops';
 import { payeeNamesById, routeDay, writeRouteDay } from './executions';
 import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners } from './people';
 
@@ -31,9 +31,9 @@ async function ownerOn(tx: Tx, routeId: string, date: string) {
   return (await routeOwners(tx, date, [routeId])).get(routeId) ?? null;
 }
 
-export async function loadDay(tx: Tx, actor: Actor, date: string) {
+export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'payroll.view');
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, operation, 'daily_list');
   const routeRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, true))).orderBy(asc(routes.code));
   const assignments = (routeRows.length
     ? await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date), eq(executionView.kind, 'route'), inArray(executionView.routeId, routeRows.map((r) => r.id))))
@@ -85,8 +85,10 @@ export async function loadDay(tx: Tx, actor: Actor, date: string) {
   });
 
   const count = (s: DayStatus | 'contractor') => rows.filter((r) => (s === 'contractor' ? r.contractorRoute && r.status !== 'no_driver' : !r.contractorRoute && r.status === s)).length;
+  const first = await operationFor(tx, undefined, 'daily_list');
   return {
     date,
+    operation: { code: op.code, name: op.name, isDefault: op.code === first.code },
     canEdit: can(actor.role, 'drivers.confirm_today'),
     rows,
     summary: {
@@ -108,10 +110,11 @@ export async function loadDay(tx: Tx, actor: Actor, date: string) {
 async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: string, values: {
   driverId: string | null; contractorId: string | null; rawName?: string | null; status: DayStatus;
 }, action: 'insert' | 'update' | 'undo' = 'update') {
-  const op = await getOperation(tx, 'tforce');
-  await assertNotLocked(tx, op, date);
-  const [route] = await tx.select().from(routes).where(and(eq(routes.id, routeId), eq(routes.operationId, op.id)));
+  const [route] = await tx.select().from(routes).where(eq(routes.id, routeId));
   if (!route) throw new RuleError('not_found');
+  const op = await getOperationById(tx, route.operationId);
+  if (op.driverSource !== 'daily_list') throw new RuleError('not_found');
+  await assertNotLocked(tx, op, date);
   if (values.driverId) {
     const [d] = await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.id, values.driverId));
     if (!d) throw new RuleError('not_found');
@@ -164,9 +167,9 @@ export async function undoAssignment(tx: Tx, actor: Actor, input: {
 }
 
 /** "All good": confirms every route still on its proposed usual payee. */
-export async function confirmUsual(tx: Tx, actor: Actor, date: string) {
+export async function confirmUsual(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'drivers.confirm_today');
-  const day = await loadDay(tx, actor, date);
+  const day = await loadDay(tx, actor, date, operation);
   let n = 0;
   for (const r of day.rows) {
     if (r.status !== 'proposed') continue;
@@ -198,11 +201,11 @@ export type NewRoutePayee = { driverId: string } | { contractorId: string } | { 
  * A route that isn't on the list yet (spec 6.3, decision of Oct 9, 2026). The person who drives it becomes
  * its usual driver; a contractor makes it a contractor route. It is assigned and confirmed for the day.
  */
-export async function addRoute(tx: Tx, actor: Actor, input: { date: string; code: string; payee: NewRoutePayee }) {
+export async function addRoute(tx: Tx, actor: Actor, input: { date: string; code: string; payee: NewRoutePayee; operation?: string }) {
   assertCan(actor, 'drivers.confirm_today');
   const code = input.code.trim().toUpperCase().replace(/\s+/g, '');
   if (!/^[A-Z0-9-]{2,12}$/.test(code)) throw new RuleError('route_code_invalid');
-  const op = await getOperation(tx, 'tforce');
+  const op = await operationFor(tx, input.operation, 'daily_list');
   await assertNotLocked(tx, op, input.date);
   const [clash] = await tx.select({ id: routes.id, active: routes.active }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.code, code)));
   if (clash) throw new RuleError(clash.active ? 'route_exists' : 'route_inactive');
