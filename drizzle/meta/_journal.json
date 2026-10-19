@@ -29,6 +29,13 @@
       "when": 1791548875873,
       "tag": "0003_service_active_and_spanish_name",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792381264890,
+      "tag": "0004_core_schema_and_naming",
+      "breakpoints": true
     }
   ]
 }
