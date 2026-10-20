@@ -42,7 +42,8 @@ published at `https://n8n-aarisa.srv1986534.hstgr.cloud` only after the owner ac
 4. **WhatsApp templates** (Meta Business Manager, category Utility), in English (`en_US`) and Spanish (`es`):
    - `morning_summary` (`WHATSAPP_LANGUAGE` in n8n.env sets the language of every message; empty = each person's portal language). Spanish `es`:
      `Buenos días. Rutas para {{1}}: {{2}} rutas. Sin conductor: {{3}}. Con dos rutas: {{4}}. ¿Confirmas?`
-     English (`en_US`): `Good morning. Routes for {{1}}: {{2}} routes. No driver: {{3}}. Two routes: {{4}}. All good?`
+     English (`en_US`): `Daily route assignment for {{1}}: {{2}} routes scheduled. Routes without a driver: {{3}}. Drivers assigned to two routes: {{4}}. Please confirm the assignment or report a change.`
+     (Worded as an operational notice: Meta flagged a "Good morning … All good?" version as marketing.)
      `{{1}}` = day ("martes, 20 de octubre"), `{{2}}` = route count, `{{3}}` = routes with no driver or "ninguna",
      `{{4}}` = drivers on two routes, e.g. "Nayibi Perez (9000D, 9000E)", or "ninguno". Buttons, in this order:
      quick reply `Todo bien` / `All good`, quick reply `Cambiar una ruta` / `Change a route`, and a URL button
