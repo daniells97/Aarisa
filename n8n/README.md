@@ -24,28 +24,28 @@ The Monday 9 AM late-payments digest comes with Settlements in Phase 3.
 
 ## Setup (first time)
 
-Nothing here has been imported into the shared n8n on the VPS. Do it when the WhatsApp number and
-the portal URL exist (open questions 7, 8, 15, 16).
+Aarisa runs its own n8n (`aarisa-n8n` in `/docker/aarisa/docker-compose.yml`), not the shared ones:
+the flows need `crypto` and `$env` in Code nodes, which the shared instances don't allow and can't be
+restarted for. It reaches the portal over the `app` network (`http://aarisa-portal:3000`) and is
+published at `https://n8n-aarisa.srv1986534.hstgr.cloud` only after the owner account exists.
 
-1. **Credentials** in n8n (names must match):
-   - `Aarisa portal service token` - Header Auth, name `Authorization`, value `Bearer <N8N_SERVICE_TOKEN>` (same value as the portal's `N8N_SERVICE_TOKEN` in Infisical)
-   - `WhatsApp Cloud API token` - Header Auth, name `Authorization`, value `Bearer <WHATSAPP_TOKEN>`
-   - `Anthropic API key` - Header Auth, name `x-api-key`, value `<AI_API_KEY>`
-   - `Aarisa reports mailbox` - IMAP, for the inbox that receives the client reports
-2. **Environment variables** for n8n:
-   - `AARISA_PORTAL_URL` (e.g. `https://aarisa.dimetrics.com.co`, no trailing slash)
-   - `AARISA_REPORT_SENDERS`, JSON map of sender (or `@domain`) to operation, e.g. `{"reports@hovership.com":"hovership","@tforce.com":"tforce"}`
-   - `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`
-   - `AI_MODEL` (default `claude-opus-5-5`)
-   - `STT_URL`, `STT_API_KEY`: speech-to-text endpoint that takes a `file` and returns `{ "text": "..." }`
-   - `NODE_FUNCTION_ALLOW_BUILTIN=crypto` (signature check) and `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`
-3. **WhatsApp templates** (Meta Business Manager, category Utility), in English (`en_US`) and Spanish (`es`):
+1. **Secrets** in `/docker/aarisa/n8n.env` (mode 600; `N8N_SERVICE_TOKEN` is also in the portal's `.env`):
+   `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_TOKEN` (permanent system-user token),
+   `AI_API_KEY`, and optionally `STT_URL` / `STT_API_KEY` and `AARISA_REPORT_SENDERS`
+   (JSON map of sender or `@domain` to contract code). `WHATSAPP_VERIFY_TOKEN` and the encryption key are generated.
+   Then `cd /docker/aarisa && docker compose up -d n8n`.
+2. **Owner account**: create it from inside the container before publishing the editor
+   (`POST http://127.0.0.1:5678/rest/owner/setup`), then `N8N_PUBLIC=true docker compose up -d n8n`.
+3. **Credentials and workflows**: `scripts/n8n-setup.sh` loads the header credentials from `n8n.env`
+   and imports the four workflows with fixed ids (re-runnable). The IMAP credential
+   `Aarisa reports mailbox` is added in the editor when the mailbox exists.
+4. **WhatsApp templates** (Meta Business Manager, category Utility), in English (`en_US`) and Spanish (`es`):
    - `morning_list`: body with `{{1}}` = date, `{{2}}` = routes ("9000A Robert Arteaga; 9000B ..."), and two quick-reply buttons: `All good`, `Change a route`. Template parameters can't contain line breaks, so routes are joined with "; ".
    - `order_number_reminder`: body with `{{1}}` = how many jobs today have no order number.
-4. **Import** the four JSON files, open each credential reference once to link it, and point the Meta
-   webhook (callback URL `https://<n8n>/webhook/aarisa-whatsapp`, verify token `WHATSAPP_VERIFY_TOKEN`) at it.
-5. **Activate** `whatsapp-inbound` first, then `report-ingest`, `morning-list` and `reminders`.
-6. In the portal, add each owner and dispatcher phone in Team access and set "Gets the morning list on" to WhatsApp.
+5. **Meta webhook**: callback URL `https://n8n-aarisa.srv1986534.hstgr.cloud/webhook/aarisa-whatsapp`,
+   verify token `WHATSAPP_VERIFY_TOKEN`, subscribed to `messages`.
+6. **Publish** `whatsapp-inbound` first, then `morning-list` and `reminders`; `report-ingest` once the mailbox is set.
+7. In the portal, add each owner and dispatcher phone in Team access and set "Gets the morning list on" to WhatsApp.
 
 ## The AI call
 
