@@ -102,12 +102,12 @@ const outputSchema = {
   },
 };
 const inbound = workflow('Aarisa - WhatsApp inbound', [
-  node('Webhook verify (GET)', 'n8n-nodes-base.webhook', 2, { httpMethod: 'GET', path: 'aarisa-whatsapp', responseMode: 'responseNode', options: {} }),
+  node('Webhook verify (GET)', 'n8n-nodes-base.webhook', 2, { httpMethod: 'GET', path: 'aarisa-whatsapp', responseMode: 'responseNode', options: {} }, { webhookId: 'a7a1e1c2-0d4b-4c1e-9b1a-5a1f0e6d2c01' }), // fixed id: n8n serves /webhook/<path> only when it has one
   code('Check verify token', `const q = $input.first().json.query || {};
 const ok = q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === $env.WHATSAPP_VERIFY_TOKEN;
 return [{ json: { ok, challenge: ok ? q['hub.challenge'] : 'forbidden' } }];`),
   node('Answer Meta', 'n8n-nodes-base.respondToWebhook', 1.1, { respondWith: 'text', responseBody: '={{ $json.challenge }}', options: { responseCode: '={{ $json.ok ? 200 : 403 }}' } }),
-  node('Webhook messages (POST)', 'n8n-nodes-base.webhook', 2, { httpMethod: 'POST', path: 'aarisa-whatsapp', responseMode: 'onReceived', options: { rawBody: true } }),
+  node('Webhook messages (POST)', 'n8n-nodes-base.webhook', 2, { httpMethod: 'POST', path: 'aarisa-whatsapp', responseMode: 'onReceived', options: { rawBody: true } }, { webhookId: 'a7a1e1c2-0d4b-4c1e-9b1a-5a1f0e6d2c02' }),
   code('Verify signature and read messages', `// Meta signs the raw body with the app secret (X-Hub-Signature-256). Unsigned or wrong: drop it.
 const crypto = require('crypto');
 const item = $input.first();
