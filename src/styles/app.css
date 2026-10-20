@@ -119,6 +119,7 @@ tbody tr:hover td { background: var(--row-hover); }
 @media (max-width: 899px) { .toasts { bottom: calc(var(--tabbar-h) + 16px); } }
 
 .dialog { border: 0; padding: 0; background: var(--surface); color: var(--ink); border-radius: var(--r-lg); width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.dialog.wide { width: min(1040px, calc(100vw - 32px)); }
 .dialog[open] { display: flex; flex-direction: column; }
 .dialog::backdrop { background: rgba(28,34,38,.45); }
 .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px 8px; }

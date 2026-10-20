@@ -318,7 +318,7 @@ function LayoutDialog({ contract, onClose }: { contract: Contract; onClose: () =
   };
 
   return (
-    <Dialog open onClose={onClose} title={t('lay.titleNamed', { name: contract.name })}>
+    <Dialog open wide onClose={onClose} title={t('lay.titleNamed', { name: contract.name })}>
       <form className="stack" onSubmit={submit}>
         <p className="muted" style={{ margin: 0 }}>{t(contract.driverSource === 'report_code' ? 'lay.hintReport' : 'lay.hintList')}</p>
         <label className="btn" style={{ alignSelf: 'flex-start' }}>

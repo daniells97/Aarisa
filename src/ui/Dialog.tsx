@@ -10,10 +10,12 @@ interface DialogProps {
   footer?: ReactNode;
   /** Bottom sheet on phones (radius 24, grab handle); centred dialog on desktop. */
   sheet?: boolean;
+  /** Room for a table with several columns (up to 1040 px). */
+  wide?: boolean;
 }
 
 /** Modal built on native <dialog>: focus trap, Escape and inert background come from the browser. */
-export function Dialog({ open, onClose, title, children, footer, sheet = false }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, sheet = false, wide = false }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const t = useT();
@@ -24,7 +26,7 @@ export function Dialog({ open, onClose, title, children, footer, sheet = false }
     if (!open && el.open) el.close();
   }, [open]);
   return (
-    <dialog ref={ref} className={sheet ? 'dialog sheet' : 'dialog'} aria-labelledby={titleId} onClose={onClose}>
+    <dialog ref={ref} className={['dialog', sheet && 'sheet', wide && 'wide'].filter(Boolean).join(' ')} aria-labelledby={titleId} onClose={onClose}>
       <div className="dialog-head">
         <h2 id={titleId}>{title}</h2>
         <button type="button" className="close-btn" onClick={onClose} aria-label={t('common.close')}>
