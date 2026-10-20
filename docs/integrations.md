@@ -72,6 +72,6 @@ provider: to choose (open question).
 ## WhatsApp setup checklist (Aarisa)
 1. Meta Business account verified for Aarisa.
 2. A dedicated phone number on WhatsApp Business Platform (Cloud API).
-3. Templates approved: `morning_list` (utility), `order_number_reminder` (utility).
+3. Templates approved: `morning_summary` (utility), `order_number_reminder` (utility).
 4. Webhook URL pointing to n8n, token and app secret stored in Infisical.
 5. Users' phone numbers stored in Team access, so inbound messages map to a person and role.

@@ -16,7 +16,7 @@ endpoints that exist, and that the AI output schema matches what the portal acce
 | File | Trigger | Does |
 |---|---|---|
 | `report-ingest.json` | New mail in the reports mailbox | Keeps CSV attachments from known senders and sends them to `POST /imports` (same four import states as an upload) |
-| `morning-list.json` | 6:30 AM PT, Monday to Saturday | `GET /morning-list`, then the `morning_list` template to every owner/dispatcher whose morning channel is WhatsApp |
+| `morning-list.json` | 6:30 AM PT, Monday to Saturday | `GET /morning-list`, then the `morning_summary` template to every owner/dispatcher whose morning channel is WhatsApp: how many routes, which have no driver and who has two routes; the full list is one tap away in Today's drivers |
 | `whatsapp-inbound.json` | WhatsApp Cloud API webhook | Checks the signature, logs the message, then: **All good** confirms usual drivers; **Change a route** asks what changed; voice notes are transcribed; text goes to Claude, which says whether it is a route change or an extra job and extracts it. Route changes go to `POST /daily-changes` (only known people with confidence ≥ 0.85 are applied); extra jobs go to `POST /extra-job-drafts`, and the reply carries a **Review and save** button. Nothing becomes a job until the person taps Save |
 | `reminders.json` | 7:00 PM PT daily | `GET /reminders` and the `order_number_reminder` template for jobs saved today without an order number |
 
@@ -40,7 +40,14 @@ published at `https://n8n-aarisa.srv1986534.hstgr.cloud` only after the owner ac
    and imports the four workflows with fixed ids (re-runnable). The IMAP credential
    `Aarisa reports mailbox` is added in the editor when the mailbox exists.
 4. **WhatsApp templates** (Meta Business Manager, category Utility), in English (`en_US`) and Spanish (`es`):
-   - `morning_list`: body with `{{1}}` = date, `{{2}}` = routes ("9000A Robert Arteaga; 9000B ..."), and two quick-reply buttons: `All good`, `Change a route`. Template parameters can't contain line breaks, so routes are joined with "; ".
+   - `morning_summary` (Spanish `es`):
+     `Buenos días. Rutas para {{1}}: {{2}} rutas. Sin conductor: {{3}}. Con dos rutas: {{4}}. ¿Confirmas?`
+     English (`en_US`): `Good morning. Routes for {{1}}: {{2}} routes. No driver: {{3}}. Two routes: {{4}}. All good?`
+     `{{1}}` = day ("martes, 20 de octubre"), `{{2}}` = route count, `{{3}}` = routes with no driver or "ninguna",
+     `{{4}}` = drivers on two routes, e.g. "Nayibi Perez (9000D, 9000E)", or "ninguno". Buttons, in this order:
+     quick reply `Todo bien` / `All good`, quick reply `Cambiar una ruta` / `Change a route`, and a URL button
+     `Ver lista` / `See list` to `https://aarisa.dimetrics.com.co/tforce/today`. The message names only what needs a look,
+     because a list of 19+ routes on one line (parameters can't hold line breaks) is unreadable on a phone.
    - `order_number_reminder`: body with `{{1}}` = how many jobs today have no order number.
 5. **Meta webhook**: callback URL `https://n8n-aarisa.srv1986534.hstgr.cloud/webhook/aarisa-whatsapp`,
    verify token `WHATSAPP_VERIFY_TOKEN`, subscribed to `messages`.
