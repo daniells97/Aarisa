@@ -76,11 +76,11 @@ const t = {
 };
 const day = new Date(list.date + 'T12:00:00Z');
 return list.recipients.map((p) => {
-  const L = t[p.locale === 'es' ? 'es' : 'en'];
+  const L = t[($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en'];
   const noDriver = list.routes.filter((r) => !r.driver).map((r) => r.route).join(', ') || L.none;
   const doubles = Object.entries(byDriver).filter(([, rs]) => rs.length > 1).map(([d, rs]) => d + ' (' + rs.join(', ') + ')').join(', ') || L.nobody;
   const date = new Intl.DateTimeFormat(L.locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(day);
-  return { json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: p.locale === 'es' ? 'es' : 'en_US', date: list.date,
+  return { json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en_US', date: list.date,
     params: [date, String(list.routes.length), noDriver, doubles] } };
 });`),
   whatsapp('Send morning template', `{ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'morning_summary', language: { code: $json.lang },
@@ -153,8 +153,8 @@ else if (msg.kind === 'audio') route = 'transcribe';
 return [{ json: { ...msg, messageId: logged.id, route } }];`),
   switchOn('Route message', 'route', ['all_good', 'ask_change', 'transcribe', 'ai', 'unknown_number']),
   portal('Confirm usual drivers', 'POST', '/daily-changes', jsonBody(`{ phone: $json.phone, date: $json.date, messageId: $json.messageId, inputText: $json.button, model: 'quick-reply', output: { confirm_all: true, changes: [] } }`)),
-  whatsapp('Reply: confirmed', `{ messaging_product: 'whatsapp', to: $('Route message').item.json.phone.replace(/^\\+/, ''), type: 'text', text: { body: ($('Log incoming message').item.json.locale === 'es' ? 'Listo. ' + ($json.confirmedAll ?? 0) + ' rutas confirmadas con su conductor habitual.' : 'Done. ' + ($json.confirmedAll ?? 0) + ' routes confirmed with their usual driver.') } }`),
-  whatsapp('Reply: what changed?', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: ($('Log incoming message').item.json.locale === 'es' ? 'Dime qué cambió, por ejemplo: "hoy la E la hace Norwin".' : 'Tell me what changed, for example: "E is Norwin today".') } }`),
+  whatsapp('Reply: confirmed', `{ messaging_product: 'whatsapp', to: $('Route message').item.json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Listo. ' + ($json.confirmedAll ?? 0) + ' rutas confirmadas con su conductor habitual.' : 'Done. ' + ($json.confirmedAll ?? 0) + ' routes confirmed with their usual driver.') } }`),
+  whatsapp('Reply: what changed?', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Dime qué cambió, por ejemplo: "hoy la E la hace Norwin".' : 'Tell me what changed, for example: "E is Norwin today".') } }`),
   whatsapp('Reply: number not registered', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: 'This number is not set up in the Aarisa portal. Ask the owner to add it in Team access.' } }`),
   node('Get audio file link', 'n8n-nodes-base.httpRequest', 4.2, { method: 'GET', url: '=https://graph.facebook.com/v21.0/{{ $json.mediaId }}', ...PORTAL_AUTH, options: {} }, { credentials: WA_CRED }),
   node('Download audio', 'n8n-nodes-base.httpRequest', 4.2, { method: 'GET', url: '={{ $json.url }}', ...PORTAL_AUTH, options: { response: { response: { responseFormat: 'file' } } } }, { credentials: WA_CRED }),
@@ -196,7 +196,7 @@ return [{ json: { ...msg, kind: out.kind, output: out.kind === 'daily_changes' ?
   switchOn('What the message is', 'kind', ['daily_changes', 'extra_job', 'other']),
   portal('Apply route changes', 'POST', '/daily-changes', jsonBody(`{ phone: $json.phone, date: $json.date, messageId: $json.messageId, inputText: $json.text, model: $json.model, output: $json.output }`)),
   code('Write changes reply', `const r = $json;
-const es = $('Log incoming message').item.json.locale === 'es';
+const es = ($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es';
 const T = es ? {
   updated: 'Actualizado: ', who: (u) => u.route + ': ¿quién es "' + u.name + '"? Responde con el nombre completo o agrégalo en el portal.',
   route: (u) => 'No encontré la ruta ' + u.route + '.', unsure: (u) => u.route + ': no estoy seguro de "' + u.name + '". Escribe el nombre completo.',
@@ -219,9 +219,9 @@ return [{ json: { to: $('What the message is').item.json.phone.replace(/^\\+/, '
   whatsapp('Reply: changes', `{ messaging_product: 'whatsapp', to: $json.to, type: 'text', text: { body: $json.body } }`),
   portal('Save job draft', 'POST', '/extra-job-drafts', jsonBody(`{ phone: $json.phone, messageId: $json.messageId, inputText: $json.text, model: $json.model, output: $json.output }`)),
   whatsapp('Reply: review and save', `{ messaging_product: 'whatsapp', to: $('What the message is').item.json.phone.replace(/^\\+/, ''), type: 'interactive',
-    interactive: { type: 'cta_url', body: { text: ($('Log incoming message').item.json.locale === 'es' ? 'Llené el trabajo extra' + ($json.missing?.length ? ' (falta: ' + $json.missing.join(', ') + ')' : '') + '. Revísalo y toca Guardar. No se guarda nada hasta que lo hagas.' : 'I filled in the extra job' + ($json.missing?.length ? ' (missing: ' + $json.missing.join(', ') + ')' : '') + '. Check it and tap Save. Nothing is saved until you do.') },
-      action: { name: 'cta_url', parameters: { display_text: ($('Log incoming message').item.json.locale === 'es' ? 'Revisar y guardar' : 'Review and save'), url: $json.link } } } }`),
-  whatsapp('Reply: help', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: ($('Log incoming message').item.json.locale === 'es' ? 'Puedo actualizar los conductores de hoy ("hoy la E la hace Norwin") o registrar un trabajo extra (pickup, Grainger o ruta de recuperación, con lo que paga T-Force y el número de orden).' : 'I can update today\\'s drivers ("E is Norwin today") or log an extra job (a pickup, Grainger or recovery route, with what T-Force pays and the order number).') } }`),
+    interactive: { type: 'cta_url', body: { text: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Llené el trabajo extra' + ($json.missing?.length ? ' (falta: ' + $json.missing.join(', ') + ')' : '') + '. Revísalo y toca Guardar. No se guarda nada hasta que lo hagas.' : 'I filled in the extra job' + ($json.missing?.length ? ' (missing: ' + $json.missing.join(', ') + ')' : '') + '. Check it and tap Save. Nothing is saved until you do.') },
+      action: { name: 'cta_url', parameters: { display_text: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Revisar y guardar' : 'Review and save'), url: $json.link } } } }`),
+  whatsapp('Reply: help', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Puedo actualizar los conductores de hoy ("hoy la E la hace Norwin") o registrar un trabajo extra (pickup, Grainger o ruta de recuperación, con lo que paga T-Force y el número de orden).' : 'I can update today\\'s drivers ("E is Norwin today") or log an extra job (a pickup, Grainger or recovery route, with what T-Force pays and the order number).') } }`),
 ], {
   ...chain('Webhook verify (GET)', 'Check verify token', 'Answer Meta'),
   ...chain('Webhook messages (POST)', 'Verify signature and read messages', 'Log incoming message', 'Who wrote and what to do', 'Route message'),
@@ -249,7 +249,7 @@ const reminders = workflow('Aarisa - reminders', [
   schedule('7:00 PM every day', '0 19 * * *'),
   portal('Jobs without order number', 'GET', '/reminders', { sendQuery: true, queryParameters: { parameters: [{ name: 'date', value: `={{ ${todayLA} }}` }] } }),
   code('One reminder per person', `const r = $input.first().json;
-return (r.recipients || []).map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: p.locale === 'es' ? 'es' : 'en_US', count: String(p.jobs.length), date: r.date } }));`),
+return (r.recipients || []).map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en_US', count: String(p.jobs.length), date: r.date } }));`),
   whatsapp('Send reminder template', `{ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'order_number_reminder', language: { code: $json.lang },
     components: [{ type: 'body', parameters: [{ type: 'text', text: $json.count }] }] } }`),
   portal('Log reminder', 'POST', '/messages', jsonBody(`{ direction: 'out', phone: $('One reminder per person').item.json.phone, type: 'template', body: 'order_number_reminder ' + $('One reminder per person').item.json.count, waMessageId: $json.messages?.[0]?.id ?? null }`)),

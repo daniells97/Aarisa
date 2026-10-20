@@ -40,7 +40,7 @@ published at `https://n8n-aarisa.srv1986534.hstgr.cloud` only after the owner ac
    and imports the four workflows with fixed ids (re-runnable). The IMAP credential
    `Aarisa reports mailbox` is added in the editor when the mailbox exists.
 4. **WhatsApp templates** (Meta Business Manager, category Utility), in English (`en_US`) and Spanish (`es`):
-   - `morning_summary` (Spanish `es`):
+   - `morning_summary` (`WHATSAPP_LANGUAGE` in n8n.env sets the language of every message; empty = each person's portal language). Spanish `es`:
      `Buenos días. Rutas para {{1}}: {{2}} rutas. Sin conductor: {{3}}. Con dos rutas: {{4}}. ¿Confirmas?`
      English (`en_US`): `Good morning. Routes for {{1}}: {{2}} routes. No driver: {{3}}. Two routes: {{4}}. All good?`
      `{{1}}` = day ("martes, 20 de octubre"), `{{2}}` = route count, `{{3}}` = routes with no driver or "ninguna",
