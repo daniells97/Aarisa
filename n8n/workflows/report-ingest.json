@@ -1,0 +1,104 @@
+{
+  "name": "Aarisa - report ingest",
+  "nodes": [
+    {
+      "id": "mailbox",
+      "name": "Mailbox",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "parameters": {
+        "format": "resolved",
+        "options": {
+          "customEmailConfig": "[\"UNSEEN\"]"
+        }
+      },
+      "credentials": {
+        "imap": {
+          "id": "",
+          "name": "Aarisa reports mailbox"
+        }
+      }
+    },
+    {
+      "id": "pick-report-attachments",
+      "name": "Pick report attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Keep CSV attachments from known senders (open question 7) and tell which client sent them.\nconst senders = JSON.parse($env.AARISA_REPORT_SENDERS || '{}'); // {\"reports@hovership.example\": \"hovership\", \"@tforce.example\": \"tforce\"}\nconst out = [];\nconst items = $input.all();\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const from = String(item.json.from?.value?.[0]?.address || item.json.from || '').toLowerCase();\n  const match = Object.entries(senders).find(([k]) => from === k || from.endsWith(k));\n  if (!match) continue;\n  for (const [key, bin] of Object.entries(item.binary || {})) {\n    if (!/\\.csv$/i.test(bin.fileName || '')) continue;\n    const buffer = await this.helpers.getBinaryDataBuffer(i, key);\n    out.push({ json: { operation: match[1], fileName: bin.fileName, text: buffer.toString('utf8') } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "send-to-portal",
+      "name": "Send to portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/imports",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ operation: $json.operation, fileName: $json.fileName, text: $json.text }) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Aarisa portal service token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Mailbox": {
+      "main": [
+        [
+          {
+            "node": "Pick report attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick report attachments": {
+      "main": [
+        [
+          {
+            "node": "Send to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "America/Los_Angeles",
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "meta": {
+    "builtBy": "scripts/build-n8n.mjs"
+  }
+}

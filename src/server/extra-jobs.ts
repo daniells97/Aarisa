@@ -1,0 +1,191 @@
+import { and, asc, desc, eq, getViewSelectedFields, gte, lte } from 'drizzle-orm';
+import type { Tx } from '~/db/client';
+import { extraJobView, extraJobs, routes, serviceTypes, settlementLines, users, workRecords } from '~/db/schema';
+import { addDays, todayLA } from '~/domain/dates';
+import { rateFor } from '~/domain/rates';
+import { can } from '~/domain/permissions';
+import { assertCan, type Actor } from './actor';
+import { audit, type AuditEntry } from './audit';
+import { RuleError } from './errors';
+import { assertNotLocked, getOperationById, operationFor, rateRows as rateRows_ } from './ops';
+import { extraDay } from './executions';
+import { contractorProfiles, driverProfiles, payeeNameMaps } from './people';
+
+// Extra jobs (spec §5.4, 6.6): T-Force work agreed by phone that never shows in the weekly report.
+// Each job is one work record (paid at the agreed amount) and one expected settlement line.
+
+/** Services the seed starts with, in the order the form shows them; services added in Drivers and rates follow, "other" last. */
+export const BASE_EXTRA_SERVICES = ['recovery_route', 'pickup', 'grainger'] as const;
+
+/** Active extra-job services of an operation (unit `job`, not from a report), in display order. */
+export async function extraServices(tx: Tx, operationId: string) {
+  const rows = await tx.select().from(serviceTypes)
+    .where(and(eq(serviceTypes.operationId, operationId), eq(serviceTypes.unit, 'job'), eq(serviceTypes.fromReport, false), eq(serviceTypes.active, true)));
+  const rank = (code: string) => {
+    const i = (BASE_EXTRA_SERVICES as readonly string[]).indexOf(code);
+    return code === 'other' ? 1000 : i >= 0 ? i : 100;
+  };
+  return rows.sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name));
+}
+
+export interface ExtraJobInput {
+  clientUuid: string; // made on the phone, so a retry or an offline resend never creates a second job
+  service: string; // service code; must be an active extra-job service
+  date: string;
+  nearRouteId: string | null;
+  payee: { driverId: string } | { contractorId: string };
+  clientAmountCents: number | null; // what T-Force pays; only money roles may set it
+  driverAmountCents: number;
+  orderNumber: string | null;
+  note: string | null;
+  aiSuggestionId?: string | null;
+  operation?: string;
+}
+
+/** What still needs a person, shown on the job card (Mobile-Synced design). */
+export function missingFields(j: { serviceCode: string; clientAmountCents: number | null; orderNumber: string | null }) {
+  const out: ('client_amount' | 'order_number')[] = [];
+  if (j.clientAmountCents == null) out.push('client_amount');
+  if (!j.orderNumber) out.push('order_number');
+  return out;
+}
+
+export async function createExtraJob(tx: Tx, actor: Actor, input: ExtraJobInput) {
+  assertCan(actor, 'extra_jobs.log');
+  const [existing] = await tx.select().from(extraJobView).where(eq(extraJobView.clientUuid, input.clientUuid));
+  if (existing) return { job: existing, created: false };
+
+  const op = await operationFor(tx, input.operation, 'daily_list');
+  await assertNotLocked(tx, op, input.date);
+  const service = (await extraServices(tx, op.id)).find((x) => x.code === input.service);
+  if (!service) throw new RuleError('unknown_service');
+  const orderNumber = input.orderNumber?.trim() || null;
+  const note = input.note?.trim() || null;
+  if (service.requiresOrderNumber && !orderNumber) throw new RuleError('order_number_required');
+  if (service.requiresNote && !note) throw new RuleError('note_required');
+  if (input.clientAmountCents != null && !can(actor.role, 'money.view')) throw new RuleError('client_amount_not_allowed');
+  if (input.driverAmountCents < 0 || (input.clientAmountCents ?? 0) < 0) throw new RuleError('invalid_amount');
+  const payee = 'driverId' in input.payee ? { driverId: input.payee.driverId, contractorId: null } : { driverId: null, contractorId: input.payee.contractorId };
+
+  const source = actor.source === 'whatsapp' ? 'whatsapp' as const : 'extra_job' as const;
+  const trail: AuditEntry[] = [];
+  const log = (table: string, row: { id: string }) => trail.push({ table, recordId: row.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
+
+  // Extra jobs hang from the payee's `extra` execution of the day: paid, but not a route day.
+  const { row: ex, created } = await extraDay(tx, { operationId: op.id, date: input.date, payee, source, userId: actor.userId });
+  if (created) log('route_executions', ex);
+  const [job] = await tx.insert(extraJobs).values({
+    clientUuid: input.clientUuid, executionId: ex.id, serviceTypeId: service.id, nearRouteId: input.nearRouteId,
+    clientAmountCents: input.clientAmountCents, driverAmountCents: input.driverAmountCents, orderNumber, note,
+    source, aiSuggestionId: input.aiSuggestionId ?? null, createdBy: actor.userId,
+  }).returning();
+  log('extra_jobs', job!);
+  // One unit of work at the agreed amounts (the "rate" of a job is its amount).
+  const [work] = await tx.insert(workRecords).values({
+    executionId: ex.id, serviceTypeId: service.id, pieces: 1,
+    clientRateCents: input.clientAmountCents, driverRateCents: input.driverAmountCents, source: 'extra_job', extraJobId: job!.id,
+  }).returning();
+  log('work_records', work!);
+  // T-Force pays it as a manual adjustment, so it is tracked until it shows up in a settlement.
+  const [line] = await tx.insert(settlementLines).values({
+    operationId: op.id, kind: 'extra_job', reference: orderNumber ?? `${service.name} ${input.date}`, periodStart: input.date, periodEnd: input.date,
+    extraJobId: job!.id, expectedCents: input.clientAmountCents, expectedDate: addDays(input.date, op.paymentTermsDays), status: 'open',
+  }).returning();
+  log('settlement_lines', line!);
+  const [linked] = await tx.update(workRecords).set({ settlementLineId: line!.id }).where(eq(workRecords.id, work!.id)).returning();
+  trail.push({ table: 'work_records', recordId: work!.id, action: 'update', before: work, after: linked, userId: actor.userId, source: actor.source });
+  await audit(tx, trail);
+  const [view] = await tx.select().from(extraJobView).where(eq(extraJobView.id, job!.id));
+  return { job: view!, created: true };
+}
+
+/** Fill in what was missing on a job card (Mobile-Synced design). */
+export async function completeExtraJob(tx: Tx, actor: Actor, id: string, patch: { orderNumber?: string | null; clientAmountCents?: number | null }) {
+  // What T-Force pays is money (owner, finance); the order number belongs to whoever logs jobs.
+  if (patch.clientAmountCents !== undefined) {
+    if (actor.role === 'dispatcher') throw new RuleError('client_amount_not_allowed');
+    assertCan(actor, 'settlements.record');
+  }
+  if (patch.orderNumber !== undefined) assertCan(actor, 'extra_jobs.log');
+  const [job] = await tx.select({ date: extraJobView.date, operationId: extraJobView.operationId }).from(extraJobView).where(eq(extraJobView.id, id));
+  const [before] = await tx.select().from(extraJobs).where(eq(extraJobs.id, id));
+  if (!before || !job) throw new RuleError('not_found');
+  const op = await getOperationById(tx, job.operationId);
+  await assertNotLocked(tx, op, job.date);
+  const values = {
+    ...(patch.orderNumber !== undefined ? { orderNumber: patch.orderNumber?.trim() || null } : {}),
+    ...(patch.clientAmountCents !== undefined ? { clientAmountCents: patch.clientAmountCents } : {}),
+    updatedAt: new Date(),
+  };
+  const [after] = await tx.update(extraJobs).set(values).where(eq(extraJobs.id, id)).returning();
+  const trail: AuditEntry[] = [{ table: 'extra_jobs', recordId: id, action: 'update', before, after, userId: actor.userId, source: actor.source }];
+  if (patch.clientAmountCents !== undefined) {
+    const [w] = await tx.select().from(workRecords).where(eq(workRecords.extraJobId, id));
+    if (w) {
+      const [wa] = await tx.update(workRecords).set({ clientRateCents: patch.clientAmountCents, updatedAt: new Date() }).where(eq(workRecords.id, w.id)).returning();
+      trail.push({ table: 'work_records', recordId: w.id, action: 'update', before: w, after: wa, userId: actor.userId, source: actor.source });
+    }
+  }
+  const [line] = await tx.select().from(settlementLines).where(eq(settlementLines.extraJobId, id));
+  if (line) {
+    const [la] = await tx.update(settlementLines).set({
+      ...(patch.clientAmountCents !== undefined ? { expectedCents: patch.clientAmountCents } : {}),
+      ...(patch.orderNumber ? { reference: patch.orderNumber.trim() } : {}),
+      updatedAt: new Date(),
+    }).where(eq(settlementLines.id, line.id)).returning();
+    trail.push({ table: 'settlement_lines', recordId: line.id, action: 'update', before: line, after: la, userId: actor.userId, source: actor.source });
+  }
+  await audit(tx, trail);
+  return after!;
+}
+
+export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: string, operation?: string) {
+  assertCan(actor, 'payroll.view');
+  const showMoney = can(actor.role, 'money.view');
+  const op = await operationFor(tx, operation, 'daily_list');
+  const rows = await tx.select({ job: getViewSelectedFields(extraJobView), service: serviceTypes, route: routes.code, by: users.name })
+    .from(extraJobView).innerJoin(serviceTypes, eq(serviceTypes.id, extraJobView.serviceTypeId))
+    .leftJoin(routes, eq(routes.id, extraJobView.nearRouteId)).leftJoin(users, eq(users.id, extraJobView.createdBy))
+    .where(and(eq(extraJobView.operationId, op.id), gte(extraJobView.date, from), lte(extraJobView.date, to)))
+    .orderBy(desc(extraJobView.date), desc(extraJobView.createdAt));
+  const dIds = rows.map((r) => r.job.driverId).filter((x): x is string => !!x);
+  const cIds = rows.map((r) => r.job.contractorId).filter((x): x is string => !!x);
+  const names = dIds.length || cIds.length ? await payeeNameMaps(tx) : null;
+  const dName = names?.driver ?? new Map<string, string>();
+  const cName = names?.contractor ?? new Map<string, string>();
+  return {
+    showMoney,
+    canLog: can(actor.role, 'extra_jobs.log'),
+    jobs: rows.map(({ job, service, route, by }) => ({
+      id: job.id, date: job.date, service: service.code, serviceName: service.name, serviceNameEs: service.nameEs, nearRoute: route ?? null,
+      payee: job.driverId ? dName.get(job.driverId) ?? '' : cName.get(job.contractorId!) ?? '', contractor: !!job.contractorId,
+      clientAmountCents: showMoney ? job.clientAmountCents : null, driverAmountCents: job.driverAmountCents,
+      orderNumber: job.orderNumber, note: job.note, source: job.source, by: by ?? null, createdAt: job.createdAt.toISOString(),
+      missing: missingFields({ serviceCode: service.code, clientAmountCents: job.clientAmountCents, orderNumber: job.orderNumber }),
+    })),
+  };
+}
+
+/** Choices for the form: services (with default amounts from their rate, if any), routes, people. */
+export async function extraJobOptions(tx: Tx, actor: Actor, today = todayLA(), operation?: string) {
+  assertCan(actor, 'extra_jobs.log');
+  const op = await operationFor(tx, operation, 'daily_list');
+  const services = await extraServices(tx, op.id);
+  const showMoney = can(actor.role, 'money.view');
+  const rateRows = await rateRows_(tx, services.map((x) => x.id));
+  return {
+    showMoney,
+    services: services.map((x) => {
+      const r = rateFor(rateRows, x.id, null, null, today);
+      return {
+        code: x.code, name: x.name, nameEs: x.nameEs, requiresOrderNumber: x.requiresOrderNumber, requiresNote: x.requiresNote,
+        // Default amounts are a starting point; the person can still type what was agreed for this job.
+        defaultClientCents: showMoney && r.ok ? r.clientCents : null,
+        defaultDriverCents: r.ok ? r.driverCents : null,
+      };
+    }),
+    routes: (await tx.select({ id: routes.id, code: routes.code }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, true))).orderBy(asc(routes.code))),
+    drivers: (await driverProfiles(tx, todayLA())).filter((d) => d.active).map((d) => ({ id: d.id, name: d.fullName })),
+    contractors: (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name })),
+  };
+}

@@ -57,8 +57,10 @@ Dispatchers see driver pay but never client rates, revenue or profit.
 - **Route letter**: T-Force route code such as `9000A`. Shown in the UI as a green plate.
 - **Driver**: a person who drives. Belongs to Aarisa or to a **contractor**.
 - **Contractor**: an outside company (today: Puma) that owns some routes. Paid as one party.
-- **Service type**: closed list. `ecommerce`, `hovership_packages`, `stat`, `pharma_pickup`,
-  `pickup`, `grainger`, `recovery_route`, `other`.
+- **Service type**: the list kept in Drivers and rates. Report services (`ecommerce`, `hovership_packages`,
+  `stat`) come from the client files and can be renamed but not turned off. Extra-job services (`pharma_pickup`,
+  `pickup`, `grainger`, `recovery_route`, `other`, and any the owner adds) can be added, edited and turned off.
+  A service's code never changes. (Changed from a closed list on Oct 9, 2026.)
 - **Work record**: one unit of paid work for one driver or contractor on one day (§4).
 - **Rate**: what the client pays and what the driver gets for one unit of a service, from a date.
 - **Payroll run**: all work records of one operation in one pay period, approved once.
@@ -210,6 +212,9 @@ Key behaviour per screen:
   run, negative margins), what approving does, button labelled with the exact amount.
 - **6.9 Settlements**: summary (expected, late, paid-to-driver-not-by-client, received),
   ledger table, claim panel with checklist.
+- **6.10 Drivers and rates**: rates, drivers, services. "Change" on a rate adds a new rate with its own start
+  date (rule 2); the old one stays for earlier weeks. Extra-job services may have default amounts, which only
+  fill the extra job form. The owner adds, renames and turns off services.
 - **6.12 Import states**: waiting (report not arrived), reading (step progress), layout changed
   (column renamed; suggest mapping; nothing saved), partly read (unknown codes to resolve).
 
