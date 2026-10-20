@@ -35,7 +35,7 @@ published at `https://n8n-aarisa.srv1986534.hstgr.cloud` only after the owner ac
    (JSON map of sender or `@domain` to contract code). `WHATSAPP_VERIFY_TOKEN` and the encryption key are generated.
    Then `cd /docker/aarisa && docker compose up -d n8n`.
 2. **Owner account**: create it from inside the container before publishing the editor
-   (`POST http://127.0.0.1:5678/rest/owner/setup`), then `N8N_PUBLIC=true docker compose up -d n8n`.
+   (`POST http://127.0.0.1:5678/rest/owner/setup`), then set the n8n `traefik.enable` label to `"true"` and `docker compose up -d n8n`.
 3. **Credentials and workflows**: `scripts/n8n-setup.sh` loads the header credentials from `n8n.env`
    and imports the four workflows with fixed ids (re-runnable). The IMAP credential
    `Aarisa reports mailbox` is added in the editor when the mailbox exists.
