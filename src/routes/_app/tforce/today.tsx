@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, undoAssign } from '~/server/daily-fns';
+import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -54,8 +54,16 @@ function TodayPage() {
   const confirm = async () => {
     const res = await confirmAll({ data: { date: day.date, operation: day.operation.code } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
-    toast(t('td.confirmedAll', { count: res.value }));
     await router.invalidate();
+    toast(t('td.confirmedAll', { count: res.value }), unconfirm);
+  };
+
+  // Back to "usual, not confirmed" for routes confirmed on their usual driver; changes stay.
+  const unconfirm = async () => {
+    const res = await unconfirmAll({ data: { date: day.date, operation: day.operation.code } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.unconfirmedAll', { count: res.value }));
   };
 
   // Typed name that isn't on the list: add the person and assign them in one step, with Undo.
@@ -116,6 +124,7 @@ function TodayPage() {
         {s.noDriver > 0 && <span role="listitem"><Pill tone="warn">{t('td.sumNoDriver', { count: s.noDriver })}</Pill></span>}
         <span className="muted" role="listitem">{t('td.sumRoutes', { count: s.routes })}</span>
         {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} style={{ marginLeft: 'auto' }}>{t('td.confirmAll', { count: s.proposed })}</Button>}
+        {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
       </div>
 
       <div className="today-layout">

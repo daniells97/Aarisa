@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useT } from '~/i18n';
 
 export interface PickerOptions {
@@ -53,6 +53,28 @@ export function PersonPicker({ value, options, label, placeholder, disabled, all
   }, [query, options, allowNone, onCreate, t]);
 
   useEffect(() => { setActive(0); }, [query]);
+
+  // The list is fixed to the viewport so a dialog or a scrolling table never clips it. It opens
+  // below the field, or above when there is more room there (a field low in a dialog or on a phone).
+  const [place, setPlace] = useState<CSSProperties>({});
+  useLayoutEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const r = input.current?.getBoundingClientRect();
+      if (!r) return;
+      const below = window.innerHeight - r.bottom - 12;
+      const above = r.top - 12;
+      const up = below < 220 && above > below;
+      setPlace({
+        left: r.left, width: Math.max(r.width, 240), maxHeight: Math.min(300, up ? above : below),
+        ...(up ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => { window.removeEventListener('resize', update); window.removeEventListener('scroll', update, true); };
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) { setOpen(false); setQuery(''); } };
@@ -96,7 +118,7 @@ export function PersonPicker({ value, options, label, placeholder, disabled, all
         onKeyDown={onKey}
       />
       {open && (
-        <ul className="picker-list" role="listbox" id={listId} aria-label={label}>
+        <ul className="picker-list" role="listbox" id={listId} aria-label={label} style={place}>
           {items.length === 0 && <li className="picker-empty" role="presentation">{t('picker.noMatch')}</li>}
           {items.map((item, i) => (
             <li

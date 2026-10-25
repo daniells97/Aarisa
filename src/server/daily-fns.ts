@@ -5,7 +5,7 @@ import type { Tx } from '~/db/client';
 import { operations, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { addDriverForRoute, addRoute, assignNewDriver, confirmUsual, loadDay, setAssignment, undoAssignment } from './daily';
+import { addDriverForRoute, addRoute, assignNewDriver, confirmUsual, unconfirmUsual, loadDay, setAssignment, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -42,6 +42,10 @@ export const undoAssign = createServerFn({ method: 'POST' })
 export const confirmAll = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, operation }))
   .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => { const n = await confirmUsual(tx, actor, data.date, data.operation); await recheckForDate(tx, actor, data.date, data.operation); return n; }));
+
+export const unconfirmAll = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, operation }))
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => { const n = await unconfirmUsual(tx, actor, data.date, data.operation); await recheckForDate(tx, actor, data.date, data.operation); return n; }));
 
 export const addForRoute = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, routeId: uuid, fullName: z.string().max(120), contractorId: uuid.nullable() }))

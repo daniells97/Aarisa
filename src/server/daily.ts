@@ -95,6 +95,8 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       routes: rows.length,
       confirmed: count('confirmed') + count('changed'),
       proposed: count('proposed'),
+      // Confirmed on the usual payee: what "Mark as not confirmed" takes back.
+      usualConfirmed: rows.filter((r) => r.status === 'confirmed' && samePayee(r.today, r.usual)).length,
       contractor: count('contractor'),
       waiting: count('waiting'),
       noDriver: rows.filter((r) => r.status === 'no_driver').length,
@@ -174,6 +176,22 @@ export async function confirmUsual(tx: Tx, actor: Actor, date: string, operation
   for (const r of day.rows) {
     if (r.status !== 'proposed') continue;
     await writeAssignment(tx, actor, date, r.routeId, { driverId: r.usual.driverId, contractorId: r.usual.contractorId, status: 'confirmed' });
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Takes back "Confirm usual drivers": routes confirmed on their usual payee go back to proposed. Routes
+ * someone changed, left without a driver or is waiting on keep their state; each row is audited as an undo.
+ */
+export async function unconfirmUsual(tx: Tx, actor: Actor, date: string, operation?: string) {
+  assertCan(actor, 'drivers.confirm_today');
+  const day = await loadDay(tx, actor, date, operation);
+  let n = 0;
+  for (const r of day.rows) {
+    if (r.status !== 'confirmed' || !samePayee(r.today, r.usual)) continue;
+    await writeAssignment(tx, actor, date, r.routeId, { driverId: r.usual.driverId, contractorId: r.usual.contractorId, status: 'proposed' }, 'undo');
     n++;
   }
   return n;

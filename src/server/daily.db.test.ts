@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, operations, payPeriods, payrollRuns, routes } from '~/db/schema';
+import { auditLog, operations, payPeriods, payrollRuns, routeExecutions, routes } from '~/db/schema';
 import { actorAs, withRollback, activeTforceRouteCount, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
-import { addDriverForRoute, confirmUsual, loadDay, setAssignment, undoAssignment } from './daily';
+import { addDriverForRoute, confirmUsual, loadDay, setAssignment, unconfirmUsual, undoAssignment } from './daily';
 
 // Uses the seeded T-Force routes (pnpm db:seed). June 18 has the sample list; Sept 3 has none.
 const route = async (tx: Parameters<Parameters<typeof withRollback>[0]>[0], code: string) =>
@@ -17,6 +17,28 @@ describe("today's drivers (server)", () => {
       const z = day.rows.find((r) => r.code === '9000Z')!;
       expect(z).toMatchObject({ status: 'no_driver', rawName: 'the new guy from Puma' });
       expect(day.rows.find((r) => r.code === '9000R')!.today.name).toBe('Puma');
+    }));
+
+  it('a change after confirming updates the same route-day, and the confirmation can be taken back', () =>
+    withRollback(async (tx) => {
+      const d = actorAs('dispatcher');
+      const date = '2026-09-03';
+      const confirmed = await confirmUsual(tx, d, date);
+      const e = await route(tx, '9000E');
+      const robert = await driverNamed(tx, 'Robert Arteaga');
+      await setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: robert.id } });
+      const rows = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.routeId, e.id), eq(routeExecutions.date, date)));
+      expect(rows).toHaveLength(1); // updated, never duplicated
+      expect(rows[0]).toMatchObject({ status: 'changed', driverId: robert.id });
+
+      const day = await loadDay(tx, d, date);
+      expect(day.summary.usualConfirmed).toBe(confirmed - 1);
+      expect(await unconfirmUsual(tx, d, date)).toBe(confirmed - 1);
+      const after = await loadDay(tx, d, date);
+      expect(after.summary.usualConfirmed).toBe(0);
+      expect(after.summary.proposed + after.summary.contractor).toBe(confirmed - 1); // contractor routes count on their own
+      expect(after.rows.find((r) => r.code === '9000E')).toMatchObject({ status: 'changed' }); // the change stays
+      await expect(unconfirmUsual(tx, actorAs('viewer'), date)).rejects.toBeInstanceOf(ForbiddenError);
     }));
 
   it('a day without a list proposes each usual driver; "all good" confirms them', () =>

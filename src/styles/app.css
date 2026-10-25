@@ -314,7 +314,7 @@ tr.row-selected td { background: var(--brand-tint); }
 .picker[data-state='changed'] .picker-input { border-color: var(--green); background: var(--green-tint); }
 .picker[data-state='missing'] .picker-input { border-color: var(--amber); background: var(--amber-wash); }
 .picker[data-state='missing'] .picker-input::placeholder { color: var(--amber-ink); }
-.picker-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--control); border-radius: var(--r-md); box-shadow: 0 8px 24px rgba(28,34,38,.14); max-height: 300px; overflow: auto; min-width: 240px; }
+.picker-list { position: fixed; z-index: 30; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--control); border-radius: var(--r-md); box-shadow: 0 8px 24px rgba(28,34,38,.14); overflow: auto; overscroll-behavior: contain; }
 .picker-list li { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--r-sm); cursor: pointer; }
 .picker-list li[aria-selected='true'] { background: var(--brand-tint); }
 .picker-list li[data-kind='create'] { color: var(--brand); font-weight: 600; border-top: 1px solid var(--line-soft); }

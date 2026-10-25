@@ -1,4 +1,5 @@
 import type { Role } from '~/domain/permissions';
+import { RuleError } from '~/server/errors';
 
 // Zitadel management calls for Team access. Needs a service user's token with
 // permission on the Aarisa project (open question 23). Without it, invites and role
@@ -24,6 +25,7 @@ async function call<T>(cfg: ZitadelAdminConfig, method: string, path: string, bo
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (res.status === 409) throw new RuleError('email_taken'); // a user with that email already exists in Zitadel
   if (!res.ok) throw new Error(`Zitadel ${method} ${path} failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as T;
 }

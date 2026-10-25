@@ -16,6 +16,7 @@ export async function run<T>(permission: Permission, fn: (tx: Tx, actor: Actor) 
     return { ok: true, value: await db().transaction((tx) => fn(tx, actor)) };
   } catch (e) {
     if (e instanceof RuleError) return { ok: false, code: e.code };
+    console.error(`[${permission}] server function failed:`, e); // the screen only says "something failed"
     throw e;
   }
 }
