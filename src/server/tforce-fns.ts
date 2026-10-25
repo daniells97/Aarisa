@@ -33,7 +33,11 @@ export const resolveException = createServerFn({ method: 'POST' })
       z.object({ action: z.literal('assign'), payee: z.union([z.object({ driverId: uuid }), z.object({ contractorId: uuid })]) }),
       z.object({ action: z.literal('not_ours') }),
       z.object({ action: z.literal('pay_as_reported') }),
-      z.object({ action: z.literal('ask_client'), note: z.string().max(300).optional() }),
+      z.object({ action: z.literal('pay_other'), payQuantity: z.number().int().min(0).max(100_000) }),
+      z.object({
+        action: z.literal('ask_client'), claimQuantity: z.number().int().min(0).max(100_000), claimCents: z.number().int().min(1).max(100_000_000).nullable().optional(),
+        payQuantity: z.number().int().min(0).max(100_000), note: z.string().max(300).nullable().optional(),
+      }),
     ]),
   }))
   .handler(({ data }) => run('exceptions.clear', async (tx, actor) => (await resolveTforceException(tx, actor, data.exceptionId, data.resolution)).id));

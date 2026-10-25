@@ -13,6 +13,7 @@ import { adjustmentsByExecution } from './adjustments';
 import { getOperation, listOperations, type Operation } from './ops';
 import { otherRevenueTotal } from './revenue';
 import { counts, valuationContext } from './valuation';
+import { lateCorrections } from './claims';
 import { payeeIdsByKey, payeeRefs } from './executions';
 import { contractorProfiles, driverProfiles } from './people';
 
@@ -101,6 +102,14 @@ async function computeLive(tx: Tx, op: Operation, start: string) {
     }
     const c = counts(ctx, work.map((w) => ({ serviceTypeId: w.serviceTypeId, tierId: w.tierId, quantity: w.pieces })));
     items.push({ ...payee, date: e.date, packages: c.packages, stops: c.stops, bonusCents: bonus, payCents: pay + bonus, revenueCents: revenue, missingRate: missing });
+  }
+
+  // Corrections decided after their week was approved (an accepted claim) are paid in this period.
+  const refs = await payeeRefs(tx);
+  for (const a of await lateCorrections(tx, op.id, period.start)) {
+    const payee = refs.get(a.payeeId);
+    if (!payee) continue;
+    items.push({ ...payee, date: period.start, packages: 0, stops: 0, bonusCents: 0, payCents: Number(a.amountCents), revenueCents: 0, missingRate: false, correction: true });
   }
 
   const weeks = op.payCycle === 'biweekly' ? [period.start, addDays(period.start, 7)] : [period.start];

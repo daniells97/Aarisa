@@ -3,8 +3,9 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { todayLA } from '~/domain/dates';
-import { claimReady, claimSent, getClaim, getSettlements, savePayment } from '~/server/settlements-fns';
-import { Button, Dialog, Figures, FormError, PageHead, Panel, Pill, RoutePlate, SelectField, TextField, WarningDiamond, buttonClass, parseAmount, useFormat, useToast } from '~/ui';
+import { claimReady, claimResponse, claimSent, getClaim, getSettlements, savePayment } from '~/server/settlements-fns';
+import { toCents } from '~/domain/money';
+import { Button, CheckField, Dialog, Figures, FormError, PageHead, Panel, Pill, RoutePlate, SelectField, TextField, WarningDiamond, buttonClass, parseAmount, useFormat, useToast } from '~/ui';
 import { coversText, statusPill } from '~/ui/settlement-text';
 import { useClientName } from '~/ui/ClientNames';
 
@@ -144,7 +145,7 @@ function ClaimPanel({ claim, canRecord }: { claim: Awaited<ReturnType<typeof get
             </dl>
             {agreement?.text && <blockquote className="agreement"><strong>{t('st.c.agreement')}</strong><br />“{agreement.text}”</blockquote>}
           </>
-        ) : <p style={{ margin: 0 }}>{t('st.claimWeek', { client })}</p>}
+        ) : claim.weekly ? <WeeklyClaim claim={claim} client={client} /> : <p style={{ margin: 0 }}>{t('st.claimWeek', { client })}</p>}
         <ul className="checks">
           <li>{checklist.orderNumber || !j ? <span className="check-ok" aria-hidden="true">✓</span> : <WarningDiamond size={18} />}{j ? (checklist.orderNumber ? t('st.ck.order') : t('st.ck.noOrder')) : coversText(line, t, f)}</li>
           {j && <li>{checklist.agreementLogged ? <span className="check-ok" aria-hidden="true">✓</span> : <WarningDiamond size={18} />}{agreement ? t('st.ck.agreement', { date: f.date(agreement.at.slice(0, 10), { month: 'long', day: 'numeric' }) }) : t('st.ck.noAgreement')}</li>}
@@ -166,6 +167,85 @@ function ClaimPanel({ claim, canRecord }: { claim: Awaited<ReturnType<typeof get
         )}
       </div>
     </Panel>
+  );
+}
+
+/** A claim opened from the weekly check: what was reported and claimed, and the client's answer. */
+function WeeklyClaim({ claim, client }: { claim: Awaited<ReturnType<typeof getClaim>>; client: string }) {
+  const t = useT();
+  const f = useFormat();
+  const router = useRouter();
+  const toast = useToast();
+  const w = claim.weekly!;
+  const [response, setResponse] = useState<'accepted' | 'partial' | 'rejected' | null>(null);
+  const [accepted, setAccepted] = useState('');
+  const [payee, setPayee] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fullPayee = w.payeeRateCents != null && w.claimedQuantity ? w.claimedQuantity * w.payeeRateCents : null;
+
+  const choose = (r: 'accepted' | 'partial' | 'rejected') => {
+    setResponse(r);
+    if (r === 'accepted' && w.claimedCents != null) setAccepted((w.claimedCents / 100).toFixed(2));
+    if (r !== 'accepted') setAccepted('');
+  };
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!response) return setError(t('st.wc.chooseResponse'));
+    let acceptedCents: number | null = null, payeeCents: number | null = null;
+    try {
+      if (response !== 'rejected') acceptedCents = toCents(accepted);
+      if (payee.trim()) payeeCents = toCents(payee);
+    } catch { return setError(t('error.invalid_amount')); }
+    if (response !== 'rejected' && !acceptedCents) return setError(t('error.invalid_amount'));
+    setBusy(true);
+    try {
+      const res = await claimResponse({ data: { lineId: claim.line.id, response, acceptedCents, payeeCents } });
+      if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
+      toast(t('st.wc.saved'));
+      await router.invalidate();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="stack">
+      <dl className="claim-facts">
+        <div><dt>{t('st.wc.routeDay')}</dt><dd><RoutePlate code={w.route} size="sm" /> {f.date(w.date, { weekday: 'long', month: 'long', day: 'numeric' })}</dd></div>
+        <div><dt>{t('st.wc.reported', { client })}</dt><dd className="num">{t('st.wc.pieces', { n: w.reported })}</dd></div>
+        <div><dt>{t('st.wc.usual')}</dt><dd className="num">{t('st.wc.pieces', { n: w.usual })}</dd></div>
+        <div><dt>{t('st.wc.claimed')}</dt><dd className="num">{t('st.wc.pieces', { n: w.claimedQuantity ?? 0 })}, {f.money(w.claimedCents)}</dd></div>
+        {w.payee && <div><dt>{t('st.c.doneBy')}</dt><dd>{w.payee}</dd></div>}
+      </dl>
+      {w.note && <blockquote className="agreement">“{w.note}”</blockquote>}
+      {w.response ? (
+        <p className="notice notice-info" style={{ margin: 0 }}>
+          {t(`st.wc.answered.${w.response}` as MessageKey, { client, amount: f.money(w.acceptedCents), date: f.dateTime(w.respondedAt!) })}
+          {' '}{w.payeeCorrectionCents ? t('st.wc.payeeGot', { payee: w.payee ?? '', amount: f.money(w.payeeCorrectionCents) }) : t('st.wc.payeeNothing')}
+        </p>
+      ) : claim.canRespond && (
+        <form className="stack" onSubmit={submit} aria-labelledby="wc-title">
+          <strong id="wc-title">{t('st.wc.title', { client })}</strong>
+          <fieldset className="stack" style={{ gap: 4, border: 0, padding: 0, margin: 0 }}>
+            <legend className="visually-hidden">{t('st.wc.title', { client })}</legend>
+            {(['accepted', 'partial', 'rejected'] as const).map((r) => (
+              <CheckField key={r} type="radio" name="wc-response" checked={response === r} onChange={() => choose(r)} label={t(`st.wc.r.${r}`)} />
+            ))}
+          </fieldset>
+          {response && response !== 'rejected' && (
+            <TextField label={t('st.wc.acceptedAmount', { client })} inputMode="decimal" required value={accepted} onChange={(e) => setAccepted(e.target.value)} />
+          )}
+          {response && claim.canPayPayee && w.payee && (
+            <TextField label={t('st.wc.payeeAmount', { payee: w.payee })} inputMode="decimal" value={payee} onChange={(e) => setPayee(e.target.value)}
+              hint={fullPayee != null ? t('st.wc.payeeHint', { amount: f.money(fullPayee), n: w.claimedQuantity ?? 0 }) : t('st.wc.payeeHintNoRate')} />
+          )}
+          {error && <p role="alert" className="field-error" style={{ margin: 0 }}>{error}</p>}
+          <div className="row"><Button type="submit" variant="primary" disabled={busy}>{t('st.wc.save')}</Button></div>
+        </form>
+      )}
+    </div>
   );
 }
 

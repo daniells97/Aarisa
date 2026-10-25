@@ -50,7 +50,7 @@ describe('T-Force weekly check (server)', () => {
 
       const finance = actorAs('finance');
       await resolveTforceException(tx, finance, open.find((e) => e.route === '9000W')!.id, { action: 'pay_as_reported' });
-      await resolveTforceException(tx, actorAs('dispatcher'), open.find((e) => e.route === '9000Z' && e.date === '2026-06-19')!.id, { action: 'ask_client', note: 'one piece' });
+      await resolveTforceException(tx, actorAs('dispatcher'), open.find((e) => e.route === '9000Z' && e.date === '2026-06-19')!.id, { action: 'ask_client', claimQuantity: 150, claimCents: 150 * 250, payQuantity: 1, note: 'one piece' });
       after = await loadTforceWeek(tx, owner, WEEK);
       expect(after.summary.open).toBe(0);
       const claims = await tx.select().from(settlementLines).where(eq(settlementLines.kind, 'claim_adjustment'));

@@ -18,6 +18,8 @@ export interface RunItem extends Payee {
   missingRate: boolean;
   /** An extra job pays an agreed amount but is not a route-day. */
   extraJob?: boolean;
+  /** A correction for an earlier, closed period (an accepted claim): pay only, no day, no revenue. */
+  correction?: boolean;
 }
 
 export interface PayrollLine extends Payee {
@@ -64,8 +66,8 @@ export function buildRun(input: RunInput) {
   for (const it of input.items) {
     const k = payeeKey(it);
     const l = byPayee.get(k) ?? { driverId: it.driverId, contractorId: it.contractorId, routeDays: 0, extraJobs: 0, packages: 0, stops: 0, bonusCents: 0, payCents: 0, revenueCents: 0, marginCents: 0 };
-    if (!it.extraJob) l.routeDays++;
-    else l.extraJobs++;
+    if (it.extraJob) l.extraJobs++;
+    else if (!it.correction) l.routeDays++;
     l.packages += it.packages;
     l.stops += it.stops;
     l.bonusCents += it.bonusCents;
@@ -98,7 +100,7 @@ export function buildRun(input: RunInput) {
   if (!lines.length) blockers.push({ kind: 'no_work' });
 
   const newPayees = input.previousPayees ? lines.map(payeeKey).filter((k) => !input.previousPayees!.includes(k)) : [];
-  const negativeDays = input.items.filter((i) => i.revenueCents - i.payCents < 0)
+  const negativeDays = input.items.filter((i) => !i.correction && i.revenueCents - i.payCents < 0)
     .map((i) => ({ payee: payeeKey(i), date: i.date, marginCents: i.revenueCents - i.payCents }))
     .sort((a, b) => a.marginCents - b.marginCents);
   return { lines, totals, blockers, ready: blockers.length === 0, warnings: { newPayees, negativeDays } };

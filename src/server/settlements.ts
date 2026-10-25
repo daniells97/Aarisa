@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, lte, getViewSelectedFields } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { aiSuggestions, claims, extraJobView, operations, paymentAllocations, paymentsReceived, payrollRuns, routes, serviceTypes, settlementLines, workView } from '~/db/schema';
+import { aiSuggestions, claims, exceptions, extraJobView, operations, payAdjustments, paymentAllocations, paymentsReceived, payrollRuns, routes, serviceTypes, settlementLines, workView } from '~/db/schema';
 import { addDays, weekStart } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { settlementStatus, settlementSummary, type SettlementStatus } from '~/domain/settlements';
@@ -11,6 +11,8 @@ import { getOperation, type Operation } from './ops';
 import { otherRevenueTotal } from './revenue';
 import { clientRate, valuationContext } from './valuation';
 import { payeeNameMaps } from './people';
+import { claimBasis } from './claims';
+import { payeeNamesById } from './executions';
 
 // Settlements (spec §5.6, 6.9): what each client is expected to pay, what arrived, what is late,
 // and claims for money paid out to drivers but left out by the client.
@@ -109,14 +111,16 @@ export async function loadSettlements(tx: Tx, actor: Actor, today: string, filte
   const view = lines.map((l) => {
     const rec = received.get(l.id) ?? { cents: 0, lastDate: null };
     const lineClaims = claimRows.filter((c) => c.settlementLineId === l.id);
-    const claim = lineClaims.some((c) => c.status === 'sent') ? 'sent' as const : l.status === 'claim_ready' || l.status === 'claimed' || lineClaims.length ? 'ready' as const : 'none' as const;
+    const sent = lineClaims.find((c) => c.sentAt);
+    const claim = sent ? 'sent' as const : l.status === 'claim_ready' || l.status === 'claimed' || lineClaims.length ? 'ready' as const : 'none' as const;
     const s = settlementStatus({ expectedCents: l.expectedCents, expectedDate: l.expectedDate, receivedCents: rec.cents, claim }, today);
     const j = jobs.find((x) => x.job.id === l.extraJobId);
     return {
       id: l.id, operation: opCode.get(l.operationId)!, kind: l.kind, reference: l.reference, periodStart: l.periodStart, periodEnd: l.periodEnd,
       expectedCents: l.expectedCents, expectedDate: l.expectedDate, receivedCents: rec.cents, paidOn: s.status === 'paid' ? rec.lastDate : null,
       missingCents: s.missingCents, daysLate: s.daysLate, status: s.status as SettlementStatus, paidToPayee: paidOut.has(l.id),
-      claimSentAt: lineClaims.find((c) => c.status === 'sent')?.sentAt?.toISOString() ?? null, claimSentTo: lineClaims.find((c) => c.status === 'sent')?.sentTo ?? null,
+      claimSentAt: sent?.sentAt?.toISOString() ?? null, claimSentTo: sent?.sentTo ?? null,
+      claimResponse: lineClaims.find((c) => c.response)?.response ?? null,
       job: j ? {
         service: j.service, date: j.job.date, orderNumber: j.job.orderNumber, nearRoute: j.route ?? null,
         payee: j.job.driverId ? dName.get(j.job.driverId) ?? '' : cName.get(j.job.contractorId!) ?? '', contractor: !!j.job.contractorId,
@@ -201,10 +205,14 @@ export async function markClaimSent(tx: Tx, actor: Actor, lineId: string, sentTo
   const [line] = await tx.select().from(settlementLines).where(eq(settlementLines.id, lineId));
   if (!line) throw new RuleError('line_not_found');
   if (line.status === 'paid') throw new RuleError('already_paid');
-  const [claim] = await tx.insert(claims).values({ settlementLineId: lineId, status: 'sent', sentTo, sentAt: new Date(), createdBy: actor.userId }).returning();
+  // A weekly-check claim already has its draft (what is claimed and why): it becomes the sent claim.
+  const [draft] = await tx.select().from(claims).where(and(eq(claims.settlementLineId, lineId), eq(claims.status, 'draft')));
+  const [claim] = draft
+    ? await tx.update(claims).set({ status: 'sent', sentTo, sentAt: new Date() }).where(eq(claims.id, draft.id)).returning()
+    : await tx.insert(claims).values({ settlementLineId: lineId, status: 'sent', sentTo, sentAt: new Date(), createdBy: actor.userId }).returning();
   const [after] = await tx.update(settlementLines).set({ status: 'claimed', updatedAt: new Date() }).where(eq(settlementLines.id, lineId)).returning();
   await audit(tx, [
-    { table: 'claims', recordId: claim!.id, action: 'insert', after: claim, userId: actor.userId, source: actor.source },
+    { table: 'claims', recordId: claim!.id, action: draft ? 'update' : 'insert', before: draft ?? undefined, after: claim, userId: actor.userId, source: actor.source },
     { table: 'settlement_lines', recordId: lineId, action: 'update', before: line, after, userId: actor.userId, source: actor.source },
   ]);
   return claim!;
@@ -228,6 +236,29 @@ export async function claimDetails(tx: Tx, actor: Actor, lineId: string, today: 
       agreement = { at: job.createdAt.toISOString(), text: job.note ?? '' };
     }
   }
-  return { line, agreement, checklist: { orderNumber: !!line.job?.orderNumber, agreementLogged: !!agreement, sent: !!line.claimSentAt } };
+  // A weekly-check claim: the route-day, what was reported and claimed, and the client's answer.
+  let weekly = null;
+  const [c] = await tx.select().from(claims).where(and(eq(claims.settlementLineId, lineId))).orderBy(desc(claims.createdAt)).limit(1);
+  if (c?.exceptionId) {
+    const [ex] = await tx.select().from(exceptions).where(eq(exceptions.id, c.exceptionId));
+    const basis = await claimBasis(tx, ex!);
+    const [route] = await tx.select({ code: routes.code }).from(routes).where(eq(routes.id, ex!.routeId!));
+    const names = await payeeNamesById(tx, basis.execution?.payeeId ? [basis.execution.payeeId] : []);
+    const [adj] = c.payAdjustmentId ? await tx.select().from(payAdjustments).where(eq(payAdjustments.id, c.payAdjustmentId)) : [];
+    weekly = {
+      route: route?.code ?? '', date: ex!.date, type: ex!.type, reported: basis.reported, usual: basis.usual,
+      claimedQuantity: c.claimedQuantity, claimedCents: c.claimedCents, note: c.note,
+      payee: basis.execution?.payeeId ? names.get(basis.execution.payeeId) ?? '' : null,
+      payeeRateCents: basis.payeeRateCents,
+      response: c.response, acceptedCents: c.acceptedCents, respondedAt: c.respondedAt?.toISOString() ?? null,
+      payeeCorrectionCents: adj ? Number(adj.amountCents) : null,
+    };
+  }
+  return {
+    line, agreement, weekly,
+    canRespond: can(actor.role, 'settlements.record') && !!weekly && !weekly.response,
+    canPayPayee: can(actor.role, 'payroll.approve'),
+    checklist: { orderNumber: !!line.job?.orderNumber, agreementLogged: !!agreement, sent: !!line.claimSentAt },
+  };
 }
 

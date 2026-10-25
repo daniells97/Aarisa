@@ -12,6 +12,7 @@ import { assertNotLocked, getOperation, lockedPeriodStarts, operationFor } from 
 import { payeeNameMaps, routeOwners } from './people';
 import { refreshWeeklyLines } from './settlements';
 import { importReport, type ImportProblems } from './imports';
+import { claimBasis, openClaim, payQuantityFor } from './claims';
 
 // T-Force weekly check (spec §5.3, 6.4). Report rows become e-commerce work records; the check joins
 // them to the daily list and keeps one exception per (type, date, route) until someone resolves it.
@@ -97,13 +98,16 @@ export type Resolution =
   | { action: 'assign'; payee: Exclude<PayeeInput, null> }
   | { action: 'not_ours' }
   | { action: 'pay_as_reported' }
-  | { action: 'ask_client'; note?: string };
+  // The owner sets what the payee is paid for the day instead of what the client reported.
+  | { action: 'pay_other'; payQuantity: number }
+  // A claim to the client for `claimQuantity` pieces worth `claimCents`; the payee is paid `payQuantity` meanwhile.
+  | { action: 'ask_client'; claimQuantity: number; claimCents?: number | null; payQuantity: number; note?: string | null };
 
 const ALLOWED: Record<string, Resolution['action'][]> = {
   no_driver: ['assign', 'not_ours'],
   unknown_name: ['assign', 'not_ours'],
-  low_pieces: ['pay_as_reported', 'ask_client'],
-  no_pieces: ['ask_client', 'not_ours'],
+  low_pieces: ['pay_as_reported', 'pay_other', 'ask_client'],
+  no_pieces: ['pay_other', 'ask_client', 'not_ours'],
 };
 
 export async function resolveTforceException(tx: Tx, actor: Actor, exceptionId: string, r: Resolution) {
@@ -127,21 +131,28 @@ export async function resolveTforceException(tx: Tx, actor: Actor, exceptionId: 
     throw new RuleError('still_open');
   }
 
-  let claimId: string | null = null;
-  if (r.action === 'ask_client') {
-    const code = (await tx.select({ code: routes.code }).from(routes).where(eq(routes.id, ex.routeId!)))[0]?.code ?? '';
-    const [line] = await tx.insert(settlementLines).values({
-      operationId: op.id, kind: 'claim_adjustment', reference: `${code} ${ex.date} ${ex.type}${r.note ? `: ${r.note}` : ''}`,
-      periodStart: ex.periodStart, periodEnd: addDays(ex.periodStart, 6), status: 'claim_ready',
-    }).returning();
-    await audit(tx, { table: 'settlement_lines', recordId: line!.id, action: 'insert', after: line, userId: actor.userId, source: actor.source });
-    claimId = line!.id;
+  const code = (await tx.select({ code: routes.code }).from(routes).where(eq(routes.id, ex.routeId!)))[0]?.code ?? '';
+  const extra: Record<string, unknown> = {};
+  if (r.action === 'pay_other' || r.action === 'ask_client') {
+    const basis = await claimBasis(tx, ex);
+    const adj = await payQuantityFor(tx, actor, ex, basis, r.payQuantity, `${code} ${ex.date}: paid ${r.payQuantity} pieces, reported ${basis.reported}`);
+    extra.payQuantity = r.payQuantity;
+    if (adj) extra.payAdjustmentId = adj.id;
+    if (r.action === 'ask_client') {
+      const note = r.note?.trim() || null;
+      const { line } = await openClaim(tx, actor, ex, basis, {
+        claimQuantity: r.claimQuantity, claimCents: r.claimCents ?? null, note,
+        reference: `${code} ${ex.date}: ${basis.reported} pieces reported, ${r.claimQuantity} claimed${note ? ` (${note})` : ''}`,
+      });
+      extra.settlementLineId = line.id;
+      if (note) extra.note = note;
+    }
   }
   // Not Aarisa's route: the execution has no payee (no driver or an unknown name), so nobody is paid for it.
-  const resolution = r.action === 'not_ours' ? 'not_ours' : r.action === 'pay_as_reported' ? 'pay_as_reported' : 'ask_client';
+  const resolution = r.action;
   const [after] = await tx.update(exceptions).set({
     status: 'resolved', resolution, resolvedBy: actor.userId, resolvedAt: new Date(),
-    details: { ...(ex.details as object), ...(claimId ? { settlementLineId: claimId } : {}), ...(r.action === 'ask_client' && r.note ? { note: r.note } : {}) },
+    details: { ...(ex.details as object), ...extra },
   }).where(eq(exceptions.id, ex.id)).returning();
   await audit(tx, { table: 'exceptions', recordId: ex.id, action: 'update', before: ex, after, userId: actor.userId, source: actor.source });
   if (r.action === 'not_ours') await refreshWeeklyLines(tx, actor, op.code, [ex.periodStart]); // not billed any more
@@ -184,11 +195,21 @@ export async function loadTforceWeek(tx: Tx, actor: Actor, start: string, operat
   const [lastImport] = await tx.select().from(reportImports).where(and(eq(reportImports.operationId, op.id), inArray(reportImports.status, ['done', 'partial']))).orderBy(desc(reportImports.receivedAt)).limit(1);
   const locked = (await lockedPeriodStarts(tx, op.id, start, end)).has(start);
   const open = exRows.filter((e) => e.status === 'open');
+  // For open pieces exceptions: what was reported, the route's usual pieces and the rates, so the owner can
+  // decide what to pay and what to claim. Client rates only for roles that see money (rule 9).
+  const money = can(actor.role, 'money.view');
+  const bases = new Map<string, { reported: number; usual: number; suggestedQuantity: number; clientRateCents: number | null; payeeRateCents: number | null; hasPayee: boolean }>();
+  for (const e of open.filter((x) => x.type === 'low_pieces' || x.type === 'no_pieces')) {
+    const b = await claimBasis(tx, e);
+    bases.set(e.id, { reported: b.reported, usual: b.usual, suggestedQuantity: b.suggestedQuantity, clientRateCents: money ? b.clientRateCents : null, payeeRateCents: money ? b.payeeRateCents : null, hasPayee: !!b.execution?.payeeId });
+  }
 
   return {
     week: { start, end }, days: shownDays, locked,
     canImport: can(actor.role, 'reports.import'),
     canResolve: can(actor.role, 'exceptions.clear') && !locked,
+    canPayOther: can(actor.role, 'payroll.approve') && !locked,
+    showMoney: money, // what a driver is paid beyond the report is the owner's call
     importState: imports[0] ? { status: imports[0].status, fileName: imports[0].fileName, receivedAt: imports[0].receivedAt?.toISOString() ?? null, channel: imports[0].channel, problems: (imports[0].problems ?? {}) as ImportProblems } : null,
     lastImportAt: lastImport?.receivedAt?.toISOString() ?? null,
     summary: {
@@ -211,7 +232,7 @@ export async function loadTforceWeek(tx: Tx, actor: Actor, start: string, operat
       return {
         id: e.id, type: e.type, status: e.status, resolution: e.resolution, date: e.date, route: codeOf.get(e.routeId!) ?? '',
         pieces: d.pieces ?? null, rawName: d.rawName ?? null, payee: payeeName(d.payee ?? null), low: d.low ?? null, high: d.high ?? null,
-        dayBefore: before, dayAfter: after, note: d.note ?? null,
+        dayBefore: before, dayAfter: after, note: d.note ?? null, basis: bases.get(e.id) ?? null,
       };
     }),
     options: {

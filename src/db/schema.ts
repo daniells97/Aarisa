@@ -41,8 +41,10 @@ export const exceptionTypeEnum = core.enum('exception_type', [
 ]);
 export const exceptionStatusEnum = core.enum('exception_status', ['open', 'resolved']);
 export const resolutionEnum = core.enum('resolution', [
-  'assigned_driver', 'not_ours', 'pay_as_reported', 'ask_client', 'rate_added', 'accepted',
+  'assigned_driver', 'not_ours', 'pay_as_reported', 'ask_client', 'rate_added', 'accepted', 'pay_other',
 ]);
+// What the client answered to a claim: all of it, part of it, or nothing.
+export const claimResponseEnum = core.enum('claim_response', ['accepted', 'partial', 'rejected']);
 export const runStatusEnum = core.enum('run_status', ['draft', 'ready', 'approved', 'reopened', 'paid']);
 // What a client is expected to pay: Aarisa's weekly invoice, the client's weekly statement, an extra job,
 // or a claim. Each contract says which weekly kind it uses.
@@ -595,9 +597,22 @@ export const claims = core.table('claims', {
   sentTo: text('sent_to'),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   pdfUrl: text('pdf_url'),
+  // A weekly-check exception sent to the client ("Ask T-Force"): what is claimed and why.
+  exceptionId: uuid('exception_id').references(() => exceptions.id),
+  claimedQuantity: integer('claimed_quantity'),
+  claimedCents: cents('claimed_cents'),
+  note: text('note'),
+  // The client's answer. The owner decides then whether the payee gets anything more (a later correction).
+  response: claimResponseEnum('claim_response'),
+  acceptedCents: cents('accepted_cents'),
+  respondedBy: uuid('responded_by_user_id').references(() => users.id),
+  respondedAt: timestamp('responded_at', { withTimezone: true }),
+  payAdjustmentId: uuid('pay_adjustment_id').references(() => payAdjustments.id),
   createdBy: uuid('created_by_user_id').references(() => users.id),
   createdAt: createdAt(),
-});
+}, (t) => [
+  check('claims_response_amount', sql`${t.response} is null or ${t.acceptedCents} is not null`),
+]);
 
 // ---------- WhatsApp and AI ----------
 export const messages = core.table('messages', {

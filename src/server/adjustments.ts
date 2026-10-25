@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { adjustmentTypes, payAdjustments } from '~/db/schema';
 import type { Actor } from './actor';
@@ -16,11 +16,11 @@ async function typeId(tx: Tx, code: string) {
   return t.id;
 }
 
-/** Confirmed adjustments per execution, summed. */
+/** Confirmed adjustments per execution, summed. A correction paid in a later period counts there, not here. */
 export async function adjustmentsByExecution(tx: Tx, executionIds: string[]): Promise<Map<string, number>> {
   if (!executionIds.length) return new Map();
   const rows = await tx.select({ id: payAdjustments.executionId, total: sql<string>`sum(${payAdjustments.amountCents})` }).from(payAdjustments)
-    .where(and(inArray(payAdjustments.executionId, executionIds), eq(payAdjustments.status, 'confirmed'))).groupBy(payAdjustments.executionId);
+    .where(and(inArray(payAdjustments.executionId, executionIds), eq(payAdjustments.status, 'confirmed'), isNull(payAdjustments.payPeriodId))).groupBy(payAdjustments.executionId);
   return new Map(rows.map((r) => [r.id!, Number(r.total)]));
 }
 
