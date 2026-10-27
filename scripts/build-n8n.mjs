@@ -61,6 +61,8 @@ return out;`),
 x = 0;
 const morning = workflow('Aarisa - morning list', [
   schedule('6:30 AM Monday to Saturday', '30 6 * * 1-6'),
+  // Sends the list now: from the editor, or `n8n execute --id=aarisamorninglis` for a test.
+  node('Send now', 'n8n-nodes-base.manualTrigger', 1, {}),
   portal('Get morning list', 'GET', '/morning-list', { sendQuery: true, queryParameters: { parameters: [{ name: 'date', value: `={{ ${todayLA} }}` }] } }),
   code('One message per recipient', `// A summary, not the whole list: the usual case is every route on its usual driver, so the message
 // only names what needs a look (no driver, one driver on two routes). The full list is one tap away
@@ -87,7 +89,7 @@ return list.recipients.map((p) => {
     components: [{ type: 'body', parameters: $json.params.map((text) => ({ type: 'text', text })) }] } }`),
   portal('Log sent message', 'POST', '/messages', jsonBody(`{ direction: 'out', phone: $('One message per recipient').item.json.phone, type: 'template', body: 'morning_summary ' + $('One message per recipient').item.json.params.join(' | '),
     waMessageId: $json.messages?.[0]?.id ?? null, relatedDate: $('One message per recipient').item.json.date }`)),
-], chain('6:30 AM Monday to Saturday', 'Get morning list', 'One message per recipient', 'Send morning template', 'Log sent message'));
+], { ...chain('6:30 AM Monday to Saturday', 'Get morning list', 'One message per recipient', 'Send morning template', 'Log sent message'), ...chain('Send now', 'Get morning list') });
 
 // ---------------------------------------------------------------- 3. WhatsApp inbound
 x = 0;
