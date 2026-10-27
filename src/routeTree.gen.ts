@@ -39,6 +39,7 @@ import { Route as ApiIntegrationsImportsRouteImport } from './routes/api/integra
 import { Route as ApiIntegrationsMessagesRouteImport } from './routes/api/integrations/messages'
 import { Route as ApiIntegrationsMorningListRouteImport } from './routes/api/integrations/morning-list'
 import { Route as ApiIntegrationsRemindersRouteImport } from './routes/api/integrations/reminders'
+import { Route as ApiIntegrationsWhatsappMenuRouteImport } from './routes/api/integrations/whatsapp-menu'
 import { Route as AppHovershipWeekWeekIdRouteImport } from './routes/_app/hovership/week/$weekId'
 import { Route as AppSettlementsClaimLineIdRouteImport } from './routes/_app/settlements/claim.$lineId'
 import { Route as AppTforceWeekIndexRouteImport } from './routes/_app/tforce/week/index'
@@ -197,6 +198,12 @@ const ApiIntegrationsRemindersRoute =
     path: '/api/integrations/reminders',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiIntegrationsWhatsappMenuRoute =
+  ApiIntegrationsWhatsappMenuRouteImport.update({
+    id: '/api/integrations/whatsapp-menu',
+    path: '/api/integrations/whatsapp-menu',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppHovershipWeekWeekIdRoute = AppHovershipWeekWeekIdRouteImport.update({
   id: '/hovership/week/$weekId',
   path: '/hovership/week/$weekId',
@@ -245,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
   '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
+  '/api/integrations/whatsapp-menu': typeof ApiIntegrationsWhatsappMenuRoute
   '/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/hovership/': typeof AppHovershipIndexRoute
   '/payroll/': typeof AppPayrollIndexRoute
@@ -280,6 +288,7 @@ export interface FileRoutesByTo {
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
   '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
+  '/api/integrations/whatsapp-menu': typeof ApiIntegrationsWhatsappMenuRoute
   '/extra-jobs': typeof AppExtraJobsIndexRoute
   '/hovership': typeof AppHovershipIndexRoute
   '/payroll': typeof AppPayrollIndexRoute
@@ -317,6 +326,7 @@ export interface FileRoutesById {
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
   '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
+  '/api/integrations/whatsapp-menu': typeof ApiIntegrationsWhatsappMenuRoute
   '/_app/extra-jobs/': typeof AppExtraJobsIndexRoute
   '/_app/hovership/': typeof AppHovershipIndexRoute
   '/_app/payroll/': typeof AppPayrollIndexRoute
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/api/integrations/messages'
     | '/api/integrations/morning-list'
     | '/api/integrations/reminders'
+    | '/api/integrations/whatsapp-menu'
     | '/extra-jobs/'
     | '/hovership/'
     | '/payroll/'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/api/integrations/messages'
     | '/api/integrations/morning-list'
     | '/api/integrations/reminders'
+    | '/api/integrations/whatsapp-menu'
     | '/extra-jobs'
     | '/hovership'
     | '/payroll'
@@ -425,6 +437,7 @@ export interface FileRouteTypes {
     | '/api/integrations/messages'
     | '/api/integrations/morning-list'
     | '/api/integrations/reminders'
+    | '/api/integrations/whatsapp-menu'
     | '/_app/extra-jobs/'
     | '/_app/hovership/'
     | '/_app/payroll/'
@@ -450,6 +463,7 @@ export interface RootRouteChildren {
   ApiIntegrationsMessagesRoute: typeof ApiIntegrationsMessagesRoute
   ApiIntegrationsMorningListRoute: typeof ApiIntegrationsMorningListRoute
   ApiIntegrationsRemindersRoute: typeof ApiIntegrationsRemindersRoute
+  ApiIntegrationsWhatsappMenuRoute: typeof ApiIntegrationsWhatsappMenuRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -664,6 +678,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIntegrationsRemindersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/integrations/whatsapp-menu': {
+      id: '/api/integrations/whatsapp-menu'
+      path: '/api/integrations/whatsapp-menu'
+      fullPath: '/api/integrations/whatsapp-menu'
+      preLoaderRoute: typeof ApiIntegrationsWhatsappMenuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/hovership/week/$weekId': {
       id: '/_app/hovership/week/$weekId'
       path: '/hovership/week/$weekId'
@@ -758,6 +779,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiIntegrationsMessagesRoute: ApiIntegrationsMessagesRoute,
   ApiIntegrationsMorningListRoute: ApiIntegrationsMorningListRoute,
   ApiIntegrationsRemindersRoute: ApiIntegrationsRemindersRoute,
+  ApiIntegrationsWhatsappMenuRoute: ApiIntegrationsWhatsappMenuRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

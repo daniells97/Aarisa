@@ -139,24 +139,28 @@ const out = [];
 for (const entry of body.entry || []) for (const change of entry.changes || []) for (const m of change.value?.messages || []) {
   const kind = m.type === 'interactive' || m.type === 'button' ? 'button' : m.type === 'audio' ? 'audio' : m.type === 'text' ? 'text' : 'other';
   out.push({ json: { waMessageId: m.id, phone: '+' + m.from, kind, text: m.text?.body ?? null,
-    button: m.button?.text ?? m.interactive?.button_reply?.title ?? null, mediaId: m.audio?.id ?? null, date: ${todayLA} } });
+    button: m.button?.text ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? null,
+    // Menu rows and buttons carry our own id (src/server/whatsapp-menu.ts); template quick replies only their text.
+    choice: m.interactive?.list_reply?.id ?? m.interactive?.button_reply?.id ?? null, mediaId: m.audio?.id ?? null, date: ${todayLA} } });
 }
 return out;`),
   portal('Log incoming message', 'POST', '/messages', jsonBody(`{ waMessageId: $json.waMessageId, direction: 'in', phone: $json.phone,
     type: $json.kind === 'button' ? 'interactive' : $json.kind === 'audio' ? 'audio' : 'text', body: $json.text ?? $json.button, relatedDate: $json.date }`)),
-  code('Who wrote and what to do', `// Unknown numbers get a short reply; quick replies skip the AI.
+  code('Who wrote and what to do', `// Unknown numbers get a short reply. Taps and greetings go to the menu; other text goes to the AI
+// when there is a key (AI_API_KEY), else to the menu too, so the menu works without the AI.
 const msg = $('Verify signature and read messages').item.json;
 const logged = $json;
-let route = 'ai';
+const greeting = /^\\s*(hola|buenas|buenos d[ií]as|men[uú]|opciones|ayuda|hi|hello|options|help)\\b[\\s.!?]*$/i.test(msg.text || '');
+let route = 'menu';
 if (!logged.userId) route = 'unknown_number';
-else if (msg.kind === 'button' && /all good|todo bien/i.test(msg.button || '')) route = 'all_good';
-else if (msg.kind === 'button') route = 'ask_change';
-else if (msg.kind === 'audio') route = 'transcribe';
+else if (msg.kind === 'audio' && $env.STT_URL) route = 'transcribe';
+else if (msg.kind === 'text' && $env.AI_API_KEY && !greeting) route = 'ai';
 return [{ json: { ...msg, messageId: logged.id, route } }];`),
-  switchOn('Route message', 'route', ['all_good', 'ask_change', 'transcribe', 'ai', 'unknown_number']),
-  portal('Confirm usual drivers', 'POST', '/daily-changes', jsonBody(`{ phone: $json.phone, date: $json.date, messageId: $json.messageId, inputText: $json.button, model: 'quick-reply', output: { confirm_all: true, changes: [] } }`)),
-  whatsapp('Reply: confirmed', `{ messaging_product: 'whatsapp', to: $('Route message').item.json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Listo. ' + ($json.confirmedAll ?? 0) + ' rutas confirmadas con su conductor habitual.' : 'Done. ' + ($json.confirmedAll ?? 0) + ' routes confirmed with their usual driver.') } }`),
-  whatsapp('Reply: what changed?', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Dime qué cambió, por ejemplo: "hoy la E la hace Norwin".' : 'Tell me what changed, for example: "E is Norwin today".') } }`),
+  switchOn('Route message', 'route', ['menu', 'transcribe', 'ai', 'unknown_number']),
+  portal('Ask the menu', 'POST', '/whatsapp-menu', jsonBody(`{ phone: $json.phone, date: $json.date, choice: $json.choice ?? null, button: $json.choice ? null : ($json.kind === 'button' ? $json.button : null),
+    locale: $env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale }`)),
+  code('One reply per message', `return ($json.messages || []).map((m) => ({ json: m }));`),
+  whatsapp('Reply: menu', `$json`),
   whatsapp('Reply: number not registered', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: 'This number is not set up in the Aarisa portal. Ask the owner to add it in Team access.' } }`),
   node('Get audio file link', 'n8n-nodes-base.httpRequest', 4.2, { method: 'GET', url: '=https://graph.facebook.com/v21.0/{{ $json.mediaId }}', ...PORTAL_AUTH, options: {} }, { credentials: WA_CRED }),
   node('Download audio', 'n8n-nodes-base.httpRequest', 4.2, { method: 'GET', url: '={{ $json.url }}', ...PORTAL_AUTH, options: { response: { response: { responseFormat: 'file' } } } }, { credentials: WA_CRED }),
@@ -223,23 +227,21 @@ return [{ json: { to: $('What the message is').item.json.phone.replace(/^\\+/, '
   whatsapp('Reply: review and save', `{ messaging_product: 'whatsapp', to: $('What the message is').item.json.phone.replace(/^\\+/, ''), type: 'interactive',
     interactive: { type: 'cta_url', body: { text: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Llené el trabajo extra' + ($json.missing?.length ? ' (falta: ' + $json.missing.join(', ') + ')' : '') + '. Revísalo y toca Guardar. No se guarda nada hasta que lo hagas.' : 'I filled in the extra job' + ($json.missing?.length ? ' (missing: ' + $json.missing.join(', ') + ')' : '') + '. Check it and tap Save. Nothing is saved until you do.') },
       action: { name: 'cta_url', parameters: { display_text: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Revisar y guardar' : 'Review and save'), url: $json.link } } } }`),
-  whatsapp('Reply: help', `{ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Puedo actualizar los conductores de hoy ("hoy la E la hace Norwin") o registrar un trabajo extra (pickup, Grainger o ruta de recuperación, con lo que paga T-Force y el número de orden).' : 'I can update today\\'s drivers ("E is Norwin today") or log an extra job (a pickup, Grainger or recovery route, with what T-Force pays and the order number).') } }`),
 ], {
   ...chain('Webhook verify (GET)', 'Check verify token', 'Answer Meta'),
   ...chain('Webhook messages (POST)', 'Verify signature and read messages', 'Log incoming message', 'Who wrote and what to do', 'Route message'),
   'Route message': { main: [
-    [{ node: 'Confirm usual drivers', type: 'main', index: 0 }],
-    [{ node: 'Reply: what changed?', type: 'main', index: 0 }],
+    [{ node: 'Ask the menu', type: 'main', index: 0 }],
     [{ node: 'Get audio file link', type: 'main', index: 0 }],
     [{ node: 'Get names and routes', type: 'main', index: 0 }],
     [{ node: 'Reply: number not registered', type: 'main', index: 0 }],
   ] },
-  ...chain('Confirm usual drivers', 'Reply: confirmed'),
+  ...chain('Ask the menu', 'One reply per message', 'Reply: menu'),
   ...chain('Get audio file link', 'Download audio', 'Speech to text', 'Use transcript', 'Get names and routes', 'Build AI request', 'Ask Claude', 'Read AI answer', 'What the message is'),
   'What the message is': { main: [
     [{ node: 'Apply route changes', type: 'main', index: 0 }],
     [{ node: 'Save job draft', type: 'main', index: 0 }],
-    [{ node: 'Reply: help', type: 'main', index: 0 }],
+    [{ node: 'Ask the menu', type: 'main', index: 0 }], // not a change or a job: show the menu
   ] },
   ...chain('Apply route changes', 'Write changes reply', 'Reply: changes'),
   ...chain('Save job draft', 'Reply: review and save'),

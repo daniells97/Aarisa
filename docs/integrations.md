@@ -15,6 +15,7 @@ Authenticated with a service token stored in Infisical (`N8N_SERVICE_TOKEN`), se
 |---|---|---|
 | `POST /api/integrations/imports` | report ingest | Receives a file + operation code (`hovership`, `tforce`, or any contract added in Drivers and rates, Clients); reads it with that contract's saved report layout (§6.12 states) |
 | `GET /api/integrations/morning-list?date=` | morning list | Routes with proposed drivers for that date |
+| `POST /api/integrations/whatsapp-menu` | WhatsApp inbound | The menu (taps, no AI): returns the WhatsApp messages to send back; state is in the tapped row's id |
 | `POST /api/integrations/daily-changes` | WhatsApp inbound | Applies AI-parsed changes; returns applied and unresolved items |
 | `POST /api/integrations/extra-job-drafts` | WhatsApp inbound | Stores an AI draft; returns a short-lived signed link to the pre-filled form |
 | `POST /api/integrations/messages` | all flows | Logs inbound and outbound WhatsApp messages |
@@ -34,8 +35,9 @@ with two quick replies: `All good`, `Change a route`.
 ### 3. WhatsApp inbound
 Webhook from WhatsApp Cloud API (verify token + signature) → log message → route by type:
 
-- Quick reply `All good` → confirm all proposed assignments for that date.
-- Quick reply `Change a route` or free text about routes → AI `daily_changes` → `POST /daily-changes`
+- Quick reply `All good` → confirm all proposed assignments for that date (through the menu endpoint).
+- Quick reply `Change a route` → the menu's route picker, then the person picker; the tap applies the change.
+- Free text about routes, when an AI key is set → AI `daily_changes` → `POST /daily-changes`
   → reply with what was applied and a question for each unresolved name.
 - Text or audio about a job (call, pickup, recovery, Grainger, "extra") → audio to
   speech-to-text → AI `extra_job` → `POST /extra-job-drafts` → reply with the summary and a

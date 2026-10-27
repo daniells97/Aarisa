@@ -77,7 +77,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Meta signs the raw body with the app secret (X-Hub-Signature-256). Unsigned or wrong: drop it.\nconst crypto = require('crypto');\nconst item = $input.first();\nconst raw = item.binary?.data ? Buffer.from(item.binary.data.data, 'base64') : Buffer.from(JSON.stringify(item.json.body));\nconst expected = 'sha256=' + crypto.createHmac('sha256', $env.WHATSAPP_APP_SECRET).update(raw).digest('hex');\nconst given = String(item.json.headers?.['x-hub-signature-256'] || '');\nif (given.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return [];\nconst body = JSON.parse(raw.toString('utf8'));\nconst out = [];\nfor (const entry of body.entry || []) for (const change of entry.changes || []) for (const m of change.value?.messages || []) {\n  const kind = m.type === 'interactive' || m.type === 'button' ? 'button' : m.type === 'audio' ? 'audio' : m.type === 'text' ? 'text' : 'other';\n  out.push({ json: { waMessageId: m.id, phone: '+' + m.from, kind, text: m.text?.body ?? null,\n    button: m.button?.text ?? m.interactive?.button_reply?.title ?? null, mediaId: m.audio?.id ?? null, date: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) } });\n}\nreturn out;"
+        "jsCode": "// Meta signs the raw body with the app secret (X-Hub-Signature-256). Unsigned or wrong: drop it.\nconst crypto = require('crypto');\nconst item = $input.first();\nconst raw = item.binary?.data ? Buffer.from(item.binary.data.data, 'base64') : Buffer.from(JSON.stringify(item.json.body));\nconst expected = 'sha256=' + crypto.createHmac('sha256', $env.WHATSAPP_APP_SECRET).update(raw).digest('hex');\nconst given = String(item.json.headers?.['x-hub-signature-256'] || '');\nif (given.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return [];\nconst body = JSON.parse(raw.toString('utf8'));\nconst out = [];\nfor (const entry of body.entry || []) for (const change of entry.changes || []) for (const m of change.value?.messages || []) {\n  const kind = m.type === 'interactive' || m.type === 'button' ? 'button' : m.type === 'audio' ? 'audio' : m.type === 'text' ? 'text' : 'other';\n  out.push({ json: { waMessageId: m.id, phone: '+' + m.from, kind, text: m.text?.body ?? null,\n    button: m.button?.text ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? null,\n    // Menu rows and buttons carry our own id (src/server/whatsapp-menu.ts); template quick replies only their text.\n    choice: m.interactive?.list_reply?.id ?? m.interactive?.button_reply?.id ?? null, mediaId: m.audio?.id ?? null, date: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) } });\n}\nreturn out;"
       }
     },
     {
@@ -122,7 +122,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Unknown numbers get a short reply; quick replies skip the AI.\nconst msg = $('Verify signature and read messages').item.json;\nconst logged = $json;\nlet route = 'ai';\nif (!logged.userId) route = 'unknown_number';\nelse if (msg.kind === 'button' && /all good|todo bien/i.test(msg.button || '')) route = 'all_good';\nelse if (msg.kind === 'button') route = 'ask_change';\nelse if (msg.kind === 'audio') route = 'transcribe';\nreturn [{ json: { ...msg, messageId: logged.id, route } }];"
+        "jsCode": "// Unknown numbers get a short reply. Taps and greetings go to the menu; other text goes to the AI\n// when there is a key (AI_API_KEY), else to the menu too, so the menu works without the AI.\nconst msg = $('Verify signature and read messages').item.json;\nconst logged = $json;\nconst greeting = /^\\s*(hola|buenas|buenos d[ií]as|men[uú]|opciones|ayuda|hi|hello|options|help)\\b[\\s.!?]*$/i.test(msg.text || '');\nlet route = 'menu';\nif (!logged.userId) route = 'unknown_number';\nelse if (msg.kind === 'audio' && $env.STT_URL) route = 'transcribe';\nelse if (msg.kind === 'text' && $env.AI_API_KEY && !greeting) route = 'ai';\nreturn [{ json: { ...msg, messageId: logged.id, route } }];"
       }
     },
     {
@@ -148,7 +148,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.route }}",
-                    "rightValue": "all_good",
+                    "rightValue": "menu",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -157,28 +157,7 @@
                 ]
               },
               "renameOutput": true,
-              "outputKey": "all_good"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "strict"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "ask_change",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              },
-              "renameOutput": true,
-              "outputKey": "ask_change"
+              "outputKey": "menu"
             },
             {
               "conditions": {
@@ -249,8 +228,8 @@
       }
     },
     {
-      "id": "confirm-usual-drivers",
-      "name": "Confirm usual drivers",
+      "id": "ask-the-menu",
+      "name": "Ask the menu",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -259,7 +238,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/daily-changes",
+        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/whatsapp-menu",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
@@ -271,7 +250,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, date: $json.date, messageId: $json.messageId, inputText: $json.button, model: 'quick-reply', output: { confirm_all: true, changes: [] } }) }}"
+        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, date: $json.date, choice: $json.choice ?? null, button: $json.choice ? null : ($json.kind === 'button' ? $json.button : null),\n    locale: $env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale }) }}"
       },
       "credentials": {
         "httpHeaderAuth": {
@@ -281,34 +260,21 @@
       }
     },
     {
-      "id": "reply-confirmed",
-      "name": "Reply: confirmed",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "id": "one-reply-per-message",
+      "name": "One reply per message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         2600,
         300
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v21.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $('Route message').item.json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Listo. ' + ($json.confirmedAll ?? 0) + ' rutas confirmadas con su conductor habitual.' : 'Done. ' + ($json.confirmedAll ?? 0) + ' routes confirmed with their usual driver.') } }) }}",
-        "options": {}
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API token"
-        }
+        "jsCode": "return ($json.messages || []).map((m) => ({ json: m }));"
       }
     },
     {
-      "id": "reply-what-changed-",
-      "name": "Reply: what changed?",
+      "id": "reply-menu",
+      "name": "Reply: menu",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -322,7 +288,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Dime qué cambió, por ejemplo: \"hoy la E la hace Norwin\".' : 'Tell me what changed, for example: \"E is Norwin today\".') } }) }}",
+        "jsonBody": "={{ JSON.stringify($json) }}",
         "options": {}
       },
       "credentials": {
@@ -772,32 +738,6 @@
           "name": "WhatsApp Cloud API token"
         }
       }
-    },
-    {
-      "id": "reply-help",
-      "name": "Reply: help",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        7020,
-        300
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v21.0/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone.replace(/^\\+/, ''), type: 'text', text: { body: (($env.WHATSAPP_LANGUAGE || $('Log incoming message').item.json.locale) === 'es' ? 'Puedo actualizar los conductores de hoy (\"hoy la E la hace Norwin\") o registrar un trabajo extra (pickup, Grainger o ruta de recuperación, con lo que paga T-Force y el número de orden).' : 'I can update today\\'s drivers (\"E is Norwin today\") or log an extra job (a pickup, Grainger or recovery route, with what T-Force pays and the order number).') } }) }}",
-        "options": {}
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "",
-          "name": "WhatsApp Cloud API token"
-        }
-      }
     }
   ],
   "connections": {
@@ -871,14 +811,7 @@
       "main": [
         [
           {
-            "node": "Confirm usual drivers",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Reply: what changed?",
+            "node": "Ask the menu",
             "type": "main",
             "index": 0
           }
@@ -906,11 +839,22 @@
         ]
       ]
     },
-    "Confirm usual drivers": {
+    "Ask the menu": {
       "main": [
         [
           {
-            "node": "Reply: confirmed",
+            "node": "One reply per message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One reply per message": {
+      "main": [
+        [
+          {
+            "node": "Reply: menu",
             "type": "main",
             "index": 0
           }
@@ -1023,7 +967,7 @@
         ],
         [
           {
-            "node": "Reply: help",
+            "node": "Ask the menu",
             "type": "main",
             "index": 0
           }
