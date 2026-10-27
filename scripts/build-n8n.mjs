@@ -82,12 +82,12 @@ return list.recipients.map((p) => {
   const noDriver = list.routes.filter((r) => !r.driver).map((r) => r.route).join(', ') || L.none;
   const doubles = Object.entries(byDriver).filter(([, rs]) => rs.length > 1).map(([d, rs]) => d + ' (' + rs.join(', ') + ')').join(', ') || L.nobody;
   const date = new Intl.DateTimeFormat(L.locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(day);
-  return { json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en_US', date: list.date,
+  return { json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es_CO' : 'en_US', date: list.date,
     params: [date, String(list.routes.length), noDriver, doubles] } };
 });`),
-  whatsapp('Send morning template', `{ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'morning_summary', language: { code: $json.lang },
+  whatsapp('Send morning template', `{ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'asignacion_rutas_diaria', language: { code: $json.lang },
     components: [{ type: 'body', parameters: $json.params.map((text) => ({ type: 'text', text })) }] } }`),
-  portal('Log sent message', 'POST', '/messages', jsonBody(`{ direction: 'out', phone: $('One message per recipient').item.json.phone, type: 'template', body: 'morning_summary ' + $('One message per recipient').item.json.params.join(' | '),
+  portal('Log sent message', 'POST', '/messages', jsonBody(`{ direction: 'out', phone: $('One message per recipient').item.json.phone, type: 'template', body: 'asignacion_rutas_diaria ' + $('One message per recipient').item.json.params.join(' | '),
     waMessageId: $json.messages?.[0]?.id ?? null, relatedDate: $('One message per recipient').item.json.date }`)),
 ], { ...chain('6:30 AM Monday to Saturday', 'Get morning list', 'One message per recipient', 'Send morning template', 'Log sent message'), ...chain('Send now', 'Get morning list') });
 
@@ -251,7 +251,7 @@ const reminders = workflow('Aarisa - reminders', [
   schedule('7:00 PM every day', '0 19 * * *'),
   portal('Jobs without order number', 'GET', '/reminders', { sendQuery: true, queryParameters: { parameters: [{ name: 'date', value: `={{ ${todayLA} }}` }] } }),
   code('One reminder per person', `const r = $input.first().json;
-return (r.recipients || []).map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en_US', count: String(p.jobs.length), date: r.date } }));`),
+return (r.recipients || []).map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es_CO' : 'en_US', count: String(p.jobs.length), date: r.date } }));`),
   whatsapp('Send reminder template', `{ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'order_number_reminder', language: { code: $json.lang },
     components: [{ type: 'body', parameters: [{ type: 'text', text: $json.count }] }] } }`),
   portal('Log reminder', 'POST', '/messages', jsonBody(`{ direction: 'out', phone: $('One reminder per person').item.json.phone, type: 'template', body: 'order_number_reminder ' + $('One reminder per person').item.json.count, waMessageId: $json.messages?.[0]?.id ?? null }`)),

@@ -80,7 +80,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// A summary, not the whole list: the usual case is every route on its usual driver, so the message\n// only names what needs a look (no driver, one driver on two routes). The full list is one tap away\n// (the template's \"Ver lista\" URL button opens Today's drivers). Template parameters can't be empty\n// or contain line breaks.\nconst list = $input.first().json;\nconst own = list.routes.filter((r) => !r.contractorRoute);\nconst byDriver = {};\nfor (const r of own) if (r.driver) (byDriver[r.driver] ??= []).push(r.route);\nconst t = {\n  es: { none: 'ninguna', nobody: 'ninguno', locale: 'es-US' },\n  en: { none: 'none', nobody: 'none', locale: 'en-US' },\n};\nconst day = new Date(list.date + 'T12:00:00Z');\nreturn list.recipients.map((p) => {\n  const L = t[($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en'];\n  const noDriver = list.routes.filter((r) => !r.driver).map((r) => r.route).join(', ') || L.none;\n  const doubles = Object.entries(byDriver).filter(([, rs]) => rs.length > 1).map(([d, rs]) => d + ' (' + rs.join(', ') + ')').join(', ') || L.nobody;\n  const date = new Intl.DateTimeFormat(L.locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(day);\n  return { json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en_US', date: list.date,\n    params: [date, String(list.routes.length), noDriver, doubles] } };\n});"
+        "jsCode": "// A summary, not the whole list: the usual case is every route on its usual driver, so the message\n// only names what needs a look (no driver, one driver on two routes). The full list is one tap away\n// (the template's \"Ver lista\" URL button opens Today's drivers). Template parameters can't be empty\n// or contain line breaks.\nconst list = $input.first().json;\nconst own = list.routes.filter((r) => !r.contractorRoute);\nconst byDriver = {};\nfor (const r of own) if (r.driver) (byDriver[r.driver] ??= []).push(r.route);\nconst t = {\n  es: { none: 'ninguna', nobody: 'ninguno', locale: 'es-US' },\n  en: { none: 'none', nobody: 'none', locale: 'en-US' },\n};\nconst day = new Date(list.date + 'T12:00:00Z');\nreturn list.recipients.map((p) => {\n  const L = t[($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en'];\n  const noDriver = list.routes.filter((r) => !r.driver).map((r) => r.route).join(', ') || L.none;\n  const doubles = Object.entries(byDriver).filter(([, rs]) => rs.length > 1).map(([d, rs]) => d + ' (' + rs.join(', ') + ')').join(', ') || L.nobody;\n  const date = new Intl.DateTimeFormat(L.locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(day);\n  return { json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es_CO' : 'en_US', date: list.date,\n    params: [date, String(list.routes.length), noDriver, doubles] } };\n});"
       }
     },
     {
@@ -99,7 +99,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'morning_summary', language: { code: $json.lang },\n    components: [{ type: 'body', parameters: $json.params.map((text) => ({ type: 'text', text })) }] } }) }}",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.to, type: 'template', template: { name: 'asignacion_rutas_diaria', language: { code: $json.lang },\n    components: [{ type: 'body', parameters: $json.params.map((text) => ({ type: 'text', text })) }] } }) }}",
         "options": {}
       },
       "credentials": {
@@ -132,7 +132,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ direction: 'out', phone: $('One message per recipient').item.json.phone, type: 'template', body: 'morning_summary ' + $('One message per recipient').item.json.params.join(' | '),\n    waMessageId: $json.messages?.[0]?.id ?? null, relatedDate: $('One message per recipient').item.json.date }) }}"
+        "jsonBody": "={{ JSON.stringify({ direction: 'out', phone: $('One message per recipient').item.json.phone, type: 'template', body: 'asignacion_rutas_diaria ' + $('One message per recipient').item.json.params.join(' | '),\n    waMessageId: $json.messages?.[0]?.id ?? null, relatedDate: $('One message per recipient').item.json.date }) }}"
       },
       "credentials": {
         "httpHeaderAuth": {

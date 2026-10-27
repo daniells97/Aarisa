@@ -16,7 +16,7 @@ endpoints that exist, and that the AI output schema matches what the portal acce
 | File | Trigger | Does |
 |---|---|---|
 | `report-ingest.json` | New mail in the reports mailbox | Keeps CSV attachments from known senders and sends them to `POST /imports` (same four import states as an upload) |
-| `morning-list.json` | 6:30 AM PT, Monday to Saturday | `GET /morning-list`, then the `morning_summary` template to every owner/dispatcher whose morning channel is WhatsApp: how many routes, which have no driver and who has two routes; the full list is one tap away in Today's drivers |
+| `morning-list.json` | 6:30 AM PT, Monday to Saturday | `GET /morning-list`, then the `asignacion_rutas_diaria` template to every owner/dispatcher whose morning channel is WhatsApp: how many routes, which have no driver and who has two routes; the full list is one tap away in Today's drivers |
 | `whatsapp-inbound.json` | WhatsApp Cloud API webhook | Checks the signature, logs the message, then: **All good** confirms usual drivers; **Change a route** asks what changed; voice notes are transcribed; text goes to Claude, which says whether it is a route change or an extra job and extracts it. Route changes go to `POST /daily-changes` (only known people with confidence ≥ 0.85 are applied); extra jobs go to `POST /extra-job-drafts`, and the reply carries a **Review and save** button. Nothing becomes a job until the person taps Save |
 | `reminders.json` | 7:00 PM PT daily | `GET /reminders` and the `order_number_reminder` template for jobs saved today without an order number |
 
@@ -39,8 +39,8 @@ published at `https://n8n-aarisa.srv1986534.hstgr.cloud` only after the owner ac
 3. **Credentials and workflows**: `scripts/n8n-setup.sh` loads the header credentials from `n8n.env`
    and imports the four workflows with fixed ids (re-runnable). The IMAP credential
    `Aarisa reports mailbox` is added in the editor when the mailbox exists.
-4. **WhatsApp templates** (Meta Business Manager, category Utility), in English (`en_US`) and Spanish (`es`):
-   - `morning_summary` (`WHATSAPP_LANGUAGE` in n8n.env sets the language of every message; empty = each person's portal language). Spanish `es`:
+4. **WhatsApp templates** (Meta Business Manager, category Utility), in English (`en_US`) and Spanish (Colombia, `es_CO`):
+   - `asignacion_rutas_diaria` (`WHATSAPP_LANGUAGE` in n8n.env sets the language of every message; empty = each person's portal language). Spanish `es_CO`:
      `Buenos días. Rutas para {{1}}: {{2}} rutas. Sin conductor: {{3}}. Con dos rutas: {{4}}. ¿Confirmas?`
      English (`en_US`): `Daily route assignment for {{1}}: {{2}} routes scheduled. Routes without a driver: {{3}}. Drivers assigned to two routes: {{4}}. Please confirm the assignment or report a change.`
      (Worded as an operational notice: Meta flagged a "Good morning … All good?" version as marketing.)

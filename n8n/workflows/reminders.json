@@ -69,7 +69,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const r = $input.first().json;\nreturn (r.recipients || []).map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es' : 'en_US', count: String(p.jobs.length), date: r.date } }));"
+        "jsCode": "const r = $input.first().json;\nreturn (r.recipients || []).map((p) => ({ json: { to: p.phone.replace(/^\\+/, ''), phone: p.phone, lang: ($env.WHATSAPP_LANGUAGE || p.locale) === 'es' ? 'es_CO' : 'en_US', count: String(p.jobs.length), date: r.date } }));"
       }
     },
     {
