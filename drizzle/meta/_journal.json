@@ -1,0 +1,90 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791472590316,
+      "tag": "0000_cloudy_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791474479921,
+      "tag": "0001_payroll_line_stops",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791487859858,
+      "tag": "0002_payroll_line_extra_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791548875873,
+      "tag": "0003_service_active_and_spanish_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792381264890,
+      "tag": "0004_core_schema_and_naming",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792382364992,
+      "tag": "0005_payees_and_route_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792383460371,
+      "tag": "0006_route_executions",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792384765982,
+      "tag": "0007_tiers_rate_agreements_pay_adjustments",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792412641850,
+      "tag": "0008_zones_and_other_revenues",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792413554340,
+      "tag": "0009_clients_and_contract_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792414969178,
+      "tag": "0010_generic_reports_and_raw_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792937974093,
+      "tag": "0011_claims_reconciliation",
+      "breakpoints": true
+    }
+  ]
+}
