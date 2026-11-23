@@ -11,6 +11,7 @@ import { audit } from './audit';
 import { confirmUsual, loadDay, setAssignment, setUnknownName } from './daily';
 import { RuleError } from './errors';
 import { extraServices } from './extra-jobs';
+import { whatsappEnabled } from './features';
 import { operationFor } from './ops';
 import { contractorProfiles, driverProfiles } from './people';
 import { seal, unseal } from './session';
@@ -74,7 +75,7 @@ export async function morningList(tx: Tx, date: string) {
     routes: day.rows.map((r) => ({ route: r.code, driver: r.today.name, usual: r.usual.name, status: r.status, contractorRoute: r.contractorRoute })),
     recipients: (await tx.select({ name: users.name, phone: users.phone, locale: users.locale, role: users.role }).from(users)
       .where(and(eq(users.active, true), eq(users.morningChannel, 'whatsapp'))))
-      .filter((u) => u.phone && (u.role === 'owner' || u.role === 'dispatcher')),
+      .filter((u) => whatsappEnabled() && u.phone && (u.role === 'owner' || u.role === 'dispatcher')),
   };
 }
 

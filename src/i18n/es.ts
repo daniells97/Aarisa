@@ -576,7 +576,7 @@ export const es: Record<MessageKey, string> = {
   "td.added": "{name} agregado y asignado a {route}.",
   "td.noNeeds": "Nada te necesita en este día.",
   "td.waTitle": "Respuestas de WhatsApp",
-  "td.waLater": "Las respuestas a la lista de la mañana aparecen aquí cuando el número de WhatsApp esté conectado.",
+  "td.waLater": "WhatsApp aún no está disponible. Cuando se active, aquí aparecen las respuestas a la lista de la mañana.",
   "td.changesTitle": "Cambios de este día",
   "td.noChanges": "Aún no hay cambios.",
   "td.by": "por {who}, {source}",
@@ -970,4 +970,7 @@ export const es: Record<MessageKey, string> = {
   "mail.morning.usual": "habitual: {name}",
   "mail.morning.none": "Sin conductor",
   "mail.morning.contractor": "contratista",
+  "channel.whatsappSoon": "WhatsApp (próximamente)",
+  "team.whatsappSoon": "WhatsApp aún no está disponible. Mientras tanto, quien tenga WhatsApp recibe la lista de la mañana por correo.",
+  "error.whatsapp_unavailable": "WhatsApp aún no está disponible. Por ahora elige correo.",
 };

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { users } from '~/db/schema';
 import { ALL_ROLES, actorAs, withRollback } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
@@ -22,8 +22,21 @@ describe('team access (server)', () => {
       }));
   }
 
+  it('while WhatsApp is off nobody new can choose it; someone already on it keeps it', () =>
+    withRollback(async (tx) => {
+      vi.stubEnv('WHATSAPP_ENABLED', '');
+      const { owner, disp } = await makeUsers(tx);
+      const me = actorAs('owner', owner.id);
+      await expect(updateTeamMember(tx, me, disp.id, { phone: '+19255550101', morningChannel: 'whatsapp', locale: 'es', active: true }))
+        .rejects.toMatchObject({ code: 'whatsapp_unavailable' });
+      await tx.update(users).set({ morningChannel: 'whatsapp', phone: '+19255550101' });
+      expect(await updateTeamMember(tx, me, disp.id, { phone: '+19255550101', morningChannel: 'whatsapp', locale: 'en', active: true })).toMatchObject({ locale: 'en' });
+      vi.unstubAllEnvs();
+    }));
+
   it('owner pauses a dispatcher, needs a phone for WhatsApp and cannot pause or demote themself', () =>
     withRollback(async (tx) => {
+      vi.stubEnv('WHATSAPP_ENABLED', 'true');
       const { owner, disp } = await makeUsers(tx);
       const me = actorAs('owner', owner.id);
       expect((await listTeam(tx, me)).find((u) => u.id === owner.id)!.isSelf).toBe(true);
@@ -34,5 +47,6 @@ describe('team access (server)', () => {
       await expect(updateTeamMember(tx, me, owner.id, { phone: null, morningChannel: 'none', locale: 'en', active: false }))
         .rejects.toMatchObject({ code: 'cannot_pause_self' });
       await expect(recordRoleChange(tx, me, owner.id, 'viewer')).rejects.toMatchObject({ code: 'cannot_demote_self' });
+      vi.unstubAllEnvs();
     }));
 });

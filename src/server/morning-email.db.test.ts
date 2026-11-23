@@ -11,6 +11,7 @@ vi.mock('~/integrations/mail', () => ({ sendMail: vi.fn(async (m: Mail) => { sen
 describe('morning list by email', () => {
   it('goes to the owner and dispatchers who chose email, with every route of the day', () =>
     withRollback(async (tx) => {
+      vi.stubEnv('WHATSAPP_ENABLED', 'true');
       sent.length = 0;
       await tx.update(users).set({ morningChannel: 'none' });
       await tx.insert(users).values([
@@ -24,6 +25,12 @@ describe('morning list by email', () => {
       expect(sent[0]!.subject).toMatch(/^Conductores de hoy, jueves, 3 de septiembre: \d+ rutas$/);
       expect(sent[0]!.html).toContain('9000E');
       expect(sent[0]!.html).toContain('/tforce/today?date=2026-09-03');
+      // While WhatsApp is off, the owner on WhatsApp gets it by email too.
+      vi.stubEnv('WHATSAPP_ENABLED', '');
+      sent.length = 0;
+      expect(await sendMorningEmails(tx, '2026-09-03')).toMatchObject({ recipients: 2, sent: 2 });
+      expect(sent.map((m) => m.to).sort()).toEqual(['disp@test.com', 'wa@test.com']);
+      vi.unstubAllEnvs();
     }));
 
   it('names what needs a look: routes without a driver and one driver on two routes', () => {

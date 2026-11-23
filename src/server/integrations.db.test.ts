@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { aiSuggestions, users } from '~/db/schema';
 import { actorAs, withRollback, activeTforceRouteCount, driverNamed, contractorNamed } from '../../tests/helpers/db';
@@ -90,6 +90,7 @@ describe('integration API (server)', () => {
 
   it('the morning list has routes and WhatsApp recipients with dispatch roles, and no money', () =>
     withRollback(async (tx) => {
+      vi.stubEnv('WHATSAPP_ENABLED', 'true');
       await person(tx, 'dispatcher', '+19255550105');
       await person(tx, 'viewer', '+19255550106');
       const list = await morningList(tx, '2026-06-18');
@@ -97,6 +98,9 @@ describe('integration API (server)', () => {
       expect(list.recipients.map((r) => r.phone)).toContain('+19255550105');
       expect(list.recipients.map((r) => r.phone)).not.toContain('+19255550106');
       expect(JSON.stringify(list)).not.toMatch(/Cents/);
+      vi.stubEnv('WHATSAPP_ENABLED', '');
+      expect((await morningList(tx, '2026-06-18')).recipients).toEqual([]); // WhatsApp off: nobody gets it there
+      vi.unstubAllEnvs();
     }));
 });
 

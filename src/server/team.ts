@@ -5,6 +5,7 @@ import type { Role } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
+import { whatsappEnabled } from './features';
 
 // Team access (spec 6.11). Owner only. Role and invites live in Zitadel; the portal keeps
 // phone, morning channel, language and an on/off switch that blocks sign-in immediately.
@@ -32,6 +33,8 @@ export async function updateTeamMember(tx: Tx, actor: Actor, id: string, input: 
   if (!before) throw new RuleError('not_found');
   if (id === actor.userId && !input.active) throw new RuleError('cannot_pause_self');
   const phone = input.phone?.replace(/[^\d+]/g, '') || null;
+  // Someone already on WhatsApp keeps it while it's off; nobody new can choose it.
+  if (input.morningChannel === 'whatsapp' && !whatsappEnabled() && before.morningChannel !== 'whatsapp') throw new RuleError('whatsapp_unavailable');
   if (input.morningChannel === 'whatsapp' && !phone) throw new RuleError('phone_required_for_whatsapp');
   const [after] = await tx.update(users).set({ ...input, phone, updatedAt: new Date() }).where(eq(users.id, id)).returning();
   await audit(tx, { table: 'users', recordId: id, action: 'update', before, after, userId: actor.userId, source: actor.source });

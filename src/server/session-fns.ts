@@ -8,6 +8,7 @@ import { isLocale, localeFromHeader, type Locale } from '~/i18n';
 import type { Role } from '~/domain/permissions';
 import { audit } from './audit';
 import { currentActor, devLoginEnabled } from './auth';
+import { whatsappEnabled } from './features';
 
 export const LANG_COOKIE = 'aarisa_lang';
 
@@ -15,6 +16,8 @@ export interface SessionInfo {
   user: { name: string; role: Role } | null;
   locale: Locale;
   devLogin: boolean;
+  /** WhatsApp is built but off until Aarisa turns it on. */
+  whatsapp: boolean;
   /** Client name per operation code, for screens. */
   clients: Record<string, string>;
   /** Active contracts, for the menu: each gets the screens its driver source needs. */
@@ -28,7 +31,7 @@ export const getSession = createServerFn({ method: 'GET' }).handler(async (): Pr
   const clientRows = actor ? await db().select({ code: operations.code, name: clients.displayName, opName: operations.name, driverSource: operations.driverSource, active: operations.active })
     .from(operations).innerJoin(clients, eq(clients.id, operations.clientId)).orderBy(asc(operations.createdAt), asc(operations.code)) : [];
   return {
-    user: actor ? { name: actor.name, role: actor.role } : null, locale, devLogin: devLoginEnabled(),
+    user: actor ? { name: actor.name, role: actor.role } : null, locale, devLogin: devLoginEnabled(), whatsapp: whatsappEnabled(),
     clients: Object.fromEntries(clientRows.map((c) => [c.code, c.name])),
     operations: clientRows.filter((c) => c.active).map((c) => ({ code: c.code, name: c.opName, driverSource: c.driverSource })),
   };

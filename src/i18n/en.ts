@@ -574,7 +574,7 @@ export const en = {
   "td.added": "{name} added and assigned to {route}.",
   "td.noNeeds": "Nothing needs you for this day.",
   "td.waTitle": "WhatsApp replies",
-  "td.waLater": "Replies to the morning list show up here once the WhatsApp number is connected.",
+  "td.waLater": "WhatsApp isn't available yet. Once it is on, replies to the morning list show up here.",
   "td.changesTitle": "Changes this day",
   "td.noChanges": "No changes yet.",
   "td.by": "by {who}, {source}",
@@ -968,6 +968,9 @@ export const en = {
   "mail.morning.usual": "usual: {name}",
   "mail.morning.none": "No driver",
   "mail.morning.contractor": "contractor",
+  "channel.whatsappSoon": "WhatsApp (coming soon)",
+  "team.whatsappSoon": "WhatsApp isn't available yet. Until it is, people on WhatsApp get the morning list by email.",
+  "error.whatsapp_unavailable": "WhatsApp isn't available yet. Choose email for now.",
 } as const;
 
 export type MessageKey = keyof typeof en;

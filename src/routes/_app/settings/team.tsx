@@ -21,6 +21,7 @@ const MATRIX: Permission[] = [
 function TeamPage() {
   const t = useT();
   const { members, zitadelConnected } = Route.useLoaderData();
+  const { whatsapp } = Route.useRouteContext().session;
   const [editing, setEditing] = useState<Member | null>(null);
   const [inviting, setInviting] = useState(false);
   return (
@@ -41,7 +42,7 @@ function TeamPage() {
                 <tr key={m.id}>
                   <td><strong>{m.name}</strong>{m.isSelf && <> <Pill tone="muted">{t('team.you')}</Pill></>}<span className="sub">{m.email}</span></td>
                   <td>{t(`role.${m.role}`)}</td>
-                  <td>{t(`channel.${m.morningChannel}` as MessageKey)}</td>
+                  <td>{t(m.morningChannel === 'whatsapp' && !whatsapp ? 'channel.whatsappSoon' : `channel.${m.morningChannel}` as MessageKey)}</td>
                   <td>{m.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('team.paused')}</Pill>}</td>
                   <td className="r"><Button size="sm" aria-label={t('team.editTitle', { name: m.name })} onClick={() => setEditing(m)}>{t('drivers.edit')}</Button></td>
                 </tr>
@@ -78,6 +79,7 @@ function TeamPage() {
 }
 
 function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; zitadelConnected: boolean; onClose: () => void }) {
+  const { whatsapp } = Route.useRouteContext().session;
   const t = useT();
   const router = useRouter();
   const toast = useToast();
@@ -112,8 +114,13 @@ function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; z
         </SelectField>
         <TextField label={t('drivers.phone')} type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
         <div className="grid-2">
-          <SelectField label={t('team.morning')} value={form.morningChannel} onChange={(e) => set('morningChannel', e.target.value as Member['morningChannel'])}>
-            {(['whatsapp', 'email', 'none'] as const).map((c) => <option key={c} value={c}>{t(`channel.${c}`)}</option>)}
+          <SelectField label={t('team.morning')} value={form.morningChannel} hint={whatsapp ? undefined : t('team.whatsappSoon')}
+            onChange={(e) => set('morningChannel', e.target.value as Member['morningChannel'])}>
+            {(['whatsapp', 'email', 'none'] as const).map((c) => (
+              <option key={c} value={c} disabled={c === 'whatsapp' && !whatsapp && member.morningChannel !== 'whatsapp'}>
+                {t(c === 'whatsapp' && !whatsapp ? 'channel.whatsappSoon' : `channel.${c}`)}
+              </option>
+            ))}
           </SelectField>
           <SelectField label={t('team.language')} value={form.locale} onChange={(e) => set('locale', e.target.value as 'en' | 'es')}>
             <option value="en">English</option><option value="es">Español</option>
