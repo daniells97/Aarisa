@@ -9,6 +9,7 @@ import { RuleError } from './errors';
 import { assertNotLocked, getOperationById, operationFor } from './ops';
 import { payeeNamesById, routeDay, writeRouteDay } from './executions';
 import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners } from './people';
+import { usualSortCodes } from './sort-codes';
 
 // Today's drivers (spec 6.3): who drove each T-Force route each day. No money here.
 
@@ -43,6 +44,8 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   const ran = assignments.length ? await tx.select({ executionId: executionSortCodes.executionId, id: sortCodes.id, code: sortCodes.code })
     .from(executionSortCodes).innerJoin(sortCodes, eq(sortCodes.id, executionSortCodes.sortCodeId))
     .where(inArray(executionSortCodes.executionId, assignments.map((a) => a.id))).orderBy(asc(sortCodes.code)) : [];
+  const usualRoutes = await usualSortCodes(tx, routeRows.map((r) => r.id));
+  const routesSet = await sortCodesSetOn(tx, assignments.map((a) => a.id));
   const sortCodeOptions = await tx.select({ id: sortCodes.id, code: sortCodes.code }).from(sortCodes)
     .where(and(eq(sortCodes.operationId, op.id), eq(sortCodes.active, true))).orderBy(asc(sortCodes.code));
   const driverRows = await driverProfiles(tx, date);
@@ -63,7 +66,10 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       usual: { ...usual, name: label(usual) },
       today: { ...today, name: label(today) },
       rawName: a?.rawName ?? null,
-      sortCodes: a ? ran.filter((x) => x.executionId === a.id).map(({ id, code }) => ({ id, code })) : [],
+      // The day's routes once someone set them (or confirmed the day); before that, the usual ones as a suggestion.
+      ...(a && routesSet.has(a.id)
+        ? { sortCodes: ran.filter((x) => x.executionId === a.id).map(({ id, code }) => ({ id, code })), sortCodesSuggested: false }
+        : { sortCodes: usualRoutes.get(r.id) ?? [], sortCodesSuggested: (usualRoutes.get(r.id) ?? []).length > 0 }),
       status,
       source: a?.source ?? null,
       assignmentId: a?.id ?? null,
@@ -84,7 +90,9 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   const routeOf = new Map(assignments.map((a) => [a.id, routeRows.find((r) => r.id === a.routeId)?.code ?? '']));
   const sortCodeName = new Map([...sortCodeOptions, ...ran].map((x) => [x.id, x.code]));
   // A record created only to hold routes (still the usual driver, not confirmed) isn't a change of driver.
-  const shown = log.filter(({ log: l }) => !(l.tableName === 'route_executions' && l.action === 'insert' && (l.after as { status?: string } | null)?.status === 'proposed'));
+  // Nor are the usual routes saved when the day is confirmed.
+  const shown = log.filter(({ log: l }) => !(l.tableName === 'route_executions' && l.action === 'insert' && (l.after as { status?: string } | null)?.status === 'proposed')
+    && !(l.tableName === 'execution_sort_codes' && l.action === 'insert'));
   const changes = shown.map(({ log: l, user }) => {
     const af = (l.after ?? {}) as Logged & { sortCodeIds?: string[] };
     const base = { id: l.id, at: l.at.toISOString(), route: routeOf.get(l.recordId) ?? '', action: l.action, source: l.source, user: user ?? null };
@@ -142,6 +150,7 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
     status: values.status, source, userId: actor.userId,
   });
   await audit(tx, { table: 'route_executions', recordId: after.id, action: before ? action : 'insert', before, after, userId: actor.userId, source: actor.source });
+  if (values.status === 'confirmed' || values.status === 'changed') await keepUsualSortCodes(tx, actor, after.id, routeId);
   // Callers undo to the previous driver or contractor, so hand back that shape.
   const previous = view ? { driverId: view.payeeDriverId, contractorId: view.payeeContractorId, rawName: view.rawName, status: view.status } : null;
   return { before: previous, after };
@@ -288,9 +297,27 @@ export async function setSortCodes(tx: Tx, actor: Actor, input: { date: string; 
   const before = (await tx.select({ id: executionSortCodes.sortCodeId }).from(executionSortCodes).where(eq(executionSortCodes.executionId, view.id))).map((x) => x.id);
   const gone = before.filter((x) => !wanted.includes(x));
   const added = wanted.filter((x) => !before.includes(x));
-  if (!gone.length && !added.length) return before;
+  // Taking off a suggested route changes nothing saved, but it still counts as set: the suggestion goes away.
+  if (!gone.length && !added.length && (await sortCodesSetOn(tx, [view.id])).size) return before;
   if (gone.length) await tx.delete(executionSortCodes).where(and(eq(executionSortCodes.executionId, view.id), inArray(executionSortCodes.sortCodeId, gone)));
   if (added.length) await tx.insert(executionSortCodes).values(added.map((sortCodeId) => ({ executionId: view.id, sortCodeId, createdBy: actor.userId })));
   await audit(tx, { table: 'execution_sort_codes', recordId: view.id, action: 'update', before: { sortCodeIds: before }, after: { sortCodeIds: wanted }, userId: actor.userId, source: actor.source });
   return wanted;
+}
+
+/** Executions whose routes someone set (or that were saved on confirming), so they no longer show the suggestion. */
+async function sortCodesSetOn(tx: Tx, executionIds: string[]) {
+  if (!executionIds.length) return new Set<string>();
+  const rows = await tx.selectDistinct({ id: auditLog.recordId }).from(auditLog)
+    .where(and(eq(auditLog.tableName, 'execution_sort_codes'), inArray(auditLog.recordId, executionIds)));
+  return new Set(rows.map((r) => r.id));
+}
+
+/** Confirming a day saves the driver code's usual routes on it, unless someone already set its routes. */
+async function keepUsualSortCodes(tx: Tx, actor: Actor, executionId: string, routeId: string) {
+  if ((await sortCodesSetOn(tx, [executionId])).size) return;
+  const usual = (await usualSortCodes(tx, [routeId])).get(routeId) ?? [];
+  if (!usual.length) return;
+  await tx.insert(executionSortCodes).values(usual.map((u) => ({ executionId, sortCodeId: u.id, createdBy: actor.userId }))).onConflictDoNothing();
+  await audit(tx, { table: 'execution_sort_codes', recordId: executionId, action: 'insert', after: { sortCodeIds: usual.map((u) => u.id) }, userId: actor.userId, source: actor.source });
 }

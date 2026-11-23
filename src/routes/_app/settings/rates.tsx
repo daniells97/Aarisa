@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { useLocale, useT, type MessageKey } from '~/i18n';
 import { serviceLabel } from '~/ui/service-label';
 import { todayLA } from '~/domain/dates';
-import { createContractor, createRate, createService, getSetup, saveDriver, saveService } from '~/server/setup-fns';
+import { createContractor, createRate, createService, getSetup, getSortCodesSetup, saveDriver, saveService } from '~/server/setup-fns';
+import { SortCodesTab } from '~/ui/SortCodesTab';
 import { useClientName } from '~/ui/ClientNames';
 import { ClientsTab } from '~/ui/ClientsTab';
 import {
@@ -13,28 +14,29 @@ import {
 } from '~/ui';
 
 type Setup = Awaited<ReturnType<typeof getSetup>>;
-type Tab = 'rates' | 'drivers' | 'services' | 'clients';
+type Tab = 'rates' | 'drivers' | 'routes' | 'services' | 'clients';
 
 export const Route = createFileRoute('/_app/settings/rates')({
-  validateSearch: z.object({ tab: z.enum(['rates', 'drivers', 'services', 'clients']).optional() }),
-  loader: () => getSetup(),
+  validateSearch: z.object({ tab: z.enum(['rates', 'drivers', 'routes', 'services', 'clients']).optional() }),
+  loader: async () => ({ setup: await getSetup(), routes: await getSortCodesSetup() }),
   component: SetupPage,
 });
 
 function SetupPage() {
   const t = useT();
-  const data = Route.useLoaderData();
+  const { setup: data, routes } = Route.useLoaderData();
   const tab: Tab = Route.useSearch().tab ?? 'rates';
   return (
     <>
       <PageHead title={t('setup.title')} lead={t('setup.lead')} />
       <nav className="tabs" aria-label={t('setup.sections')}>
-        {(['rates', 'drivers', 'services', 'clients'] as const).map((k) => (
+        {(['rates', 'drivers', 'routes', 'services', 'clients'] as const).map((k) => (
           <Link key={k} to="/settings/rates" search={{ tab: k }} aria-current={tab === k ? 'page' : undefined}>{t(`setup.tab.${k}`)}</Link>
         ))}
       </nav>
       {tab === 'rates' && <RatesTab data={data} />}
       {tab === 'drivers' && <DriversTab data={data} />}
+      {tab === 'routes' && <SortCodesTab data={routes} />}
       {tab === 'services' && <ServicesTab data={data} />}
       {tab === 'clients' && <ClientsTab clients={data.clients} canEdit={data.canEdit} />}
     </>

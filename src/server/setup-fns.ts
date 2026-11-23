@@ -5,6 +5,7 @@ import { zitadelAdminConfig } from '~/integrations/zitadel';
 import { read, run } from './fn';
 import { addContractor, addDriver, addRate, addService, loadSetup, updateDriver, updateService } from './setup';
 import { listTeam, recordRoleChange, updateTeamMember } from './team';
+import { addSortCode, loadSortCodes, setUsualSortCodes, updateSortCode } from './sort-codes';
 import { inviteUser, setUserRole } from '~/integrations/zitadel';
 import { sendMail } from '~/integrations/mail';
 import { translate } from '~/i18n';
@@ -91,3 +92,19 @@ export const invite = createServerFn({ method: 'POST' })
     const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName, translate(data.locale, `role.${data.role}`)));
     return { invited: true, emailed, link: emailed ? null : link };
   }));
+
+// ---------- routes (sort codes) and each driver code's usual routes ----------
+
+export const getSortCodesSetup = createServerFn({ method: 'GET' }).handler(() => read('payroll.view', (tx, actor) => loadSortCodes(tx, actor)));
+
+export const createSortCode = createServerFn({ method: 'POST' })
+  .validator(z.object({ operation: z.string().max(40), code: z.string().max(30) }))
+  .handler(({ data }) => run('setup.edit', async (tx, actor) => (await addSortCode(tx, actor, data)).id));
+
+export const saveSortCode = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: uuid, code: z.string().max(30), active: z.boolean() }))
+  .handler(({ data }) => run('setup.edit', async (tx, actor) => (await updateSortCode(tx, actor, data.id, data)).id));
+
+export const saveUsualSortCodes = createServerFn({ method: 'POST' })
+  .validator(z.object({ routeId: uuid, sortCodeIds: z.array(uuid).max(20) }))
+  .handler(({ data }) => run('setup.edit', (tx, actor) => setUsualSortCodes(tx, actor, data)));

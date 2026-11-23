@@ -94,7 +94,7 @@ function TodayPage() {
   );
 
   const routesOf = (r: Row) => (
-    <SortCodes value={r.sortCodes} options={day.options.sortCodes} disabled={!day.canEdit} label={t('td.sortCodesFor', { route: r.code, date: dateLabel })}
+    <SortCodes value={r.sortCodes} suggested={r.sortCodesSuggested} options={day.options.sortCodes} disabled={!day.canEdit} label={t('td.sortCodesFor', { route: r.code, date: dateLabel })}
       onChange={async (ids) => {
         const res = await saveSortCodes({ data: { date: day.date, routeId: r.routeId, sortCodeIds: ids } });
         if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
