@@ -9,6 +9,10 @@ export const Route = createFileRoute('/auth/login')({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
+        // Zitadel sends people back to APP_BASE_URL only: start there, so the login cookie is on that host too.
+        const base = process.env.APP_BASE_URL ? new URL(process.env.APP_BASE_URL) : null;
+        const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? url.host;
+        if (base && host !== base.host) return new Response(null, { status: 302, headers: { location: publicUrl(url.pathname + url.search, url.toString()) } });
         const cfg = oidcConfig();
         if (!cfg) return new Response(null, { status: 302, headers: { location: publicUrl('/login?error=not_configured', url.toString()) } });
         const doc = await discover(cfg);
