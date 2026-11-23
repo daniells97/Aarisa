@@ -16,7 +16,7 @@ test.describe('weekly check', () => {
     await expect(approve).toHaveAccessibleDescription('Clear the 3 exceptions to approve.');
     await expect(page.getByText('Thursday, 1 piece', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Assign driver' }).click();
-    await expect(page.getByLabel(/Driver for 9000Z on/)).toBeVisible();
+    await expect(page.getByLabel(/Person for 9000Z on/)).toBeVisible();
   });
 
   test('phone Exceptions tab lists the three exceptions with their actions', async ({ page }) => {

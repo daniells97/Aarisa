@@ -22,7 +22,7 @@ describe('morning list by email', () => {
       const res = await sendMorningEmails(tx, '2026-09-03');
       expect(res).toMatchObject({ recipients: 1, sent: 1 });
       expect(sent[0]!.to).toBe('disp@test.com');
-      expect(sent[0]!.subject).toMatch(/^Conductores de hoy, jueves, 3 de septiembre: \d+ rutas$/);
+      expect(sent[0]!.subject).toMatch(/^Conductores de hoy, jueves, 3 de septiembre: \d+ drivers$/);
       expect(sent[0]!.html).toContain('9000E');
       expect(sent[0]!.html).toContain('/tforce/today?date=2026-09-03');
       // While WhatsApp is off, the owner on WhatsApp gets it by email too.
@@ -41,10 +41,10 @@ describe('morning list by email', () => {
       { code: 'DUB1', driver: 'Puma LLC', usual: 'Puma LLC', contractorRoute: true, confirmed: false },
     ]);
     expect(m.html).toContain('Without a driver: 9000C.');
-    expect(m.html).toContain('On two routes: Ann Lee (9000A, 9000B).');
+    expect(m.html).toContain('One person on two drivers: Ann Lee (9000A, 9000B).');
     expect(m.html).toContain('usual: Bo Diaz');
-    expect(m.html).toContain('2 routes still to confirm.');
+    expect(m.html).toContain('2 drivers still to confirm.');
     expect(morningEmail('en', 'a@test.com', '2026-09-03', [{ code: '9000A', driver: 'Ann', usual: 'Ann', contractorRoute: false, confirmed: true }]).html)
-      .toContain('Every route has a driver and nobody has two routes.');
+      .toContain('Every driver has a person and nobody has two.');
   });
 });

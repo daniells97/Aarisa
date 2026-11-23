@@ -41,7 +41,7 @@ describe('WhatsApp menu (server)', () => {
     withRollback(async (tx) => {
       await person(tx, 'dispatcher', '+19255550101');
       const [m] = await ask(tx, '+19255550101', null, 'Todo bien');
-      expect(m!.interactive!.body.text).toMatch(/^Listo\. \d+ rutas confirmadas/);
+      expect(m!.interactive!.body.text).toMatch(/^Listo\. \d+ drivers confirmados/);
       expect((await loadDay(tx, actorAs('owner'), DATE)).summary.proposed).toBe(0);
     }));
 
