@@ -11,6 +11,7 @@ import { contractorProfiles, createContractor, createDriver, driverProfiles, rou
 import { rateRows } from './ops';
 import { loadClients } from './clients';
 import { refreshWeeklyLines } from './settlements';
+import { ledgerByDriver } from './driver-ledger';
 
 // Drivers, contractors, services and rates (spec 6.10). Anyone signed in can read;
 // only the owner edits; client rates are stripped for roles without money.view.
@@ -57,6 +58,7 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
   const driverRows = await driverProfiles(tx, today);
   const routeRows = await tx.select().from(routes);
   const owner = await routeOwners(tx, today);
+  const ledger = await ledgerByDriver(tx);
   return {
     showMoney,
     canEdit: can(actor.role, 'setup.edit'),
@@ -74,6 +76,8 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
       id: d.id, fullName: d.fullName, hovershipCode: d.hovershipCode, contractorId: d.contractorId, phone: d.phone,
       aliases: d.aliases, active: d.active, setupComplete: d.setupComplete, worksTforce: d.worksTforce, worksHovership: d.worksHovership,
       usualRoutes: routeRows.filter((r) => r.usualDriverId === d.id).map((r) => r.code),
+      openNotes: ledger.get(d.id)?.openNotes ?? 0,
+      owedCents: ledger.get(d.id)?.owedCents ?? 0,
     })),
   };
 }

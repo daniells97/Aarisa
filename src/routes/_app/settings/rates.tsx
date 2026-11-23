@@ -6,6 +6,7 @@ import { serviceLabel } from '~/ui/service-label';
 import { todayLA } from '~/domain/dates';
 import { createContractor, createRate, createService, getSetup, getSortCodesSetup, saveDriver, saveService } from '~/server/setup-fns';
 import { SortCodesTab } from '~/ui/SortCodesTab';
+import { DriverFile } from '~/ui/DriverFile';
 import { useClientName } from '~/ui/ClientNames';
 import { ClientsTab } from '~/ui/ClientsTab';
 import {
@@ -239,6 +240,8 @@ function DriversTab({ data }: { data: Setup }) {
   const clientName = useClientName();
   const [editing, setEditing] = useState<Driver | 'new' | null>(null);
   const [addingContractor, setAddingContractor] = useState(false);
+  const [file, setFile] = useState<Driver | null>(null);
+  const f = useFormat();
   const contractorName = (id: string | null) => (id ? data.contractors.find((c) => c.id === id)?.name ?? '' : t('drivers.aarisa'));
   return (
     <>
@@ -250,19 +253,32 @@ function DriversTab({ data }: { data: Setup }) {
               <tr>
                 <th scope="col">{t('drivers.name')}</th><th scope="col">{t('drivers.drivesFor')}</th><th scope="col">{t('drivers.worksFor')}</th>
                 <th scope="col">{t('drivers.usualRoute')}</th><th scope="col">{t('rates.status')}</th>
-                {data.canEdit && <th scope="col"><span className="visually-hidden">{t('team.actions')}</span></th>}
+                <th scope="col"><span className="visually-hidden">{t('team.actions')}</span></th>
               </tr>
             </thead>
             <tbody>
               {data.drivers.map((d) => (
                 <tr key={d.id}>
-                  <td><strong>{d.fullName}</strong>{d.hovershipCode && <span className="sub">{d.hovershipCode}</span>}</td>
+                  <td>
+                    <strong>{d.fullName}</strong>{d.hovershipCode && <span className="sub">{d.hovershipCode}</span>}
+                    {(d.openNotes > 0 || d.owedCents > 0) && (
+                      <span className="row" style={{ gap: 6, marginTop: 4 }}>
+                        {d.openNotes > 0 && <Pill tone="muted">{t('df.notesCount', { count: d.openNotes })}</Pill>}
+                        {d.owedCents > 0 && <Pill tone="waiting">{t('df.owes', { amount: f.money(d.owedCents) })}</Pill>}
+                      </span>
+                    )}
+                  </td>
                   <td>{d.worksTforce && d.worksHovership ? <Pill tone="ok">{t('drivers.both')}</Pill>
                     : [d.worksTforce && clientName('tforce'), d.worksHovership && clientName('hovership')].filter(Boolean).join(', ') || <span className="muted">{t('drivers.noPlatform')}</span>}</td>
                   <td>{d.contractorId ? <Pill tone="contractor">{contractorName(d.contractorId)}</Pill> : t('drivers.aarisa')}</td>
                   <td>{d.usualRoutes.length ? <span className="row" style={{ gap: 6 }}>{d.usualRoutes.map((r) => <RoutePlate key={r} code={r} size="sm" />)}</span> : <span className="muted">{t('drivers.none')}</span>}</td>
                   <td>{!d.setupComplete ? <Pill tone="warn">{t('drivers.finishSetup')}</Pill> : d.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>}</td>
-                  {data.canEdit && <td className="r"><Button size="sm" aria-label={t('drivers.editNamed', { name: d.fullName })} onClick={() => setEditing(d)}>{t('drivers.edit')}</Button></td>}
+                  <td className="r">
+                    <span className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                      <Button size="sm" aria-label={t('df.openNamed', { name: d.fullName })} onClick={() => setFile(d)}>{t('df.open')}</Button>
+                      {data.canEdit && <Button size="sm" aria-label={t('drivers.editNamed', { name: d.fullName })} onClick={() => setEditing(d)}>{t('drivers.edit')}</Button>}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -288,6 +304,7 @@ function DriversTab({ data }: { data: Setup }) {
       </Panel>
       {editing && <DriverDialog data={data} driver={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
       {addingContractor && <ContractorDialog onClose={() => setAddingContractor(false)} />}
+      {file && <DriverFile driverId={file.id} name={file.fullName} onClose={() => setFile(null)} />}
     </>
   );
 }

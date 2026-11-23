@@ -341,3 +341,10 @@ tr.row-selected td { background: var(--brand-tint); }
 .sort-chip-btn { border: 0; cursor: pointer; padding-right: 10px; }
 .sort-chip-btn:hover { background: var(--brand); color: #fff; }
 .link-btn { border: 0; background: none; padding: 0; color: var(--brand-mid); text-decoration: underline; font: inherit; cursor: pointer; }
+
+/* Notes on a driver */
+.note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.note-list li { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-md); background: var(--amber-wash); }
+.note-list li.resolved { background: var(--surface); color: var(--ink-4); text-decoration: line-through; text-decoration-color: var(--line); }
+
+.amount-input { width: 120px; }

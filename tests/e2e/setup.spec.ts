@@ -36,7 +36,7 @@ test.describe('drivers and rates', () => {
 
   test('drivers tab lists the seeded drivers and Puma', async ({ page }) => {
     await signInAs(page, 'viewer', '/settings/rates?tab=drivers');
-    await expect(page.getByRole('cell', { name: /Robert Arteaga/ })).toBeVisible();
+    await expect(page.getByRole('cell', { name: /^Robert Arteaga/ })).toBeVisible();
     await expect(page.getByRole('cell', { name: /Puma/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add driver' })).toHaveCount(0);
   });

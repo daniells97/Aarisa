@@ -3,7 +3,7 @@
 
 import {
   pgSchema, foreignKey, unique, uuid, text, date, timestamp, integer, bigint, boolean, jsonb,
-  uniqueIndex, index, check, primaryKey,
+  uniqueIndex, index, check, primaryKey, type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -22,6 +22,7 @@ export const payCycleEnum = core.enum('pay_cycle', ['weekly', 'biweekly']);
 export const unitEnum = core.enum('unit', ['package', 'stop', 'piece', 'job']);
 export const rateSideEnum = core.enum('rate_side', ['client', 'payee']);
 export const adjustmentClassEnum = core.enum('adjustment_class', ['bonus', 'goal_top_up', 'correction', 'deduction']);
+export const loanKindEnum = core.enum('loan_kind', ['loan', 'advance']);
 export const adjustmentSourceEnum = core.enum('adjustment_source', ['manual', 'rule', 'goal']);
 export const adjustmentStatusEnum = core.enum('adjustment_status', ['proposed', 'confirmed', 'rejected']);
 // Where a row came from. `client_report` is any client's report; the operation says which client.
@@ -480,6 +481,8 @@ export const payAdjustments = core.table('pay_adjustments', {
   confirmedBy: uuid('confirmed_by_user_id').references(() => users.id),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   createdBy: uuid('created_by_user_id').references(() => users.id),
+  // A repayment of a loan or advance (a deduction in the period the owner chose).
+  loanId: uuid('driver_loan_id').references((): AnyPgColumn => driverLoans.id),
   createdAt: createdAt(), updatedAt: updatedAt(),
 }, (t) => [
   index('pay_adjustments_execution').on(t.executionId),
@@ -487,6 +490,30 @@ export const payAdjustments = core.table('pay_adjustments', {
   check('pay_adjustments_target', sql`${t.executionId} is not null or ${t.payPeriodId} is not null`),
   check('pay_adjustments_not_zero', sql`${t.amountCents} <> 0`),
 ]);
+
+// Money Aarisa lent or advanced to a driver. The owner decides in each payroll how much to take back
+// (a deduction in pay_adjustments with this loan); what is left is the amount plus those (negative) deductions.
+export const driverLoans = core.table('driver_loans', {
+  id: id('driver_loan_id'),
+  driverId: uuid('driver_id').notNull().references(() => drivers.id),
+  kind: loanKindEnum('loan_kind').notNull(),
+  amountCents: cents('amount_cents').notNull(),
+  givenOn: date('given_on').notNull(),
+  note: text('note'),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(),
+}, (t) => [index('driver_loans_driver').on(t.driverId), check('driver_loans_amount', sql`${t.amountCents} > 0`)]);
+
+// Notes on a driver ("owes the uniform", "licence expires in March"), shown on the overview until resolved.
+export const driverNotes = core.table('driver_notes', {
+  id: id('driver_note_id'),
+  driverId: uuid('driver_id').notNull().references(() => drivers.id),
+  body: text('body').notNull(),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(),
+  resolvedBy: uuid('resolved_by_user_id').references(() => users.id),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+}, (t) => [index('driver_notes_driver').on(t.driverId)]);
 
 // Places, shared by every client (a STEM reason names one). How a zone arrives written is kept in
 // zone_aliases, lower-case and trimmed, so "DIablo" and "Diablo" are the same zone.

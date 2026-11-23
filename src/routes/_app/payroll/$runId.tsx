@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import { approve, getRun, markPaid, reopen } from '~/server/payroll-fns';
+import { deductFromRun, getRunLoans, undoDeduction } from '~/server/ledger-fns';
+import { TextField, parseAmount } from '~/ui';
 import { Button, Dialog, Figures, Icon, PageHead, Panel, Pill, WarningDiamond, buttonClass, useFormat, useToast } from '~/ui';
 import { blockerText, rangeText, statusTone } from '~/ui/payroll-text';
 import { useClientName } from '~/ui/ClientNames';
@@ -9,7 +11,10 @@ import { useClientName } from '~/ui/ClientNames';
 type Run = Awaited<ReturnType<typeof getRun>>;
 
 export const Route = createFileRoute('/_app/payroll/$runId')({
-  loader: ({ params }) => getRun({ data: { runId: params.runId } }),
+  loader: async ({ params }) => {
+    const [run, loans] = await Promise.all([getRun({ data: { runId: params.runId } }), getRunLoans({ data: { runId: params.runId } })]);
+    return { ...run, loans };
+  },
   component: RunPage,
 });
 
@@ -112,8 +117,70 @@ function RunPage() {
           </table>
         </div>
       </Panel>
+      {run.loans.loans.length > 0 && <RunLoans runId={run.runId} data={run.loans} frozen={frozen} />}
       {approving && <ApproveDialog run={run} range={range} onClose={() => setApproving(false)} />}
     </>
+  );
+}
+
+/** Loans and salary advances: the owner decides how much to take back in this payroll (a deduction). */
+function RunLoans({ runId, data, frozen }: { runId: string; data: Awaited<ReturnType<typeof getRunLoans>>; frozen: boolean }) {
+  const t = useT();
+  const f = useFormat();
+  const router = useRouter();
+  const toast = useToast();
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const canEdit = data.canDeduct && !frozen;
+  const deduct = async (loanId: string) => {
+    const cents = parseAmount(amounts[loanId] ?? '');
+    if (!cents) return toast(t('error.invalid_amount'));
+    const res = await deductFromRun({ data: { loanId, runId, amountCents: cents } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    setAmounts((s) => ({ ...s, [loanId]: '' }));
+    await router.invalidate();
+    toast(t('pl.deducted', { amount: f.money(cents) }));
+  };
+  const undo = async (adjustmentId: string) => {
+    const res = await undoDeduction({ data: { adjustmentId, runId } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+  };
+  return (
+    <Panel title={t('pl.title')} id="loans">
+      <p className="panel-body muted" style={{ margin: 0 }}>{t(frozen ? 'pl.leadFrozen' : 'pl.lead')}</p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th scope="col">{t('hs.driver')}</th><th scope="col">{t('df.kind')}</th><th scope="col" className="r">{t('df.left')}</th><th scope="col">{t('pl.thisRun')}</th></tr></thead>
+          <tbody>
+            {data.loans.map((l) => (
+              <tr key={l.id}>
+                <td><strong>{l.name}</strong>{l.note && <span className="sub">{l.note}</span>}</td>
+                <td>{t(`df.kind.${l.kind}`)}<span className="sub">{f.date(l.givenOn)} · {f.money(l.amountCents)}</span></td>
+                <td className="r num"><strong>{f.money(l.balanceCents)}</strong></td>
+                <td>
+                  <span className="stack" style={{ gap: 6 }}>
+                    {l.thisRun.map((r) => (
+                      <span key={r.id} className="row" style={{ gap: 8 }}>
+                        <span className="num">−{f.money(r.amountCents)}</span>
+                        {canEdit && <Button size="sm" onClick={() => undo(r.id)}>{t('pl.undo')}</Button>}
+                      </span>
+                    ))}
+                    {canEdit && l.balanceCents > 0 && (
+                      <span className="row" style={{ gap: 8, alignItems: 'flex-end', flexWrap: 'nowrap' }}>
+                        <TextField label={t('pl.amountFor', { name: l.name })} inputMode="decimal" placeholder="0.00" className="amount-input"
+                          value={amounts[l.id] ?? ''} onChange={(e) => setAmounts((s) => ({ ...s, [l.id]: e.target.value }))} />
+                        <Button onClick={() => deduct(l.id)}>{t('pl.deduct')}</Button>
+                      </span>
+                    )}
+                    {!canEdit && l.thisRun.length === 0 && <span className="muted">–</span>}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
   );
 }
 

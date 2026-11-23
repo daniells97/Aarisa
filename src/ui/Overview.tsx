@@ -48,6 +48,22 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
         )}
       </Panel>
 
+      {(data.ledger.notes.length > 0 || data.ledger.owedCents > 0) && (
+        <Panel title={t('ov.notesTitle')} id="driver-notes"
+          aside={<Link to="/settings/rates" search={{ tab: 'drivers' }} className={buttonClass('secondary', 'sm')}>{t('ov.notesAll')}</Link>}>
+          <div className="panel-body stack">
+            {data.ledger.owedCents > 0 && <p style={{ margin: 0 }}>{t(data.ledger.owing === 1 ? 'ov.owedLoansOne' : 'ov.owedLoans', { amount: f.money(data.ledger.owedCents), count: data.ledger.owing })}</p>}
+            {data.ledger.notes.length > 0 && (
+              <ul className="note-list">
+                {data.ledger.notes.map((n) => (
+                  <li key={n.id}><span><strong>{n.name}</strong>: {n.body}<span className="sub">{f.dateTime(n.at)}</span></span></li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Panel>
+      )}
+
       <Panel>
         <Figures items={[
           { label: t('ov.packages'), value: f.number(data.figures.packages), note: t('ov.packagesSplit', { tforce: f.number(data.figures.tforcePieces), hovership: f.number(data.figures.hovershipPackages) }) },
