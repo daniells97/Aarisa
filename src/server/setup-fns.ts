@@ -6,6 +6,9 @@ import { read, run } from './fn';
 import { addContractor, addDriver, addRate, addService, loadSetup, updateDriver, updateService } from './setup';
 import { listTeam, recordRoleChange, updateTeamMember } from './team';
 import { inviteUser, setUserRole } from '~/integrations/zitadel';
+import { sendMail } from '~/integrations/mail';
+import { translate } from '~/i18n';
+import { inviteEmail } from './emails';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const cents = z.number().int().min(0).max(100_000_00).nullable();
@@ -82,7 +85,9 @@ export const invite = createServerFn({ method: 'POST' })
   .validator(z.object({ email: z.string().email(), givenName: z.string().min(1).max(60), familyName: z.string().min(1).max(60), role, locale: z.enum(['en', 'es']) }))
   .handler(({ data }) => run('team.manage', async () => {
     const cfg = zitadelAdminConfig();
-    if (!cfg) return { invited: false };
-    await inviteUser(cfg, data);
-    return { invited: true };
+    if (!cfg) return { invited: false, emailed: false, link: null };
+    const { link } = await inviteUser(cfg, data);
+    // From Aarisa's mailbox; without mail set up (or if Microsoft refuses) the owner gets the link to share.
+    const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName, translate(data.locale, `role.${data.role}`)));
+    return { invited: true, emailed, link: emailed ? null : link };
   }));

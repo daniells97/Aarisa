@@ -69,3 +69,30 @@ Running as a preview on the Dimetrics VPS (`srv1986534.hstgr.cloud`, 2.25.229.44
 
 Redeploy after a change: `docker build -t aarisa-portal:$(git rev-parse --short HEAD) -t aarisa-portal:latest .` in the repo, then `docker compose up -d` in `/docker/aarisa`.
 Not done yet: GitHub Actions deploy, GHCR, Infisical, nightly backups.
+
+## Email (invites and password resets)
+
+Zitadel is shared with other Dimetrics clients and its SMTP settings are instance-wide, so Aarisa doesn't use
+them. The portal asks Zitadel for the invite or reset code (`returnCode`) and sends the email itself from
+`no-reply@aarisaconsulting.com` through Microsoft Graph (`src/integrations/mail.ts`). Without the `MAIL_*`
+values the invite dialog shows the link for the owner to share by hand; the "Forgot your password?" page
+sends nothing.
+
+Microsoft 365 setup (Aarisa's tenant):
+
+1. Shared mailbox `no-reply@aarisaconsulting.com` (no licence needed).
+2. Entra admin center → App registrations → New: "Aarisa portal mail", single tenant, no redirect URI.
+   Note the Application (client) ID, the Directory (tenant) ID and the enterprise application's Object ID.
+   Certificates & secrets → New client secret. No Graph permission is added here.
+3. Exchange Online PowerShell (RBAC for Applications), so the app can send only as that mailbox:
+   ```powershell
+   Connect-ExchangeOnline
+   New-ServicePrincipal -AppId <client id> -ObjectId <enterprise app object id> -DisplayName "Aarisa portal mail"
+   New-ManagementScope -Name "Aarisa no-reply" -RecipientRestrictionFilter "PrimarySmtpAddress -eq 'no-reply@aarisaconsulting.com'"
+   New-ManagementRoleAssignment -App <client id> -Role "Application Mail.Send" -CustomResourceScope "Aarisa no-reply"
+   Test-ServicePrincipalAuthorization -Identity <client id> -Resource no-reply@aarisaconsulting.com   # InScope: True
+   ```
+4. In `/docker/aarisa/.env`: `MAIL_TENANT_ID`, `MAIL_CLIENT_ID`, `MAIL_CLIENT_SECRET`, `MAIL_FROM`; then
+   `docker compose up -d aarisa`.
+5. In the Zitadel console, organization Aarisa → Settings → Login behavior: hide "Forgot password", which
+   would try Zitadel's own mail. The portal's sign-in page has its own link.

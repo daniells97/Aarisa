@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { ROLES } from '~/domain/permissions';
@@ -64,6 +64,7 @@ function Login() {
             <p className="notice" role="alert" style={{ margin: 0 }}><WarningDiamond size={22} />{t(`login.error.${errorKey}` as MessageKey)}</p>
           )}
           <a className={buttonClass('primary', 'lg')} href={`/auth/login${qs}`}>{t('login.button')}</a>
+          <Link to="/forgot-password" style={{ fontSize: 14 }}>{t('login.forgot')}</Link>
           <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('login.noAccount')}</p>
           {session.devLogin && (
             <div className="panel" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>

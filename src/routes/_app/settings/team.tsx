@@ -137,6 +137,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [form, setForm] = useState({ email: '', givenName: '', familyName: '', role: 'dispatcher' as Role, locale });
   const [error, setError] = useState<string | null>(null);
+  const [link, setLink] = useState<string | null>(null);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((s) => ({ ...s, [k]: v }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,13 +145,27 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
       const res = await invite({ data: form });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       if (!res.value.invited) return setError(t('team.zitadelOff'));
-      toast(t('team.invited', { email: form.email }));
       await router.invalidate();
+      // The email couldn't go out: the owner shares the link (WhatsApp, text) instead.
+      if (res.value.link) return setLink(res.value.link);
+      toast(t('team.invited', { email: form.email }));
       onClose();
     } catch {
       setError(t('error.generic'));
     }
   };
+  if (link) return (
+    <Dialog open onClose={onClose} title={t('team.invite')}>
+      <div className="stack">
+        <p style={{ margin: 0 }}>{t('team.linkLead', { email: form.email })}</p>
+        <TextField label={t('team.inviteLink')} readOnly value={link} onFocus={(e) => e.currentTarget.select()} />
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <Button onClick={onClose}>{t('common.close')}</Button>
+          <Button variant="primary" onClick={async () => { await navigator.clipboard.writeText(link); toast(t('team.linkCopied')); }}>{t('team.copyLink')}</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
   return (
     <Dialog open onClose={onClose} title={t('team.invite')}>
       <form onSubmit={submit} className="stack">

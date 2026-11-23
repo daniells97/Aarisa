@@ -30,14 +30,45 @@ async function call<T>(cfg: ZitadelAdminConfig, method: string, path: string, bo
   return (await res.json()) as T;
 }
 
-/** Creates a human user who gets an email to set a password, and grants one project role. */
-export async function inviteUser(cfg: ZitadelAdminConfig, p: { email: string; givenName: string; familyName: string; role: Role; locale: 'en' | 'es' }) {
-  const created = await call<{ userId: string }>(cfg, 'POST', '/v2/users/human', {
-    profile: { givenName: p.givenName, familyName: p.familyName, preferredLanguage: p.locale },
-    email: { email: p.email, sendCode: {} },
+/** Zitadel's own login pages, where an invite or reset code is used to set a password. */
+const loginPage = (cfg: ZitadelAdminConfig, page: 'verify' | 'password/set', q: Record<string, string>) =>
+  `${cfg.issuer}/ui/v2/login/${page}?${new URLSearchParams({ ...q, ...(cfg.orgId ? { organization: cfg.orgId } : {}) })}`;
+
+async function userByEmail(cfg: ZitadelAdminConfig, email: string) {
+  const found = await call<{ result?: { userId: string; state?: string }[] }>(cfg, 'POST', '/v2/users', {
+    queries: [{ emailQuery: { emailAddress: email } }, ...(cfg.orgId ? [{ organizationIdQuery: { organizationId: cfg.orgId } }] : [])],
   });
-  await call(cfg, 'POST', `/management/v1/users/${created.userId}/grants`, { projectId: cfg.projectId, roleKeys: [p.role] });
-  return created.userId;
+  return found.result?.find((u) => u.state !== 'USER_STATE_INACTIVE') ?? null;
+}
+
+/**
+ * Creates a human user (or finds one invited before), grants one project role and returns the link
+ * where they set a password. Zitadel sends nothing: the portal emails the link from Aarisa's mailbox.
+ */
+export async function inviteUser(cfg: ZitadelAdminConfig, p: { email: string; givenName: string; familyName: string; role: Role; locale: 'en' | 'es' }) {
+  let userId: string;
+  try {
+    userId = (await call<{ userId: string }>(cfg, 'POST', '/v2/users/human', {
+      profile: { givenName: p.givenName, familyName: p.familyName, preferredLanguage: p.locale },
+      email: { email: p.email, returnCode: {} },
+    })).userId;
+  } catch (e) {
+    // Invited before and never finished: send a new invite instead of failing.
+    const existing = e instanceof RuleError && e.code === 'email_taken' ? await userByEmail(cfg, p.email) : null;
+    if (!existing) throw e;
+    userId = existing.userId;
+  }
+  await setUserRole(cfg, userId, p.role);
+  const { inviteCode } = await call<{ inviteCode: string }>(cfg, 'POST', `/v2/users/${userId}/invite_code`, { returnCode: {} });
+  return { userId, link: loginPage(cfg, 'verify', { userId, code: inviteCode, invite: 'true' }) };
+}
+
+/** A link to set a new password for the user with this email, or null when there is no such user. */
+export async function passwordResetLink(cfg: ZitadelAdminConfig, email: string) {
+  const user = await userByEmail(cfg, email);
+  if (!user) return null;
+  const { verificationCode } = await call<{ verificationCode: string }>(cfg, 'POST', `/v2/users/${user.userId}/password_reset`, { returnCode: {} });
+  return loginPage(cfg, 'password/set', { userId: user.userId, code: verificationCode });
 }
 
 /** Replaces the user's project roles with one role. */
