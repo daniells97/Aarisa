@@ -3,32 +3,33 @@ import { inviteEmail, resetEmail } from '~/server/emails';
 import { sendMail } from './mail';
 import { inviteUser, passwordResetLink } from './zitadel';
 
-const cfg = { tenantId: 'tenant', clientId: 'client', clientSecret: 'secret', from: 'no-reply@aarisaconsulting.com' };
+const cfg = { apiKey: 're_test', from: 'no-reply@aarisaconsulting.com' };
 const zitadel = { issuer: 'https://auth.test', token: 't', projectId: 'p1', orgId: 'org1' };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('sign-in emails', () => {
-  it('sends from the Aarisa mailbox through Microsoft Graph', async () => {
+  it('sends from the Aarisa address through Resend', async () => {
     const calls: [string, RequestInit][] = [];
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
       calls.push([url, init]);
-      return url.includes('/token') ? json({ access_token: 'abc', expires_in: 3600 }) : new Response(null, { status: 202 });
+      return json({ id: 'email-1' });
     }));
     const mail = inviteEmail('es', 'ana@test.com', 'https://auth.test/ui/v2/login/verify?code=1', 'Ana', 'Despachador');
     expect(await sendMail(mail, cfg)).toBe(true);
-    expect(calls[1]![0]).toBe('https://graph.microsoft.com/v1.0/users/no-reply%40aarisaconsulting.com/sendMail');
-    const body = JSON.parse(String(calls[1]![1].body));
-    expect(body.message).toMatchObject({ subject: 'Tu acceso al portal de Aarisa', toRecipients: [{ emailAddress: { address: 'ana@test.com' } }] });
-    expect(body.message.body.content).toContain('Hola Ana, te invitaron al portal de Aarisa como Despachador.');
+    expect(calls[0]![0]).toBe('https://api.resend.com/emails');
+    expect(new Headers(calls[0]![1].headers).get('authorization')).toBe('Bearer re_test');
+    const body = JSON.parse(String(calls[0]![1].body));
+    expect(body).toMatchObject({ from: 'Aarisa Consulting <no-reply@aarisaconsulting.com>', to: ['ana@test.com'], subject: 'Tu acceso al portal de Aarisa' });
+    expect(body.html).toContain('Hola Ana, te invitaron al portal de Aarisa como Despachador.');
   });
 
-  it('says no instead of throwing when mail is not set up or Microsoft refuses', async () => {
+  it('says no instead of throwing when mail is not set up or Resend refuses', async () => {
     expect(await sendMail(resetEmail('en', 'a@test.com', 'https://x'), null)).toBe(false);
-    vi.stubGlobal('fetch', vi.fn(async () => json({ error: 'nope' }, 401)));
+    vi.stubGlobal('fetch', vi.fn(async () => json({ message: 'domain not verified' }, 403)));
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(await sendMail(resetEmail('en', 'a@test.com', 'https://x'), { ...cfg, clientId: 'other' })).toBe(false);
+    expect(await sendMail(resetEmail('en', 'a@test.com', 'https://x'), cfg)).toBe(false);
   });
 
   it('escapes names in the email', () => {

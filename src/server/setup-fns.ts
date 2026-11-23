@@ -87,7 +87,7 @@ export const invite = createServerFn({ method: 'POST' })
     const cfg = zitadelAdminConfig();
     if (!cfg) return { invited: false, emailed: false, link: null };
     const { link } = await inviteUser(cfg, data);
-    // From Aarisa's mailbox; without mail set up (or if Microsoft refuses) the owner gets the link to share.
+    // From Aarisa's mailbox; without mail set up (or if Resend refuses) the owner gets the link to share.
     const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName, translate(data.locale, `role.${data.role}`)));
     return { invited: true, emailed, link: emailed ? null : link };
   }));
