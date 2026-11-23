@@ -222,6 +222,15 @@ export const sortCodes = core.table('sort_codes', {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('sort_codes_op_code').on(t.operationId, t.code)]);
 
+// A driver code's usual routes (sort codes), set by the owner. Today's drivers suggests them each day;
+// the day's own routes are saved when the day is confirmed or edited (execution_sort_codes).
+export const routeUsualSortCodes = core.table('route_usual_sort_codes', {
+  routeId: uuid('route_id').notNull().references(() => routes.id),
+  sortCodeId: uuid('sort_code_id').notNull().references(() => sortCodes.id),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.routeId, t.sortCodeId] })]);
+
 // Who owns a route from a date: Aarisa or a contractor. Never edited; the next row ends the previous one.
 export const routeOwnerships = core.table('route_ownerships', {
   id: id('route_ownership_id'),
