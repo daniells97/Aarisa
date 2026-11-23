@@ -1,32 +1,91 @@
 import { translate, type Locale, type MessageKey } from '~/i18n';
 import type { Mail } from '~/integrations/mail';
 
-// The two emails the portal sends for sign-in: an invite and a password reset. Plain layout with inline
+// The emails the portal sends: an invite, a password reset and the morning list. Plain layout with inline
 // styles (email clients ignore stylesheets), the button link also written out for clients that block it.
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+const BRAND = '#122A5A';
+const MUTED = '#718096';
 
-function layout(locale: Locale, to: string, p: { subject: MessageKey; lead: MessageKey; button: MessageKey; after: MessageKey; vars: Record<string, string> }, link: string): Mail {
-  const t = (k: MessageKey) => translate(locale, k, p.vars);
+const button = (href: string, label: string) =>
+  `<a href="${esc(href)}" style="display:inline-block;background:${BRAND};color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 22px;border-radius:8px">${esc(label)}</a>`;
+
+/** The card, rows of content and the signature with the logo. `rows` is trusted HTML built here. */
+function frame(locale: Locale, rows: string[]) {
   const portal = process.env.APP_BASE_URL ?? '';
-  const html = `<!doctype html><html lang="${locale}"><body style="margin:0;background:#F4F6F9;font-family:Arial,Helvetica,sans-serif;color:#172033">
+  return `<!doctype html><html lang="${locale}"><body style="margin:0;background:#F4F6F9;font-family:Arial,Helvetica,sans-serif;color:#172033">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 12px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border-radius:12px;padding:28px">
-<tr><td style="font-size:16px;line-height:1.5;padding-bottom:20px">${esc(t(p.lead))}</td></tr>
-<tr><td style="padding-bottom:20px"><a href="${esc(link)}" style="display:inline-block;background:#122A5A;color:#FFFFFF;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 22px;border-radius:8px">${esc(t(p.button))}</a></td></tr>
-<tr><td style="font-size:14px;line-height:1.5;color:#4A5568;padding-bottom:12px">${esc(t(p.after))} <a href="${esc(portal)}" style="color:#122A5A">${esc(portal.replace(/^https?:\/\//, ''))}</a></td></tr>
-<tr><td style="font-size:12px;line-height:1.5;color:#718096;padding-bottom:24px">${esc(t('mail.linkFallback'))}<br><span style="word-break:break-all">${esc(link)}</span></td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:12px;padding:28px">
+${rows.join('\n')}
 <tr><td style="border-top:3px solid #C02430;padding-top:18px">
 <a href="${esc(portal)}"><img src="${esc(portal)}/brand/aarisa-logo.png" width="160" height="51" alt="Aarisa Consulting" style="display:block;border:0;height:51px;width:160px"></a>
-<div style="font-size:13px;line-height:1.5;color:#122A5A;font-weight:bold;padding-top:10px">Aarisa Consulting · Logistics Solutions DR / USA</div>
-<div style="font-size:12px;line-height:1.5;color:#718096;padding-top:4px">${esc(t('mail.noReply'))}</div>
+<div style="font-size:13px;line-height:1.5;color:${BRAND};font-weight:bold;padding-top:10px">Aarisa Consulting · Logistics Solutions DR / USA</div>
+<div style="font-size:12px;line-height:1.5;color:${MUTED};padding-top:4px">${esc(translate(locale, 'mail.noReply'))}</div>
 </td></tr>
 </table></td></tr></table></body></html>`;
-  return { to, subject: t(p.subject), html };
+}
+
+function signIn(locale: Locale, to: string, p: { subject: MessageKey; lead: MessageKey; button: MessageKey; vars: Record<string, string> }, link: string): Mail {
+  const t = (k: MessageKey) => translate(locale, k, p.vars);
+  const portal = process.env.APP_BASE_URL ?? '';
+  return { to, subject: t(p.subject), html: frame(locale, [
+    `<tr><td style="font-size:16px;line-height:1.5;padding-bottom:20px">${esc(t(p.lead))}</td></tr>`,
+    `<tr><td style="padding-bottom:20px">${button(link, t(p.button))}</td></tr>`,
+    `<tr><td style="font-size:14px;line-height:1.5;color:#4A5568;padding-bottom:12px">${esc(t('mail.after'))} <a href="${esc(portal)}" style="color:${BRAND}">${esc(portal.replace(/^https?:\/\//, ''))}</a></td></tr>`,
+    `<tr><td style="font-size:12px;line-height:1.5;color:${MUTED};padding-bottom:24px">${esc(t('mail.linkFallback'))}<br><span style="word-break:break-all">${esc(link)}</span></td></tr>`,
+  ]) };
 }
 
 export const inviteEmail = (locale: Locale, to: string, link: string, name: string, role: string) =>
-  layout(locale, to, { subject: 'mail.invite.subject', lead: 'mail.invite.lead', button: 'mail.invite.button', after: 'mail.after', vars: { name, role } }, link);
+  signIn(locale, to, { subject: 'mail.invite.subject', lead: 'mail.invite.lead', button: 'mail.invite.button', vars: { name, role } }, link);
 
 export const resetEmail = (locale: Locale, to: string, link: string) =>
-  layout(locale, to, { subject: 'mail.reset.subject', lead: 'mail.reset.lead', button: 'mail.reset.button', after: 'mail.after', vars: {} }, link);
+  signIn(locale, to, { subject: 'mail.reset.subject', lead: 'mail.reset.lead', button: 'mail.reset.button', vars: {} }, link);
+
+export interface MorningRoute { code: string; driver: string | null; usual: string | null; contractorRoute: boolean; confirmed: boolean }
+
+/**
+ * The morning list for people who chose email: what needs a look first (no driver, one driver on two
+ * routes), then every route with its driver, and a button to Today's drivers to confirm or change it.
+ */
+export function morningEmail(locale: Locale, to: string, date: string, routes: MorningRoute[]): Mail {
+  const t = (k: MessageKey, v?: Record<string, string | number>) => translate(locale, k, v);
+  const day = new Intl.DateTimeFormat(locale === 'es' ? 'es-US' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
+  const noDriver = routes.filter((r) => !r.driver).map((r) => r.code);
+  const byDriver = new Map<string, string[]>();
+  for (const r of routes) if (r.driver && !r.contractorRoute) byDriver.set(r.driver, [...(byDriver.get(r.driver) ?? []), r.code]);
+  const doubles = [...byDriver].filter(([, rs]) => rs.length > 1).map(([d, rs]) => `${d} (${rs.join(', ')})`);
+  const toConfirm = routes.filter((r) => r.driver && !r.confirmed).length;
+
+  const look = [
+    noDriver.length ? t('mail.morning.noDriver', { routes: noDriver.join(', ') }) : null,
+    doubles.length ? t('mail.morning.doubles', { list: doubles.join(', ') }) : null,
+  ].filter((x): x is string => !!x);
+  const lookBox = look.length
+    ? `<tr><td style="padding-bottom:20px"><div style="background:#FFF7E6;border-left:4px solid #E0A100;border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.5">${look.map(esc).join('<br>')}</div></td></tr>`
+    : `<tr><td style="padding-bottom:20px"><div style="background:#E9F6EE;border-left:4px solid #2E8B57;border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.5">${esc(t('mail.morning.allGood'))}</div></td></tr>`;
+
+  const cell = 'padding:7px 8px;border-bottom:1px solid #E2E8F0;font-size:14px;line-height:1.4;vertical-align:top';
+  const rows = routes.map((r) => {
+    const who = r.driver
+      ? esc(r.driver) + (r.usual && r.usual !== r.driver ? `<br><span style="color:${MUTED};font-size:12px">${esc(t('mail.morning.usual', { name: r.usual }))}</span>` : '')
+      : `<span style="color:#C02430;font-weight:bold">${esc(t('mail.morning.none'))}</span>`;
+    const tag = r.contractorRoute ? ` <span style="color:${MUTED};font-size:12px">· ${esc(t('mail.morning.contractor'))}</span>` : '';
+    return `<tr><td style="${cell};font-weight:bold;white-space:nowrap">${esc(r.code)}</td><td style="${cell}">${who}${tag}</td><td style="${cell};text-align:center">${r.confirmed ? '✓' : ''}</td></tr>`;
+  }).join('');
+  const link = `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}/tforce/today?date=${date}`;
+
+  return {
+    to,
+    subject: t('mail.morning.subject', { date: day, n: routes.length }),
+    html: frame(locale, [
+      `<tr><td style="font-size:16px;line-height:1.5;padding-bottom:16px">${esc(t('mail.morning.lead', { date: day, n: routes.length }))}</td></tr>`,
+      lookBox,
+      `<tr><td style="padding-bottom:20px">${button(link, t('mail.morning.button'))}<div style="font-size:13px;color:${MUTED};padding-top:8px">${esc(toConfirm ? t('mail.morning.toConfirm', { n: toConfirm }) : t('mail.morning.confirmed'))}</div></td></tr>`,
+      `<tr><td style="padding-bottom:24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+<tr><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.morning.route'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.morning.driver'))}</th><th style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.morning.ok'))}</th></tr>
+${rows}</table></td></tr>`,
+    ]),
+  };
+}

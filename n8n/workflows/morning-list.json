@@ -140,20 +140,41 @@
           "name": "Aarisa portal service token"
         }
       }
+    },
+    {
+      "id": "send-morning-emails",
+      "name": "Send morning emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AARISA_PORTAL_URL }}/api/integrations/morning-email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ date: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) }) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Aarisa portal service token"
+        }
+      }
     }
   ],
   "connections": {
-    "6:30 AM Monday to Saturday": {
-      "main": [
-        [
-          {
-            "node": "Get morning list",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Get morning list": {
       "main": [
         [
@@ -187,11 +208,32 @@
         ]
       ]
     },
+    "6:30 AM Monday to Saturday": {
+      "main": [
+        [
+          {
+            "node": "Get morning list",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send morning emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Send now": {
       "main": [
         [
           {
             "node": "Get morning list",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send morning emails",
             "type": "main",
             "index": 0
           }

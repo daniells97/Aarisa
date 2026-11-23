@@ -89,7 +89,14 @@ return list.recipients.map((p) => {
     components: [{ type: 'body', parameters: $json.params.map((text) => ({ type: 'text', text })) }] } }`),
   portal('Log sent message', 'POST', '/messages', jsonBody(`{ direction: 'out', phone: $('One message per recipient').item.json.phone, type: 'template', body: 'asignacion_rutas_diaria ' + $('One message per recipient').item.json.params.join(' | '),
     waMessageId: $json.messages?.[0]?.id ?? null, relatedDate: $('One message per recipient').item.json.date }`)),
-], { ...chain('6:30 AM Monday to Saturday', 'Get morning list', 'One message per recipient', 'Send morning template', 'Log sent message'), ...chain('Send now', 'Get morning list') });
+  // People whose morning channel is email: the portal builds and sends their list itself.
+  portal('Send morning emails', 'POST', '/morning-email', jsonBody(`{ date: ${todayLA} }`)),
+], {
+  ...chain('Get morning list', 'One message per recipient', 'Send morning template', 'Log sent message'),
+  ...Object.fromEntries(['6:30 AM Monday to Saturday', 'Send now'].map((n) => [n, { main: [[
+    { node: 'Get morning list', type: 'main', index: 0 }, { node: 'Send morning emails', type: 'main', index: 0 },
+  ]] }])),
+});
 
 // ---------------------------------------------------------------- 3. WhatsApp inbound
 x = 0;

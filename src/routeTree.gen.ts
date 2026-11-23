@@ -38,6 +38,7 @@ import { Route as ApiIntegrationsDailyChangesRouteImport } from './routes/api/in
 import { Route as ApiIntegrationsExtraJobDraftsRouteImport } from './routes/api/integrations/extra-job-drafts'
 import { Route as ApiIntegrationsImportsRouteImport } from './routes/api/integrations/imports'
 import { Route as ApiIntegrationsMessagesRouteImport } from './routes/api/integrations/messages'
+import { Route as ApiIntegrationsMorningEmailRouteImport } from './routes/api/integrations/morning-email'
 import { Route as ApiIntegrationsMorningListRouteImport } from './routes/api/integrations/morning-list'
 import { Route as ApiIntegrationsRemindersRouteImport } from './routes/api/integrations/reminders'
 import { Route as ApiIntegrationsWhatsappMenuRouteImport } from './routes/api/integrations/whatsapp-menu'
@@ -192,6 +193,12 @@ const ApiIntegrationsMessagesRoute = ApiIntegrationsMessagesRouteImport.update({
   path: '/api/integrations/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIntegrationsMorningEmailRoute =
+  ApiIntegrationsMorningEmailRouteImport.update({
+    id: '/api/integrations/morning-email',
+    path: '/api/integrations/morning-email',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiIntegrationsMorningListRoute =
   ApiIntegrationsMorningListRouteImport.update({
     id: '/api/integrations/morning-list',
@@ -257,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/api/integrations/extra-job-drafts': typeof ApiIntegrationsExtraJobDraftsRoute
   '/api/integrations/imports': typeof ApiIntegrationsImportsRoute
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
+  '/api/integrations/morning-email': typeof ApiIntegrationsMorningEmailRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
   '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
   '/api/integrations/whatsapp-menu': typeof ApiIntegrationsWhatsappMenuRoute
@@ -294,6 +302,7 @@ export interface FileRoutesByTo {
   '/api/integrations/extra-job-drafts': typeof ApiIntegrationsExtraJobDraftsRoute
   '/api/integrations/imports': typeof ApiIntegrationsImportsRoute
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
+  '/api/integrations/morning-email': typeof ApiIntegrationsMorningEmailRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
   '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
   '/api/integrations/whatsapp-menu': typeof ApiIntegrationsWhatsappMenuRoute
@@ -333,6 +342,7 @@ export interface FileRoutesById {
   '/api/integrations/extra-job-drafts': typeof ApiIntegrationsExtraJobDraftsRoute
   '/api/integrations/imports': typeof ApiIntegrationsImportsRoute
   '/api/integrations/messages': typeof ApiIntegrationsMessagesRoute
+  '/api/integrations/morning-email': typeof ApiIntegrationsMorningEmailRoute
   '/api/integrations/morning-list': typeof ApiIntegrationsMorningListRoute
   '/api/integrations/reminders': typeof ApiIntegrationsRemindersRoute
   '/api/integrations/whatsapp-menu': typeof ApiIntegrationsWhatsappMenuRoute
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/api/integrations/extra-job-drafts'
     | '/api/integrations/imports'
     | '/api/integrations/messages'
+    | '/api/integrations/morning-email'
     | '/api/integrations/morning-list'
     | '/api/integrations/reminders'
     | '/api/integrations/whatsapp-menu'
@@ -409,6 +420,7 @@ export interface FileRouteTypes {
     | '/api/integrations/extra-job-drafts'
     | '/api/integrations/imports'
     | '/api/integrations/messages'
+    | '/api/integrations/morning-email'
     | '/api/integrations/morning-list'
     | '/api/integrations/reminders'
     | '/api/integrations/whatsapp-menu'
@@ -447,6 +459,7 @@ export interface FileRouteTypes {
     | '/api/integrations/extra-job-drafts'
     | '/api/integrations/imports'
     | '/api/integrations/messages'
+    | '/api/integrations/morning-email'
     | '/api/integrations/morning-list'
     | '/api/integrations/reminders'
     | '/api/integrations/whatsapp-menu'
@@ -474,6 +487,7 @@ export interface RootRouteChildren {
   ApiIntegrationsExtraJobDraftsRoute: typeof ApiIntegrationsExtraJobDraftsRoute
   ApiIntegrationsImportsRoute: typeof ApiIntegrationsImportsRoute
   ApiIntegrationsMessagesRoute: typeof ApiIntegrationsMessagesRoute
+  ApiIntegrationsMorningEmailRoute: typeof ApiIntegrationsMorningEmailRoute
   ApiIntegrationsMorningListRoute: typeof ApiIntegrationsMorningListRoute
   ApiIntegrationsRemindersRoute: typeof ApiIntegrationsRemindersRoute
   ApiIntegrationsWhatsappMenuRoute: typeof ApiIntegrationsWhatsappMenuRoute
@@ -684,6 +698,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIntegrationsMessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/integrations/morning-email': {
+      id: '/api/integrations/morning-email'
+      path: '/api/integrations/morning-email'
+      fullPath: '/api/integrations/morning-email'
+      preLoaderRoute: typeof ApiIntegrationsMorningEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/integrations/morning-list': {
       id: '/api/integrations/morning-list'
       path: '/api/integrations/morning-list'
@@ -798,6 +819,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiIntegrationsExtraJobDraftsRoute: ApiIntegrationsExtraJobDraftsRoute,
   ApiIntegrationsImportsRoute: ApiIntegrationsImportsRoute,
   ApiIntegrationsMessagesRoute: ApiIntegrationsMessagesRoute,
+  ApiIntegrationsMorningEmailRoute: ApiIntegrationsMorningEmailRoute,
   ApiIntegrationsMorningListRoute: ApiIntegrationsMorningListRoute,
   ApiIntegrationsRemindersRoute: ApiIntegrationsRemindersRoute,
   ApiIntegrationsWhatsappMenuRoute: ApiIntegrationsWhatsappMenuRoute,

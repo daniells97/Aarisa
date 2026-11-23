@@ -954,6 +954,20 @@ export const en = {
   "mail.after": "Then sign in at",
   "mail.linkFallback": "If the button does not work, copy this link into your browser:",
   "mail.noReply": "This email is sent automatically; replies are not read. Questions: talk to the owner of Aarisa.",
+  "mail.morning.subject": "Today's drivers, {date}: {n} routes",
+  "mail.morning.lead": "Good morning. These are the {n} routes for today, {date}.",
+  "mail.morning.noDriver": "Without a driver: {routes}.",
+  "mail.morning.doubles": "On two routes: {list}.",
+  "mail.morning.allGood": "Every route has a driver and nobody has two routes.",
+  "mail.morning.button": "Open today's drivers",
+  "mail.morning.toConfirm": "{n} routes still to confirm. Confirm or change them in the portal.",
+  "mail.morning.confirmed": "The list is confirmed.",
+  "mail.morning.route": "Route",
+  "mail.morning.driver": "Driver",
+  "mail.morning.ok": "Confirmed",
+  "mail.morning.usual": "usual: {name}",
+  "mail.morning.none": "No driver",
+  "mail.morning.contractor": "contractor",
 } as const;
 
 export type MessageKey = keyof typeof en;
