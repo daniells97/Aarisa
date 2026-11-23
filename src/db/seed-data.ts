@@ -36,6 +36,12 @@ export const RATES: { service: string; tiers: string[] | null; client: number | 
 
 export const CONTRACTORS = ['Puma'];
 
+// Sort codes (routes a driver runs on a day), from Aarisa, Nov 23, 2026. Migration 0012 loads the same lists.
+export const SORT_CODES: Record<'tforce' | 'hovership', string[]> = {
+  tforce: ['211', '211A', '212', '213', '214', '215', '215A', '301', '302', '303', '304', '305', '306', '307', 'CVS007', 'CVS008', 'Truck Route1', 'Truck Route2'],
+  hovership: ['200', '202', '203', '205', '210', '212', '220', '225', '230', '232', '233', '235', '237', '240', '245', '247', '255', '270', '280', '283', '285', '287', '801', '804', '814', '820', '957'],
+};
+
 /** How each client's report is read (premise 1). Services, tiers and revenue types are named by code. */
 export interface LayoutSeed {
   sourceName: string;

@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { readFileSync } from 'node:fs';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { createDb } from './client';
-import { clients, contractors, operations, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, reportLayoutColumns, reportLayouts, revenueTypes, serviceTiers } from './schema';
-import { CONTRACTORS, OPERATIONS, RATES, RATES_EFFECTIVE_FROM, REPORT_LAYOUTS, SERVICE_TIERS, SERVICE_TYPES } from './seed-data';
+import { clients, contractors, operations, sortCodes, routeExecutions, paymentsReceived, routes, serviceTypes, settlementLines, reportLayoutColumns, reportLayouts, revenueTypes, serviceTiers } from './schema';
+import { CONTRACTORS, OPERATIONS, SORT_CODES, RATES, RATES_EFFECTIVE_FROM, REPORT_LAYOUTS, SERVICE_TIERS, SERVICE_TYPES } from './seed-data';
 import { addRate } from '~/server/setup';
 import { tierIdsByCode } from '~/server/ops';
 import { parseCsvObjects } from '~/integrations/csv';
@@ -33,6 +33,10 @@ export async function seedMasterData(database = createDb()) {
       if (row) log('operations', row);
       const [found] = await tx.select().from(operations).where(eq(operations.code, op.code));
       ops[op.code] = found!.id;
+    }
+
+    for (const [op, codes] of Object.entries(SORT_CODES)) {
+      for (const row of await tx.insert(sortCodes).values(codes.map((code) => ({ operationId: ops[op]!, code }))).onConflictDoNothing().returning()) log('sort_codes', row);
     }
 
     const services: Record<string, string> = {};

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { auditLog, operations, payPeriods, payrollRuns, routeExecutions, routes } from '~/db/schema';
+import { auditLog, operations, payPeriods, payrollRuns, routeExecutions, routes, sortCodes } from '~/db/schema';
 import { actorAs, withRollback, activeTforceRouteCount, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
-import { addDriverForRoute, confirmUsual, loadDay, setAssignment, unconfirmUsual, undoAssignment } from './daily';
+import { addDriverForRoute, confirmUsual, loadDay, setAssignment, setSortCodes, unconfirmUsual, undoAssignment } from './daily';
 
 // Uses the seeded T-Force routes (pnpm db:seed). June 18 has the sample list; Sept 3 has none.
 const route = async (tx: Parameters<Parameters<typeof withRollback>[0]>[0], code: string) =>
@@ -93,5 +93,29 @@ describe("today's drivers (server)", () => {
       await tx.insert(payrollRuns).values({ payPeriodId: p!.id, status: 'approved' });
       const a = await route(tx, '9000A');
       await expect(setAssignment(tx, actorAs('owner'), { date: '2026-09-03', routeId: a.id, payee: null })).rejects.toMatchObject({ code: 'period_locked' });
+    }));
+});
+
+describe('routes (sort codes) a driver ran on a day', () => {
+  it('adds, adds another and removes; the day keeps its usual driver and the log says which routes', () =>
+    withRollback(async (tx) => {
+      const owner = actorAs('owner');
+      const day = await loadDay(tx, owner, '2026-12-02');
+      const a = day.rows.find((r) => r.code === '9000A')!;
+      const code = (c: string) => day.options.sortCodes.find((s) => s.code === c)!.id;
+      expect(day.options.sortCodes.map((s) => s.code)).toEqual(expect.arrayContaining(['211', 'CVS007', 'Truck Route1']));
+      await setSortCodes(tx, owner, { date: '2026-12-02', routeId: a.routeId, sortCodeIds: [code('211')] });
+      await setSortCodes(tx, owner, { date: '2026-12-02', routeId: a.routeId, sortCodeIds: [code('211'), code('CVS007'), code('301')] });
+      await setSortCodes(tx, owner, { date: '2026-12-02', routeId: a.routeId, sortCodeIds: [code('211'), code('CVS007')] });
+      const after = await loadDay(tx, owner, '2026-12-02');
+      const row = after.rows.find((r) => r.code === '9000A')!;
+      expect(row.sortCodes.map((s) => s.code)).toEqual(['211', 'CVS007']);
+      expect(row).toMatchObject({ status: 'proposed', today: { name: a.usual.name } });
+      // One test transaction gives every entry the same time, so look for it rather than take the first.
+      expect(after.changes).toContainEqual(expect.objectContaining({ route: '9000A', sortCodes: ['211', 'CVS007'] }));
+      expect(after.changes.some((c) => c.sortCodes === null)).toBe(false); // creating the record isn't shown as a change of driver
+      await expect(setSortCodes(tx, actorAs('finance'), { date: '2026-12-02', routeId: a.routeId, sortCodeIds: [] })).rejects.toBeInstanceOf(ForbiddenError);
+      const hovership = (await tx.select().from(sortCodes).where(eq(sortCodes.code, '957')))[0]!;
+      await expect(setSortCodes(tx, owner, { date: '2026-12-02', routeId: a.routeId, sortCodeIds: [hovership.id] })).rejects.toMatchObject({ code: 'not_found' });
     }));
 });

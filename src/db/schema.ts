@@ -3,7 +3,7 @@
 
 import {
   pgSchema, foreignKey, unique, uuid, text, date, timestamp, integer, bigint, boolean, jsonb,
-  uniqueIndex, index, check,
+  uniqueIndex, index, check, primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -212,6 +212,16 @@ export const routes = core.table('routes', {
   active: boolean('is_active').notNull().default(true),
 }, (t) => [uniqueIndex('routes_op_code').on(t.operationId, t.code)]);
 
+// Sort codes: the routes (zones) a driver runs on a day, per contract. T-Force's 9000A is the driver's code
+// (the `routes` table); its sort codes are 211, 301, CVS007… Hovership has its own list. Not used for pay.
+export const sortCodes = core.table('sort_codes', {
+  id: id('sort_code_id'),
+  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  code: text('sort_code').notNull(),
+  active: boolean('is_active').notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex('sort_codes_op_code').on(t.operationId, t.code)]);
+
 // Who owns a route from a date: Aarisa or a contractor. Never edited; the next row ends the previous one.
 export const routeOwnerships = core.table('route_ownerships', {
   id: id('route_ownership_id'),
@@ -373,6 +383,14 @@ export const routeExecutions = core.table('route_executions', {
   check('route_executions_confirmed_at', sql`${t.confirmedAt} is null or ${t.status} in ('confirmed', 'changed')`),
   check('route_executions_extra_payee', sql`${t.kind} = 'route' or ${t.payeeId} is not null`),
 ]);
+
+// The sort codes a driver ran on one day ("add another"): one row per execution and sort code.
+export const executionSortCodes = core.table('execution_sort_codes', {
+  executionId: uuid('route_execution_id').notNull().references(() => routeExecutions.id),
+  sortCodeId: uuid('sort_code_id').notNull().references(() => sortCodes.id),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.executionId, t.sortCodeId] }), index('execution_sort_codes_sort_code').on(t.sortCodeId)]);
 
 export const extraJobs = core.table('extra_jobs', {
   id: id('extra_job_id'),

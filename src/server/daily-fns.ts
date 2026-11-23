@@ -5,7 +5,7 @@ import type { Tx } from '~/db/client';
 import { operations, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { addDriverForRoute, addRoute, assignNewDriver, confirmUsual, unconfirmUsual, loadDay, setAssignment, undoAssignment } from './daily';
+import { addDriverForRoute, addRoute, assignNewDriver, confirmUsual, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -71,3 +71,7 @@ export const assignNew = createServerFn({ method: 'POST' })
     await recheckRoute(tx, actor, data.date, data.routeId);
     return { driverId: res.driver.id, name: res.driver.fullName, previous: res.previous };
   }));
+
+export const saveSortCodes = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, routeId: uuid, sortCodeIds: z.array(uuid).max(20) }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => setSortCodes(tx, actor, data)));

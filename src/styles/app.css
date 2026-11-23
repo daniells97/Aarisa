@@ -321,3 +321,16 @@ tr.row-selected td { background: var(--brand-tint); }
 .picker-list li[data-kind='none'] { color: var(--ink-3); }
 .picker-hint { font-size: 13px; color: var(--ink-4); }
 .picker-empty { color: var(--ink-4); padding: 10px 12px; }
+
+/* Sort codes (routes a driver ran on a day) in Today's drivers */
+.sort-codes { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sort-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: 0 2px 0 10px; border-radius: 16px; background: var(--brand-tint); color: var(--brand); font: 600 14px var(--font-cond); letter-spacing: .02em; white-space: nowrap; }
+.sort-chip:not(:has(button)) { padding-right: 10px; }
+.sort-chip-x { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 14px; background: none; color: inherit; cursor: pointer; }
+.sort-chip-x:hover { background: var(--surface); }
+.sort-add { min-height: 32px; width: auto; max-width: 160px; font-size: 14px; color: var(--ink-3); }
+@media (max-width: 899px) {
+  .sort-chip { min-height: 44px; border-radius: 22px; font-size: 16px; }
+  .sort-chip-x { width: 40px; height: 40px; border-radius: 20px; }
+  .sort-add { min-height: 44px; max-width: none; }
+}

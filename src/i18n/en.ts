@@ -538,7 +538,7 @@ export const en = {
   "td.sumWaiting": "{count} waiting for reply",
   "td.sumNoDriver": "{count} without a driver",
   "td.sumRoutes": "{count} routes",
-  "td.route": "Route",
+  "td.route": "Driver",
   "td.driverToday": "Driver today",
   "td.usual": "Usual",
   "td.source": "Source",
@@ -971,6 +971,14 @@ export const en = {
   "channel.whatsappSoon": "WhatsApp (coming soon)",
   "team.whatsappSoon": "WhatsApp isn't available yet. Until it is, people on WhatsApp get the morning list by email.",
   "error.whatsapp_unavailable": "WhatsApp isn't available yet. Choose email for now.",
+  "td.sortCode": "Route",
+  "td.sortCodesFor": "Routes of {route} on {date}",
+  "td.addSortCode": "Add a route",
+  "td.addAnotherSortCode": "Add another",
+  "td.removeSortCode": "Remove route {code}",
+  "td.routesSet": "Routes: {routes}",
+  "td.noSortCodes": "none",
+  "td.usualIs": "usual: {name}",
 } as const;
 
 export type MessageKey = keyof typeof en;

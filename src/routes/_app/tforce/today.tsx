@@ -3,7 +3,8 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, saveSortCodes, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { SortCodes } from '~/ui/SortCodes';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -92,6 +93,18 @@ function TodayPage() {
     />
   );
 
+  const routesOf = (r: Row) => (
+    <SortCodes value={r.sortCodes} options={day.options.sortCodes} disabled={!day.canEdit} label={t('td.sortCodesFor', { route: r.code, date: dateLabel })}
+      onChange={async (ids) => {
+        const res = await saveSortCodes({ data: { date: day.date, routeId: r.routeId, sortCodeIds: ids } });
+        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+        await router.invalidate();
+      }} />
+  );
+
+  // Under the picker: where today's name came from, and the usual driver when someone else drives.
+  const aboutText = (r: Row) => [sourceText(r), r.usual.name && r.today.name !== r.usual.name ? t('td.usualIs', { name: r.usual.name }) : null].filter(Boolean).join(' · ');
+
   const sourceText = (r: Row) => {
     if (!r.source || r.status === 'proposed') return t(r.contractorRoute ? 'td.src.contractor' : 'td.src.usual');
     const time = r.updatedAt ? new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(r.updatedAt)) : '';
@@ -133,16 +146,15 @@ function TodayPage() {
             <>
               <div className="table-wrap desktop-only">
                 <table>
-                  <thead><tr><th scope="col">{t('td.route')}</th><th scope="col">{t('td.driverToday')}</th><th scope="col">{t('td.usual')}</th><th scope="col">{t('td.source')}</th><th scope="col">{t('td.status')}</th></tr></thead>
+                  <thead><tr><th scope="col">{t('td.route')}</th><th scope="col">{t('td.driverToday')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
                   <tbody>
                     {day.rows.map((r) => {
                       const st = statusOf(r);
                       return (
                         <tr key={r.routeId}>
                           <td><RoutePlate code={r.code} needsDriver={r.status === 'no_driver'} /></td>
-                          <td>{select(r)}{r.rawName && r.status === 'no_driver' && <span className="sub">“{r.rawName}”</span>}</td>
-                          <td className="muted">{r.usual.name ?? t('td.none')}</td>
-                          <td className="muted">{sourceText(r)}</td>
+                          <td>{select(r)}<span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span></td>
+                          <td>{routesOf(r)}</td>
                           <td><Pill tone={st.tone}>{t(st.key)}</Pill></td>
                         </tr>
                       );
@@ -160,7 +172,8 @@ function TodayPage() {
                         {r.status !== 'proposed' && r.status !== 'confirmed' && <Pill tone={st.tone}>{t(st.key)}</Pill>}
                       </div>
                       {select(r)}
-                      <span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : sourceText(r)}</span>
+                      {routesOf(r)}
+                      <span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>
                     </li>
                   );
                 })}
@@ -188,7 +201,8 @@ function TodayPage() {
                       <span className="num muted">{new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(c.at))}</span>
                       <span>
                         <RoutePlate code={c.route} size="sm" />{' '}
-                        {c.from && c.from !== c.to ? t('td.fromTo', { from: c.from, to: c.to ?? t('td.noDriver') }) : (c.to ?? t('td.noDriver'))}
+                        {c.sortCodes ? t('td.routesSet', { routes: c.sortCodes.join(', ') || t('td.noSortCodes') })
+                          : c.from && c.from !== c.to ? t('td.fromTo', { from: c.from, to: c.to ?? t('td.noDriver') }) : (c.to ?? t('td.noDriver'))}
                         <span className="sub">{c.user ? t('td.by', { who: c.user, source: t(`audit.source.${c.source}` as MessageKey) }) : t('td.src.daily_list')}{c.action === 'undo' ? ` · ${t('audit.action.undo')}` : ''}</span>
                       </span>
                     </li>

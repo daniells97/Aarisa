@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { auditLog, contractors, drivers, executionView, routes, users } from '~/db/schema';
+import { auditLog, contractors, drivers, executionSortCodes, executionView, routes, sortCodes, users } from '~/db/schema';
 import { todayLA } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
@@ -39,6 +39,12 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     ? await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date), eq(executionView.kind, 'route'), inArray(executionView.routeId, routeRows.map((r) => r.id))))
     : []).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId }));
   const owners = await routeOwners(tx, date, routeRows.map((r) => r.id));
+  // The sort codes (routes) each driver code ran that day.
+  const ran = assignments.length ? await tx.select({ executionId: executionSortCodes.executionId, id: sortCodes.id, code: sortCodes.code })
+    .from(executionSortCodes).innerJoin(sortCodes, eq(sortCodes.id, executionSortCodes.sortCodeId))
+    .where(inArray(executionSortCodes.executionId, assignments.map((a) => a.id))).orderBy(asc(sortCodes.code)) : [];
+  const sortCodeOptions = await tx.select({ id: sortCodes.id, code: sortCodes.code }).from(sortCodes)
+    .where(and(eq(sortCodes.operationId, op.id), eq(sortCodes.active, true))).orderBy(asc(sortCodes.code));
   const driverRows = await driverProfiles(tx, date);
   const contractorRows = (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name }));
   const dName = new Map(driverRows.map((d) => [d.id, d.fullName]));
@@ -57,6 +63,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       usual: { ...usual, name: label(usual) },
       today: { ...today, name: label(today) },
       rawName: a?.rawName ?? null,
+      sortCodes: a ? ran.filter((x) => x.executionId === a.id).map(({ id, code }) => ({ id, code })) : [],
       status,
       source: a?.source ?? null,
       assignmentId: a?.id ?? null,
@@ -68,20 +75,22 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   // the daily assignments they replaced, so older entries (logged as daily_assignments) still show.
   const ids = assignments.map((a) => a.id);
   const log = ids.length ? await tx.select({ log: auditLog, user: users.name }).from(auditLog).leftJoin(users, eq(users.id, auditLog.userId))
-    .where(and(inArray(auditLog.tableName, ['route_executions', 'daily_assignments']), inArray(auditLog.recordId, ids))).orderBy(desc(auditLog.at)).limit(50) : [];
+    .where(and(inArray(auditLog.tableName, ['route_executions', 'daily_assignments', 'execution_sort_codes']), inArray(auditLog.recordId, ids))).orderBy(desc(auditLog.at)).limit(50) : [];
   type Logged = { payeeId?: string | null; driverId?: string | null; contractorId?: string | null; rawName?: string | null };
   const logged = log.flatMap(({ log: l }) => [l.before, l.after] as (Logged | null)[]);
   const payeeName = await payeeNamesById(tx, [...new Set(logged.map((x) => x?.payeeId).filter((x): x is string => !!x))]);
   const nameOf = (x: Logged) => x.payeeId !== undefined ? (x.payeeId ? payeeName.get(x.payeeId) ?? '' : null)
     : label({ driverId: x.driverId ?? null, contractorId: x.contractorId ?? null });
   const routeOf = new Map(assignments.map((a) => [a.id, routeRows.find((r) => r.id === a.routeId)?.code ?? '']));
-  const changes = log.map(({ log: l, user }) => {
-    const af = (l.after ?? {}) as Logged;
-    return {
-      id: l.id, at: l.at.toISOString(), route: routeOf.get(l.recordId) ?? '', action: l.action, source: l.source, user: user ?? null,
-      from: l.before ? nameOf(l.before as Logged) : null,
-      to: nameOf(af) ?? af.rawName ?? null,
-    };
+  const sortCodeName = new Map([...sortCodeOptions, ...ran].map((x) => [x.id, x.code]));
+  // A record created only to hold routes (still the usual driver, not confirmed) isn't a change of driver.
+  const shown = log.filter(({ log: l }) => !(l.tableName === 'route_executions' && l.action === 'insert' && (l.after as { status?: string } | null)?.status === 'proposed'));
+  const changes = shown.map(({ log: l, user }) => {
+    const af = (l.after ?? {}) as Logged & { sortCodeIds?: string[] };
+    const base = { id: l.id, at: l.at.toISOString(), route: routeOf.get(l.recordId) ?? '', action: l.action, source: l.source, user: user ?? null };
+    // A change of the routes (sort codes) a driver ran, not of who drove.
+    if (l.tableName === 'execution_sort_codes') return { ...base, from: null, to: null, sortCodes: (af.sortCodeIds ?? []).map((x) => sortCodeName.get(x) ?? '?') };
+    return { ...base, from: l.before ? nameOf(l.before as Logged) : null, to: nameOf(af) ?? af.rawName ?? null, sortCodes: null };
   });
 
   const count = (s: DayStatus | 'contractor') => rows.filter((r) => (s === 'contractor' ? r.contractorRoute && r.status !== 'no_driver' : !r.contractorRoute && r.status === s)).length;
@@ -104,6 +113,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     options: {
       drivers: driverRows.filter((d) => d.active).map((d) => ({ id: d.id, name: d.fullName, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : null })),
       contractors: contractorRows,
+      sortCodes: sortCodeOptions,
     },
     changes,
   };
@@ -252,4 +262,35 @@ export async function assignNewDriver(tx: Tx, actor: Actor, input: { date: strin
 export async function setUnknownName(tx: Tx, actor: Actor, input: { date: string; routeId: string; rawName: string }) {
   assertCan(actor, 'drivers.confirm_today');
   await writeAssignment(tx, actor, input.date, input.routeId, { driverId: null, contractorId: null, rawName: input.rawName, status: 'no_driver' });
+}
+
+/**
+ * The sort codes (routes) a driver code ran on a day, replacing what was there ("add another" adds one,
+ * the chip's × takes one off). A day without a record yet gets one with its usual driver, still proposed.
+ */
+export async function setSortCodes(tx: Tx, actor: Actor, input: { date: string; routeId: string; sortCodeIds: string[] }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
+  if (!route) throw new RuleError('not_found');
+  const op = await getOperationById(tx, route.operationId);
+  await assertNotLocked(tx, op, input.date);
+  const wanted = [...new Set(input.sortCodeIds)];
+  if (wanted.length) {
+    const known = await tx.select({ id: sortCodes.id }).from(sortCodes).where(and(eq(sortCodes.operationId, op.id), inArray(sortCodes.id, wanted)));
+    if (known.length !== wanted.length) throw new RuleError('not_found');
+  }
+  let view = await routeDay(tx, op.id, input.date, route.id);
+  if (!view) {
+    const usual = usualOf(route, await ownerOn(tx, route.id, input.date));
+    await writeAssignment(tx, actor, input.date, route.id, { ...usual, status: usual.driverId || usual.contractorId ? 'proposed' : 'no_driver' }, 'insert');
+    view = (await routeDay(tx, op.id, input.date, route.id))!;
+  }
+  const before = (await tx.select({ id: executionSortCodes.sortCodeId }).from(executionSortCodes).where(eq(executionSortCodes.executionId, view.id))).map((x) => x.id);
+  const gone = before.filter((x) => !wanted.includes(x));
+  const added = wanted.filter((x) => !before.includes(x));
+  if (!gone.length && !added.length) return before;
+  if (gone.length) await tx.delete(executionSortCodes).where(and(eq(executionSortCodes.executionId, view.id), inArray(executionSortCodes.sortCodeId, gone)));
+  if (added.length) await tx.insert(executionSortCodes).values(added.map((sortCodeId) => ({ executionId: view.id, sortCodeId, createdBy: actor.userId })));
+  await audit(tx, { table: 'execution_sort_codes', recordId: view.id, action: 'update', before: { sortCodeIds: before }, after: { sortCodeIds: wanted }, userId: actor.userId, source: actor.source });
+  return wanted;
 }
