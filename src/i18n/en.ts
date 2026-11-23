@@ -953,6 +953,7 @@ export const en = {
   "mail.reset.button": "Set a new password",
   "mail.after": "Then sign in at",
   "mail.linkFallback": "If the button does not work, copy this link into your browser:",
+  "mail.noReply": "This email is sent automatically; replies are not read. Questions: talk to the owner of Aarisa.",
 } as const;
 
 export type MessageKey = keyof typeof en;

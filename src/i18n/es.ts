@@ -955,4 +955,5 @@ export const es: Record<MessageKey, string> = {
   "mail.reset.button": "Poner contraseña nueva",
   "mail.after": "Después entra en",
   "mail.linkFallback": "Si el botón no funciona, copia este enlace en tu navegador:",
+  "mail.noReply": "Este correo se envía automáticamente y las respuestas no se leen. Si tienes dudas, habla con el dueño de Aarisa.",
 };
