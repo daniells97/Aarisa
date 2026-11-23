@@ -26,6 +26,7 @@ import { Route as PayrollExportRunIdRouteImport } from './routes/payroll-export.
 import { Route as AppExtraJobsIndexRouteImport } from './routes/_app/extra-jobs/index'
 import { Route as AppExtraJobsNewRouteImport } from './routes/_app/extra-jobs/new'
 import { Route as AppHovershipIndexRouteImport } from './routes/_app/hovership/index'
+import { Route as AppHovershipTodayRouteImport } from './routes/_app/hovership/today'
 import { Route as AppPayrollIndexRouteImport } from './routes/_app/payroll/index'
 import { Route as AppPayrollRunIdRouteImport } from './routes/_app/payroll/$runId'
 import { Route as AppSettingsAuditRouteImport } from './routes/_app/settings/audit'
@@ -129,6 +130,11 @@ const AppExtraJobsNewRoute = AppExtraJobsNewRouteImport.update({
 const AppHovershipIndexRoute = AppHovershipIndexRouteImport.update({
   id: '/hovership/',
   path: '/hovership/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHovershipTodayRoute = AppHovershipTodayRouteImport.update({
+  id: '/hovership/today',
+  path: '/hovership/today',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPayrollIndexRoute = AppPayrollIndexRouteImport.update({
@@ -254,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/auth/logout': typeof AuthLogoutRoute
   '/payroll-export/$runId': typeof PayrollExportRunIdRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/hovership/today': typeof AppHovershipTodayRoute
   '/payroll/$runId': typeof AppPayrollRunIdRoute
   '/settings/audit': typeof AppSettingsAuditRoute
   '/settings/rates': typeof AppSettingsRatesRoute
@@ -292,6 +299,7 @@ export interface FileRoutesByTo {
   '/payroll-export/$runId': typeof PayrollExportRunIdRoute
   '/': typeof AppIndexRoute
   '/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/hovership/today': typeof AppHovershipTodayRoute
   '/payroll/$runId': typeof AppPayrollRunIdRoute
   '/settings/audit': typeof AppSettingsAuditRoute
   '/settings/rates': typeof AppSettingsRatesRoute
@@ -332,6 +340,7 @@ export interface FileRoutesById {
   '/payroll-export/$runId': typeof PayrollExportRunIdRoute
   '/_app/': typeof AppIndexRoute
   '/_app/extra-jobs/new': typeof AppExtraJobsNewRoute
+  '/_app/hovership/today': typeof AppHovershipTodayRoute
   '/_app/payroll/$runId': typeof AppPayrollRunIdRoute
   '/_app/settings/audit': typeof AppSettingsAuditRoute
   '/_app/settings/rates': typeof AppSettingsRatesRoute
@@ -372,6 +381,7 @@ export interface FileRouteTypes {
     | '/auth/logout'
     | '/payroll-export/$runId'
     | '/extra-jobs/new'
+    | '/hovership/today'
     | '/payroll/$runId'
     | '/settings/audit'
     | '/settings/rates'
@@ -410,6 +420,7 @@ export interface FileRouteTypes {
     | '/payroll-export/$runId'
     | '/'
     | '/extra-jobs/new'
+    | '/hovership/today'
     | '/payroll/$runId'
     | '/settings/audit'
     | '/settings/rates'
@@ -449,6 +460,7 @@ export interface FileRouteTypes {
     | '/payroll-export/$runId'
     | '/_app/'
     | '/_app/extra-jobs/new'
+    | '/_app/hovership/today'
     | '/_app/payroll/$runId'
     | '/_app/settings/audit'
     | '/_app/settings/rates'
@@ -614,6 +626,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHovershipIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/hovership/today': {
+      id: '/_app/hovership/today'
+      path: '/hovership/today'
+      fullPath: '/hovership/today'
+      preLoaderRoute: typeof AppHovershipTodayRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/payroll/': {
       id: '/_app/payroll/'
       path: '/payroll'
@@ -765,6 +784,7 @@ interface AppRouteChildren {
   AppWeekRoute: typeof AppWeekRoute
   AppIndexRoute: typeof AppIndexRoute
   AppExtraJobsNewRoute: typeof AppExtraJobsNewRoute
+  AppHovershipTodayRoute: typeof AppHovershipTodayRoute
   AppPayrollRunIdRoute: typeof AppPayrollRunIdRoute
   AppSettingsAuditRoute: typeof AppSettingsAuditRoute
   AppSettingsRatesRoute: typeof AppSettingsRatesRoute
@@ -788,6 +808,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppWeekRoute: AppWeekRoute,
   AppIndexRoute: AppIndexRoute,
   AppExtraJobsNewRoute: AppExtraJobsNewRoute,
+  AppHovershipTodayRoute: AppHovershipTodayRoute,
   AppPayrollRunIdRoute: AppPayrollRunIdRoute,
   AppSettingsAuditRoute: AppSettingsAuditRoute,
   AppSettingsRatesRoute: AppSettingsRatesRoute,

@@ -72,7 +72,7 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
     contractors: contractorRows.map((c) => ({ id: c.id, name: c.name, active: c.active, routes: routeRows.filter((r) => owner.get(r.id) === c.id).map((r) => r.code) })),
     drivers: driverRows.map((d) => ({
       id: d.id, fullName: d.fullName, hovershipCode: d.hovershipCode, contractorId: d.contractorId, phone: d.phone,
-      aliases: d.aliases, active: d.active, setupComplete: d.setupComplete,
+      aliases: d.aliases, active: d.active, setupComplete: d.setupComplete, worksTforce: d.worksTforce, worksHovership: d.worksHovership,
       usualRoutes: routeRows.filter((r) => r.usualDriverId === d.id).map((r) => r.code),
     })),
   };

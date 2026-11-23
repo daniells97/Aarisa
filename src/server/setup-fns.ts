@@ -28,6 +28,8 @@ const driverInput = z.object({
   phone: z.string().max(30).nullable(),
   aliases: z.array(z.string().max(80)).max(20),
   active: z.boolean(),
+  worksTforce: z.boolean().optional(),
+  worksHovership: z.boolean().optional(),
 });
 
 export const saveDriver = createServerFn({ method: 'POST' })

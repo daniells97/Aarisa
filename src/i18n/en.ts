@@ -202,7 +202,7 @@ export const en = {
   "drivers.editNamed": "Edit {name}",
   "drivers.name": "Name",
   "drivers.code": "Hovership code",
-  "drivers.drivesFor": "Drives for",
+  "drivers.drivesFor": "Platform",
   "drivers.worksFor": "Works for",
   "drivers.usualRoute": "Usual T-Force driver code",
   "drivers.none": "None",
@@ -1003,6 +1003,17 @@ export const en = {
   "sc.saved": "Route {code} saved.",
   "error.sort_code_exists": "That route is already on the list.",
   "error.sort_code_invalid": "Write the route, up to 30 characters.",
+  "drivers.both": "Both",
+  "drivers.noPlatform": "None",
+  "td.tabs": "Contracts",
+  "hd.lead": "Who runs which {client} routes today. Pick one or more routes per person; Hovership's weekly report already names who drove.",
+  "hd.routesOf": "Routes of {name} on {date}",
+  "hd.working": "{count} with routes",
+  "hd.people": "{count} people on Hovership",
+  "hd.unassigned": "Routes without anyone today: {routes}.",
+  "hd.shared": "{route} is with more than one person: {who}.",
+  "hd.noPeople": "Nobody is marked as working on Hovership. Mark them in Drivers and rates → Drivers → Platform.",
+  "hd.person": "Person",
 } as const;
 
 export type MessageKey = keyof typeof en;

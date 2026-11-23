@@ -257,7 +257,8 @@ function DriversTab({ data }: { data: Setup }) {
               {data.drivers.map((d) => (
                 <tr key={d.id}>
                   <td><strong>{d.fullName}</strong>{d.hovershipCode && <span className="sub">{d.hovershipCode}</span>}</td>
-                  <td>{[d.hovershipCode && clientName('hovership'), (d.usualRoutes.length > 0 || d.contractorId) && clientName('tforce')].filter(Boolean).join(', ') || '–'}</td>
+                  <td>{d.worksTforce && d.worksHovership ? <Pill tone="ok">{t('drivers.both')}</Pill>
+                    : [d.worksTforce && clientName('tforce'), d.worksHovership && clientName('hovership')].filter(Boolean).join(', ') || <span className="muted">{t('drivers.noPlatform')}</span>}</td>
                   <td>{d.contractorId ? <Pill tone="contractor">{contractorName(d.contractorId)}</Pill> : t('drivers.aarisa')}</td>
                   <td>{d.usualRoutes.length ? <span className="row" style={{ gap: 6 }}>{d.usualRoutes.map((r) => <RoutePlate key={r} code={r} size="sm" />)}</span> : <span className="muted">{t('drivers.none')}</span>}</td>
                   <td>{!d.setupComplete ? <Pill tone="warn">{t('drivers.finishSetup')}</Pill> : d.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>}</td>
@@ -292,12 +293,14 @@ function DriversTab({ data }: { data: Setup }) {
 }
 
 function DriverDialog({ data, driver, onClose }: { data: Setup; driver: Driver | null; onClose: () => void }) {
+  const clientName = useClientName();
   const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [form, setForm] = useState({
     fullName: driver?.fullName ?? '', hovershipCode: driver?.hovershipCode ?? '', contractorId: driver?.contractorId ?? '',
     phone: driver?.phone ?? '', aliases: driver?.aliases.join(', ') ?? '', active: driver?.active ?? true,
+    worksTforce: driver?.worksTforce ?? true, worksHovership: driver?.worksHovership ?? false,
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -309,6 +312,7 @@ function DriverDialog({ data, driver, onClose }: { data: Setup; driver: Driver |
       const res = await saveDriver({ data: { id: driver?.id ?? null, driver: {
         fullName: form.fullName, hovershipCode: form.hovershipCode || null, contractorId: form.contractorId || null,
         phone: form.phone || null, aliases: form.aliases.split(','), active: form.active,
+        worksTforce: form.worksTforce, worksHovership: form.worksHovership,
       } } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       toast(t('drivers.saved'));
@@ -333,6 +337,11 @@ function DriverDialog({ data, driver, onClose }: { data: Setup; driver: Driver |
         </div>
         <TextField label={t('drivers.phone')} type="tel" autoComplete="off" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
         <TextField label={t('drivers.aliases')} hint={t('drivers.aliasesHint')} value={form.aliases} onChange={(e) => set('aliases', e.target.value)} />
+        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 0 }}>
+          <legend style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)', padding: 0 }}>{t('drivers.drivesFor')}</legend>
+          <CheckField label={clientName('tforce')} checked={form.worksTforce} onChange={(e) => set('worksTforce', e.target.checked)} />
+          <CheckField label={clientName('hovership')} checked={form.worksHovership} onChange={(e) => set('worksHovership', e.target.checked)} />
+        </fieldset>
         <CheckField label={t('drivers.activeLabel')} checked={form.active} onChange={(e) => set('active', e.target.checked)} />
         <FormError>{error}</FormError>
         <div className="row" style={{ justifyContent: 'flex-end' }}>

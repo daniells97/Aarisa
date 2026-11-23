@@ -119,7 +119,8 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       noDriver: rows.filter((r) => r.status === 'no_driver').length,
     },
     options: {
-      drivers: driverRows.filter((d) => d.active).map((d) => ({ id: d.id, name: d.fullName, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : null })),
+      // Only people who work on T-Force (Drivers and rates → Platform); others still show by name if they were assigned.
+      drivers: driverRows.filter((d) => d.active && d.worksTforce).map((d) => ({ id: d.id, name: d.fullName, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : null })),
       contractors: contractorRows,
       sortCodes: sortCodeOptions,
     },

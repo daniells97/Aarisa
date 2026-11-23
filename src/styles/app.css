@@ -250,6 +250,7 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
   .today-aside > :first-child { order: -1; }
   .today-list { order: 0; }
   .today-aside > :not(:first-child) { order: 1; }
+  .today-aside-after > :first-child { order: 1; } /* Hovership: the list first, the day's changes after */
 }
 
 /* ---------- weekly check ---------- */

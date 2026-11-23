@@ -172,6 +172,9 @@ export const drivers = core.table('drivers', {
   hireDate: date('hire_date'),
   terminationDate: date('termination_date'),
   setupComplete: boolean('is_setup_complete').notNull().default(true),
+  // Which platforms the person works on: T-Force, Hovership or both. Decides which daily lists show them.
+  worksTforce: boolean('works_tforce').notNull().default(true),
+  worksHovership: boolean('works_hovership').notNull().default(false),
   createdAt: createdAt(), updatedAt: updatedAt(),
 });
 

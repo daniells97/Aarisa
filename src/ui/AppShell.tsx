@@ -25,7 +25,7 @@ function operationGroups(ops: ShellOperation[]): NavGroup[] {
       title: o.name,
       items: o.driverSource === 'daily_list'
         ? [{ to: '/tforce/today', label: 'nav.todayDrivers' as const, icon: 'calendar' as const, op }, { to: '/tforce/week', label: 'nav.weeklyCheck' as const, icon: 'swap' as const, op }]
-        : [{ to: '/hovership', label: 'nav.weeklyReport' as const, icon: 'file' as const, op }],
+        : [...(op ? [] : [{ to: '/hovership/today', label: 'nav.todayDrivers' as const, icon: 'calendar' as const, op }]), { to: '/hovership', label: 'nav.weeklyReport' as const, icon: 'file' as const, op }],
     };
   });
 }
@@ -54,7 +54,10 @@ function initials(name: string) {
 }
 
 function isActive(path: string, to: string) {
-  return to === '/' ? path === '/' : path === to || path.startsWith(`${to}/`);
+  if (to === '/') return path === '/';
+  // /hovership/today has its own item, so the weekly report (/hovership) isn't lit there too.
+  if (to === '/hovership' && path.startsWith('/hovership/today')) return false;
+  return path === to || path.startsWith(`${to}/`);
 }
 
 export function AppShell({ user, children, badges = {}, operations = [] }: { user: ShellUser; children: ReactNode; badges?: Record<string, number>; operations?: ShellOperation[] }) {
@@ -75,7 +78,7 @@ export function AppShell({ user, children, badges = {}, operations = [] }: { use
               <div key={gi} style={{ display: 'contents' }}>
                 {(g.label || g.title) && <div className="side-group">{g.title ?? t(g.label!)}</div>}
                 {items.map((i) => (
-                  <Link key={`${i.to}${i.op ?? ''}`} to={i.to} search={(i.op ? { op: i.op } : {}) as never} aria-current={active(i) ? 'page' : undefined}>
+                  <Link key={`${i.to}${i.op ?? ''}`} to={i.to} search={(i.op ? { op: i.op } : {}) as never} activeOptions={{ exact: true, includeSearch: false }} aria-current={active(i) ? 'page' : undefined}>
                     <Icon name={i.icon} />{t(i.label)}
                     <Badge count={badges[i.to] ?? 0} label={String(badges[i.to] ?? 0)} />
                   </Link>
@@ -101,7 +104,7 @@ export function AppShell({ user, children, badges = {}, operations = [] }: { use
       </main>
       <nav className="tabbar" aria-label={t('nav.main')}>
         {tabs.map((i) => (
-          <Link key={i.to} to={i.to} aria-current={isActive(path, i.to) ? 'page' : undefined}>
+          <Link key={i.to} to={i.to} activeOptions={{ exact: true, includeSearch: false }} aria-current={isActive(path, i.to) ? 'page' : undefined}>
             <Icon name={i.icon} />{t(i.label)}
           </Link>
         ))}

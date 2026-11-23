@@ -5,6 +5,7 @@ import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
 import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, saveSortCodes, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
+import { DayTabs } from '~/ui/DayTabs';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -127,6 +128,7 @@ function TodayPage() {
             <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>
           </div>
         } />
+      {day.operation.isDefault && <DayTabs current="tforce" date={day.date} />}
       {!day.canEdit && <p className="notice notice-info" style={{ margin: 0 }}>{t('td.readOnly')}</p>}
 
       <div className="row" role="list" aria-label={t('td.status')}>

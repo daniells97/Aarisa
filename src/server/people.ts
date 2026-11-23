@@ -27,6 +27,8 @@ export interface DriverProfile {
   aliases: string[];
   active: boolean;
   setupComplete: boolean;
+  worksTforce: boolean;
+  worksHovership: boolean;
 }
 
 export interface ContractorProfile {
@@ -75,7 +77,7 @@ export async function driverProfiles(tx: Tx, on: string, ids?: string[]): Promis
       id: d.id, payeeId: p.id, fullName: p.displayName, contractorId: c === own ? null : c,
       hovershipCode: code.get(d.id) ?? null, phone: p.phone,
       aliases: aliases.filter((a) => a.driverId === d.id).map((a) => a.aliasText),
-      active: p.active, setupComplete: d.setupComplete,
+      active: p.active, setupComplete: d.setupComplete, worksTforce: d.worksTforce, worksHovership: d.worksHovership,
     };
   });
 }
@@ -120,6 +122,9 @@ export interface DriverInput {
   phone: string | null;
   aliases: string[];
   active: boolean;
+  /** Platforms the person works on. Left out: kept on edit; on create, Hovership when there is a Hovership code, else T-Force. */
+  worksTforce?: boolean;
+  worksHovership?: boolean;
 }
 
 function clean(input: DriverInput) {
@@ -175,7 +180,10 @@ export async function createDriver(tx: Tx, actor: Actor, input: DriverInput & { 
   await assertAliasesFree(tx, v.aliases);
   await assertPhoneFree(tx, v.phone);
   const [payee] = await tx.insert(payees).values({ payeeType: 'driver', displayName: v.fullName, phone: v.phone, active: v.active }).returning();
-  const [driver] = await tx.insert(drivers).values({ payeeId: payee!.id, setupComplete: input.setupComplete }).returning();
+  const [driver] = await tx.insert(drivers).values({
+    payeeId: payee!.id, setupComplete: input.setupComplete,
+    worksTforce: input.worksTforce ?? !v.hovershipCode, worksHovership: input.worksHovership ?? !!v.hovershipCode,
+  }).returning();
   const id = driver!.id;
   await tx.insert(driverAffiliations).values({ driverId: id, contractorId: v.contractorId ?? (await ownCompanyId(tx)), validFrom: HISTORY_START });
   if (hov && v.hovershipCode) await tx.insert(driverClientCodes).values({ driverId: id, operationId: hov, driverCode: v.hovershipCode, validFrom: HISTORY_START });
@@ -202,7 +210,10 @@ export async function updateDriverProfile(tx: Tx, actor: Actor, id: string, inpu
   await assertPhoneFree(tx, v.phone, before.payeeId);
 
   await tx.update(payees).set({ displayName: v.fullName, phone: v.phone, active: v.active, updatedAt: new Date() }).where(eq(payees.id, before.payeeId));
-  await tx.update(drivers).set({ setupComplete: input.setupComplete ?? before.setupComplete, updatedAt: new Date() }).where(eq(drivers.id, id));
+  await tx.update(drivers).set({
+    setupComplete: input.setupComplete ?? before.setupComplete, updatedAt: new Date(),
+    worksTforce: input.worksTforce ?? before.worksTforce, worksHovership: input.worksHovership ?? before.worksHovership,
+  }).where(eq(drivers.id, id));
   if (v.contractorId !== before.contractorId) {
     const target = v.contractorId ?? (await ownCompanyId(tx));
     await tx.update(driverAffiliations).set({ validTo: addDays(today, -1) })

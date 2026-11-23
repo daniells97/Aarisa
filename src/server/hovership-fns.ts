@@ -6,6 +6,7 @@ import { read, run } from './fn';
 import { requireSignedIn } from './auth';
 import { importHovership, latestHovershipWeek, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
 import { classifyOtherRevenue } from './revenue';
+import { loadHovershipDay, setHovershipRoutes } from './hovership-day';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 // Any contract whose report names the driver; omitted = the first one (Hovership).
@@ -55,3 +56,11 @@ export const classifyStem = createServerFn({ method: 'POST' })
     ]),
   }))
   .handler(({ data }) => run('reports.import', async (tx, actor) => (await classifyOtherRevenue(tx, actor, data.id, data.classification)).id));
+
+export const getHovershipDay = createServerFn({ method: 'GET' })
+  .validator(z.object({ date: isoDate, operation }))
+  .handler(({ data }) => read('payroll.view', (tx, actor) => loadHovershipDay(tx, actor, data.date, data.operation)));
+
+export const saveHovershipRoutes = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, driverId: z.string().uuid(), sortCodeIds: z.array(z.string().uuid()).max(20), operation }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => setHovershipRoutes(tx, actor, data)));
