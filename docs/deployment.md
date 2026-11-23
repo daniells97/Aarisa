@@ -58,7 +58,7 @@ Running as a preview on the Dimetrics VPS (`srv1986534.hstgr.cloud`, 2.25.229.44
 
 | Piece | Where |
 |---|---|
-| URL | `https://aarisa.dimetrics.com.co` (A record at Hostinger DNS) and `https://aarisa.srv1986534.hstgr.cloud` |
+| URL | `https://portal.aarisaconsulting.com` (A record at Namecheap DNS; `APP_BASE_URL` and the Zitadel redirect URIs). `https://aarisa.dimetrics.com.co` and `https://aarisa.srv1986534.hstgr.cloud` still serve the portal and send the login to the main domain |
 | Compose | `/docker/aarisa/docker-compose.yml`, project `aarisa`, container `aarisa-portal`, networks `app` (Traefik) and `data` (Postgres) |
 | Image | `aarisa-portal:<commit>` built on the server from `Dockerfile`; migrations run on start |
 | Database | `aarisa_db`, role `aarisa_app`, direct to `dmx-postgres` like the other apps (no PgBouncer entry yet) |

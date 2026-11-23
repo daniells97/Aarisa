@@ -47,7 +47,7 @@ published at `https://n8n-aarisa.srv1986534.hstgr.cloud` only after the owner ac
      `{{1}}` = day ("martes, 20 de octubre"), `{{2}}` = route count, `{{3}}` = routes with no driver or "ninguna",
      `{{4}}` = drivers on two routes, e.g. "Nayibi Perez (9000D, 9000E)", or "ninguno". Buttons, in this order:
      quick reply `Todo bien` / `All good`, quick reply `Cambiar una ruta` / `Change a route`, and a URL button
-     `Ver lista` / `See list` to `https://aarisa.dimetrics.com.co/tforce/today`. The message names only what needs a look,
+     `Ver lista` / `See list` to `https://aarisa.dimetrics.com.co/tforce/today` (approved that way; the old domain still opens the portal, now at `portal.aarisaconsulting.com`). The message names only what needs a look,
      because a list of 19+ routes on one line (parameters can't hold line breaks) is unreadable on a phone.
    - `order_number_reminder`: body with `{{1}}` = how many jobs today have no order number.
 5. **Meta webhook**: callback URL `https://n8n-aarisa.srv1986534.hstgr.cloud/webhook/aarisa-whatsapp`,
