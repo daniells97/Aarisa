@@ -6,8 +6,8 @@ import { hourInLA } from './index';
 
 // "This week" tab on the phone: the same overview (spec 6.2).
 export const Route = createFileRoute('/_app/week')({
-  validateSearch: z.object({ week: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }),
-  loaderDeps: ({ search: s }) => ({ week: s.week }),
+  validateSearch: z.object({ week: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), month: z.string().regex(/^\d{4}-\d{2}$/).optional() }),
+  loaderDeps: ({ search: s }) => ({ week: s.week, month: s.month }),
   loader: async ({ deps }) => ({ data: await getOverview({ data: deps }), hourLA: hourInLA() }),
   component: () => {
     const { data, hourLA } = Route.useLoaderData();

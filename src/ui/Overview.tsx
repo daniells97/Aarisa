@@ -19,13 +19,25 @@ function greeting(hour: number): MessageKey {
   return hour < 12 ? 'ov.morning' : hour < 18 ? 'ov.afternoon' : 'ov.evening';
 }
 
+/** First Monday of a month, to go from the month view back to a week in it. */
+function weekStartIn(month: string) {
+  const dow = new Date(`${month}-01T12:00:00Z`).getUTCDay();
+  return addDays(`${month}-01`, (8 - dow) % 7);
+}
+
 /** Overview (spec 6.2). Same component on `/` (desktop) and `/week` (phone). */
 export function Overview({ data, userName, hourLA, weekPath }: { data: Data; userName: string; hourLA: number; weekPath: '/' | '/week' }) {
   const t = useT();
   const f = useFormat();
   const range = rangeText(data.week, t, f);
   const n = data.needs.length;
-  const lead = n === 0 ? t('ov.leadClear', { range }) : n === 1 ? t('ov.leadOne', { range }) : t('ov.leadNeeds', { range, count: n });
+  const m = data.month;
+  const monthText = m ? f.date(`${m}-01`, { month: 'long', year: 'numeric' }) : '';
+  const monthName = monthText.charAt(0).toUpperCase() + monthText.slice(1); // sentence case: "Junio de 2026"
+  // A month is the weeks that start in it; the lead says which days that covers.
+  const when = m ? t('ov.monthOf', { month: monthName, range, weeks: data.weeks }) : t('ov.weekOf', { range });
+  const lead = n === 0 ? t('ov.leadClear', { when }) : n === 1 ? t('ov.leadOne', { when }) : t('ov.leadNeeds', { when, count: n });
+  const shiftMonth = (k: number) => addDays(`${m ?? data.week.start.slice(0, 7)}-15`, k * 30).slice(0, 7);
   const first = userName.split(' ')[0] ?? userName;
   const pct = data.figures.profitChangePct;
   const max = Math.max(1, ...data.perDay.map((d) => d.hovership + d.tforce));
@@ -33,10 +45,24 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
     <>
       <PageHead title={t(greeting(hourLA), { name: first })} lead={lead}
         actions={
-          <div className="week-nav">
-            <Link to={weekPath} search={{ week: addDays(data.week.start, -7) }} aria-label={t('hs.prevWeek')}><Icon name="chevronLeft" width={18} height={18} /></Link>
-            <span className="num">{f.date(data.week.start, { month: 'short', day: 'numeric' })} – {f.date(data.week.end, { month: 'short', day: 'numeric' })}</span>
-            <Link to={weekPath} search={{ week: addDays(data.week.start, 7) }} aria-label={t('hs.nextWeek')}><Icon name="chevronRight" width={18} height={18} /></Link>
+          <div className="row">
+            <nav className="seg" aria-label={t('ov.periodKind')}>
+              <Link to={weekPath} search={{ week: m ? weekStartIn(m) : data.week.start }} aria-current={m ? undefined : 'page'}>{t('ov.byWeek')}</Link>
+              <Link to={weekPath} search={{ month: m ?? data.week.start.slice(0, 7) }} aria-current={m ? 'page' : undefined}>{t('ov.byMonth')}</Link>
+            </nav>
+            {m ? (
+              <div className="week-nav">
+                <Link to={weekPath} search={{ month: shiftMonth(-1) }} aria-label={t('ov.prevMonth')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+                <span className="num">{monthName}</span>
+                <Link to={weekPath} search={{ month: shiftMonth(1) }} aria-label={t('ov.nextMonth')}><Icon name="chevronRight" width={18} height={18} /></Link>
+              </div>
+            ) : (
+              <div className="week-nav">
+                <Link to={weekPath} search={{ week: addDays(data.week.start, -7) }} aria-label={t('hs.prevWeek')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+                <span className="num">{f.date(data.week.start, { month: 'short', day: 'numeric' })} – {f.date(data.week.end, { month: 'short', day: 'numeric' })}</span>
+                <Link to={weekPath} search={{ week: addDays(data.week.start, 7) }} aria-label={t('hs.nextWeek')}><Icon name="chevronRight" width={18} height={18} /></Link>
+              </div>
+            )}
           </div>
         } />
 
@@ -72,7 +98,7 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
           ...(data.showMoney ? [{
             label: t('ov.profit'),
             value: <span className={(data.figures.profitCents ?? 0) < 0 ? 'neg' : undefined}>{f.money(data.figures.profitCents)}</span>,
-            note: pct == null ? undefined : pct === 0 ? t('ov.same') : t(pct > 0 ? 'ov.up' : 'ov.down', { pct: Math.abs(pct) }),
+            note: pct == null ? undefined : pct === 0 ? t(m ? 'ov.sameMonth' : 'ov.same') : t(pct > 0 ? (m ? 'ov.upMonth' : 'ov.up') : (m ? 'ov.downMonth' : 'ov.down'), { pct: Math.abs(pct) }),
           }] : []),
         ]} />
       </Panel>
@@ -80,13 +106,13 @@ export function Overview({ data, userName, hourLA, weekPath }: { data: Data; use
       <div className="grid-2" style={{ alignItems: 'start' }}>
         <Panel title={t('ov.byDay')} id="by-day">
           <div className="panel-body">
-            <div className="bars" aria-hidden="true">
+            <div className={m ? 'bars bars-month' : 'bars'} aria-hidden="true">
               {data.perDay.map((d) => (
                 <div key={d.date} className="bar-col">
-                  <span className="num bar-label">{d.hovership + d.tforce ? f.number(d.hovership + d.tforce) : ''}</span>
+                  {!m && <span className="num bar-label">{d.hovership + d.tforce ? f.number(d.hovership + d.tforce) : ''}</span>}
                   <span className="bar" style={{ height: `${Math.round((d.hovership / max) * 150)}px`, borderRadius: d.tforce ? '3px 3px 0 0' : undefined }} />
                   {d.tforce > 0 && <span className="bar bar-tforce" style={{ height: `${Math.round((d.tforce / max) * 150)}px`, borderRadius: d.hovership ? '0 0 3px 3px' : '3px' }} />}
-                  <span className="bar-day">{f.date(d.date, { weekday: 'short' })}</span>
+                  <span className="bar-day">{m ? (d.date.endsWith('-01') || Number(d.date.slice(8)) % 7 === 1 ? Number(d.date.slice(8)) : '') : f.date(d.date, { weekday: 'short' })}</span>
                 </div>
               ))}
             </div>

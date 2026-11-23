@@ -64,7 +64,7 @@ export function AppShell({ user, children, badges = {}, operations = [] }: { use
   const t = useT();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const currentOp = useRouterState({ select: (s) => (s.location.search as { op?: string }).op });
-  const groups: NavGroup[] = [{ items: [{ to: '/', label: 'nav.overview', icon: 'home' }] }, ...operationGroups(operations), ...fixedGroups];
+  const groups: NavGroup[] = [{ items: [{ to: '/', label: 'nav.overview', icon: 'home' }, { to: '/history', label: 'nav.history', icon: 'chart' }] }, ...operationGroups(operations), ...fixedGroups];
   const active = (i: NavItem) => isActive(path, i.to) && (i.op ?? undefined) === (currentOp ?? undefined);
   return (
     <div className="shell">

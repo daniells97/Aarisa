@@ -18,15 +18,53 @@ export type NeedItem =
   | { kind: 'missing_rates'; count: number; week: string }
   | { kind: 'lost_day'; name: string; date: string; packages: number; bonusCents: number; marginCents: number; count: number; week: string };
 
-export async function loadOverview(tx: Tx, actor: Actor, today: string, week?: string) {
+/** Mondays of the weeks that start in a month ("2026-11" → Nov 2, 9, 16, 23, 30). */
+export function weeksStartingIn(month: string) {
+  const first = `${month}-01`;
+  const dow = new Date(`${first}T12:00:00Z`).getUTCDay();
+  let monday = addDays(first, (8 - dow) % 7);
+  const out: string[] = [];
+  while (monday.startsWith(month)) { out.push(monday); monday = addDays(monday, 7); }
+  return out;
+}
+
+const previousMonth = (month: string) => addDays(`${month}-01`, -1).slice(0, 7);
+
+export type OverviewPeriod = { week?: string; month?: string };
+
+/**
+ * Overview for one week, or for a month as the weeks that start in it (each week is whole, so pay and
+ * profit come from the same weekly figures; the range shown says which days that covers).
+ */
+export async function loadOverview(tx: Tx, actor: Actor, today: string, period: OverviewPeriod = {}) {
   assertCan(actor, 'payroll.view');
   const showMoney = can(actor.role, 'money.view');
-  const start = week ?? (await latestHovershipWeek(tx, today));
-  const cur = await loadHovershipWeek(tx, actor, start);
-  const prev = await loadHovershipWeek(tx, actor, addDays(start, -7));
-  const tf = await loadTforceWeek(tx, actor, start);
+  const latest = await latestHovershipWeek(tx, today);
+  const month = period.month && weeksStartingIn(period.month).length ? period.month : null;
+  const starts = month ? weeksStartingIn(month) : [period.week ?? latest];
   const runs = await listRuns(tx, actor);
-  const tfRun = runs.runs.find((r) => r.operation === 'tforce' && r.period.start === start);
+
+  const weekOf = async (start: string) => {
+    const cur = await loadHovershipWeek(tx, actor, start);
+    const tf = await loadTforceWeek(tx, actor, start);
+    const tfRun = runs.runs.find((r) => r.operation === 'tforce' && r.period.start === start);
+    const tfPay = tfRun && !tfRun.blockers.some((b) => b.kind === 'missing_rates') ? tfRun.payCents : 0;
+    return { start, cur, tf, tfRun, tfPay };
+  };
+  const weeks: Awaited<ReturnType<typeof weekOf>>[] = [];
+  for (const st of starts) weeks.push(await weekOf(st));
+  const prevStarts = month ? weeksStartingIn(previousMonth(month)) : [addDays(starts[0]!, -7)];
+  let prevProfit: number | null = 0;
+  for (const st of prevStarts) {
+    const p = (await loadHovershipWeek(tx, actor, st)).totals.operationProfitCents;
+    prevProfit = p == null || prevProfit == null ? null : prevProfit + p;
+  }
+  const sum = (f: (w: (typeof weeks)[number]) => number | null | undefined) => weeks.reduce((s, w) => s + (f(w) ?? 0), 0);
+  const sumOrNull = (f: (w: (typeof weeks)[number]) => number | null | undefined) =>
+    weeks.some((w) => f(w) == null) ? null : sum(f);
+  // The week the "needs" are about: the one shown, or for a month the latest week in it.
+  const focus = weeks[weeks.length - 1]!;
+  const cur = focus.cur, tf = focus.tf, start = focus.start;
 
   // Most urgent first: things that block payroll, then money already lost.
   const needs: NeedItem[] = [];
@@ -51,44 +89,48 @@ export async function loadOverview(tx: Tx, actor: Actor, today: string, week?: s
     needs.push({ kind: 'lost_day', name: d.name, date: d.date, packages: d.t13 + d.t4, bonusCents: d.bonusCents, marginCents: d.marginCents, count: cur.lostMoney.length, week: start });
   }
 
-  const perDay = Array.from({ length: 7 }, (_, i) => addDays(start, i)).map((date) => ({
+  const perDay = weeks.flatMap((w) => Array.from({ length: 7 }, (_, i) => addDays(w.start, i)).map((date) => ({
     date,
-    hovership: cur.drivers.flatMap((d) => d.days).filter((x) => x.date === date).reduce((s, x) => s + x.t13 + x.t4, 0),
-    tforce: tf.days.includes(date) ? tf.dailyTotals[tf.days.indexOf(date)] ?? 0 : 0,
-  }));
-  const tfPay = tfRun && !tfRun.blockers.some((b) => b.kind === 'missing_rates') ? tfRun.payCents : 0;
+    hovership: w.cur.drivers.flatMap((d) => d.days).filter((x) => x.date === date).reduce((s, x) => s + x.t13 + x.t4, 0),
+    tforce: w.tf.days.includes(date) ? w.tf.dailyTotals[w.tf.days.indexOf(date)] ?? 0 : 0,
+  })));
+  const tfPay = sum((w) => w.tfPay);
+  const hovPackages = sum((w) => (w.cur.totals.t13 ?? 0) + (w.cur.totals.t4 ?? 0));
+  const profit = sumOrNull((w) => w.cur.totals.operationProfitCents);
   const change = (a: number | null, b: number | null) => (a == null || b == null || b === 0 ? null : Math.round(((a - b) / Math.abs(b)) * 100));
 
   return {
-    week: cur.week,
+    week: { start: weeks[0]!.cur.week.start, end: weeks[weeks.length - 1]!.cur.week.end },
+    month,
+    weeks: starts.length,
     showMoney,
     needs,
     figures: {
-      packages: (cur.totals.t13 ?? 0) + (cur.totals.t4 ?? 0) + tf.summary.pieces,
-      hovershipPackages: (cur.totals.t13 ?? 0) + (cur.totals.t4 ?? 0),
-      tforcePieces: tf.summary.pieces,
-      routeDays: (cur.totals.rows ?? 0) + tf.summary.routeDays,
-      hovershipRouteDays: cur.totals.rows ?? 0,
-      tforceRouteDays: tf.summary.routeDays,
-      owedCents: (cur.totals.driverPayCents ?? 0) + tfPay,
-      profitCents: cur.totals.operationProfitCents,
-      profitChangePct: showMoney ? change(cur.totals.operationProfitCents, prev.totals.operationProfitCents) : null,
+      packages: hovPackages + sum((w) => w.tf.summary.pieces),
+      hovershipPackages: hovPackages,
+      tforcePieces: sum((w) => w.tf.summary.pieces),
+      routeDays: sum((w) => (w.cur.totals.rows ?? 0) + w.tf.summary.routeDays),
+      hovershipRouteDays: sum((w) => w.cur.totals.rows),
+      tforceRouteDays: sum((w) => w.tf.summary.routeDays),
+      owedCents: sum((w) => w.cur.totals.driverPayCents) + tfPay,
+      profitCents: profit,
+      profitChangePct: showMoney ? change(profit, prevProfit) : null,
     },
     perDay,
     hovership: {
       payCycle: runs.payCycles.hovership,
-      revenueCents: showMoney ? (cur.totals.revenueCents ?? 0) + (cur.totals.stemCents ?? 0) : null,
-      driversCents: cur.totals.driverPayCents ?? 0,
-      profitCents: cur.totals.operationProfitCents,
-      hasData: cur.drivers.length > 0,
+      revenueCents: showMoney ? sum((w) => (w.cur.totals.revenueCents ?? 0) + (w.cur.totals.stemCents ?? 0)) : null,
+      driversCents: sum((w) => w.cur.totals.driverPayCents),
+      profitCents: profit,
+      hasData: weeks.some((w) => w.cur.drivers.length > 0),
     },
     tforce: {
       payCycle: runs.payCycles.tforce,
-      pieces: tf.summary.pieces,
-      routeDays: tf.summary.routeDays,
-      open: tf.summary.open,
+      pieces: sum((w) => w.tf.summary.pieces),
+      routeDays: sum((w) => w.tf.summary.routeDays),
+      open: sum((w) => w.tf.summary.open),
       payCents: tfPay || null,
-      ratesMissing: !!tfRun?.blockers.some((b) => b.kind === 'missing_rates'),
+      ratesMissing: weeks.some((w) => !!w.tfRun?.blockers.some((b) => b.kind === 'missing_rates')),
     },
   };
 }

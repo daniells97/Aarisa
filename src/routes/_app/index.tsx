@@ -3,11 +3,11 @@ import { z } from 'zod';
 import { getOverview } from '~/server/overview-fns';
 import { Overview } from '~/ui/Overview';
 
-const search = z.object({ week: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
+const search = z.object({ week: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), month: z.string().regex(/^\d{4}-\d{2}$/).optional() });
 
 export const Route = createFileRoute('/_app/')({
   validateSearch: search,
-  loaderDeps: ({ search: s }) => ({ week: s.week }),
+  loaderDeps: ({ search: s }) => ({ week: s.week, month: s.month }),
   loader: async ({ deps }) => ({ data: await getOverview({ data: deps }), hourLA: hourInLA() }),
   component: () => {
     const { data, hourLA } = Route.useLoaderData();
