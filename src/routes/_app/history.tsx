@@ -51,6 +51,7 @@ function HistoryPage() {
   };
   const rangeLabel = range.from === range.to ? f.date(range.from, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
     : `${f.date(range.from)} – ${f.date(range.to)}`;
+  const shortDay = (d: string) => f.date(d, { weekday: 'short', month: 'short', day: 'numeric' });
   const onePersonOneDay = !!s.driver && range.from === range.to;
 
   return (
@@ -118,7 +119,7 @@ function HistoryPage() {
 
       {!s.driver && data.byPerson.length > 0 && (
         <Panel title={t('hi.byPerson')} id="by-person">
-          <div className="table-wrap">
+          <div className="table-wrap desktop-only">
             <table>
               <thead><tr><th scope="col">{t('hi.person')}</th><th scope="col" className="r">{t('hi.days')}</th><th scope="col" className="r">{t('hi.pieces')}</th><th scope="col">{t('hi.driverCodes')}</th><th scope="col">{t('hi.routes')}</th></tr></thead>
               <tbody>
@@ -134,12 +135,26 @@ function HistoryPage() {
               </tbody>
             </table>
           </div>
+          <ul className="hist-cards phone-only">
+            {data.byPerson.map((p) => (
+              <li key={p.key}>
+                <div className="hist-card-top">
+                  {p.driverId ? <Link to="/history" search={(prev) => ({ ...prev, driver: p.driverId! })}><strong>{p.name}</strong></Link> : <strong>{p.name}</strong>}
+                  <span className="num">{t('hi.piecesUnit', { n: f.number(p.pieces) })}</span>
+                </div>
+                <span className="muted">{t('hi.days')}: {p.days}</span>
+                {p.driverCodes.length > 0 && <span className="row" style={{ gap: 4 }}>{p.driverCodes.map((c) => <RoutePlate key={c} code={c} size="sm" />)}</span>}
+                {p.sortCodes.length > 0 && <span className="muted">{t('hi.routes')}: {p.sortCodes.slice(0, 8).map((x) => (x.days > 1 ? `${x.code} ×${x.days}` : x.code)).join(', ')}{p.sortCodes.length > 8 ? '…' : ''}</span>}
+              </li>
+            ))}
+          </ul>
         </Panel>
       )}
 
       <Panel title={onePersonOneDay ? t('hi.routesThatDay') : t('hi.detail')} id="detail">
         {data.rows.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.none')}</p> : (
-          <div className="table-wrap">
+          <>
+          <div className="table-wrap desktop-only">
             <table>
               <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.contract')}</th><th scope="col">{t('td.route')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.routes')}</th><th scope="col" className="r">{t('hi.pieces')}</th></tr></thead>
               <tbody>
@@ -156,13 +171,31 @@ function HistoryPage() {
               </tbody>
             </table>
           </div>
+          <ul className="hist-cards phone-only">
+            {data.rows.map((r) => (
+              <li key={r.id}>
+                <div className="hist-card-top">
+                  <span className="muted num">{shortDay(r.date)} · {clientName(r.operation)}</span>
+                  {r.pieces != null && <span className="num">{t('hi.piecesUnit', { n: f.number(r.pieces) })}</span>}
+                </div>
+                <span className="row" style={{ gap: 8 }}>
+                  {r.driverCode && <RoutePlate code={r.driverCode} size="sm" />}
+                  <strong>{r.name ?? (r.rawName ? `“${r.rawName}”` : t('td.noDriver'))}</strong>
+                  {r.company && r.driverId && <Pill tone="contractor">{r.company}</Pill>}
+                </span>
+                {r.sortCodes.length > 0 && <span className="sort-codes">{r.sortCodes.map((c) => <span key={c} className="sort-chip">{c}</span>)}</span>}
+              </li>
+            ))}
+          </ul>
+          </>
         )}
         {data.truncated && <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.truncated')}</p>}
       </Panel>
 
       <Panel title={t('hi.extraJobs')} id="extra-jobs">
         {data.extraJobs.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.noExtra')}</p> : (
-          <div className="table-wrap">
+          <>
+          <div className="table-wrap desktop-only">
             <table>
               <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.contract')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.service')}</th><th scope="col">{t('hi.order')}</th><th scope="col">{t('hi.note')}</th><th scope="col" className="r">{t('hi.driverPay')}</th></tr></thead>
               <tbody>
@@ -180,12 +213,27 @@ function HistoryPage() {
               </tbody>
             </table>
           </div>
+          <ul className="hist-cards phone-only">
+            {data.extraJobs.slice().reverse().map((j) => (
+              <li key={j.id}>
+                <div className="hist-card-top">
+                  <span className="muted num">{shortDay(j.date)} · {clientName(j.operation)}</span>
+                  {j.driverPay != null && <span className="num">{f.money(j.driverPay)}</span>}
+                </div>
+                <strong>{j.name}</strong>
+                <span>{serviceLabel(j.service, locale)}{j.nearRoute ? ` · ${t('hi.nearRoute')} ${j.nearRoute}` : ''}</span>
+                {(j.orderNumber || j.note) && <span className="muted">{[j.orderNumber && `${t('hi.order')} ${j.orderNumber}`, j.note].filter(Boolean).join(' · ')}</span>}
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </Panel>
 
       <Panel title={t('hi.loans')} id="loans">
         {data.loans.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.noLoans')}</p> : (
-          <div className="table-wrap">
+          <>
+          <div className="table-wrap desktop-only">
             <table>
               <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.type')}</th><th scope="col">{t('hi.note')}</th><th scope="col" className="r">{t('hi.amount')}</th></tr></thead>
               <tbody>
@@ -201,12 +249,26 @@ function HistoryPage() {
               </tbody>
             </table>
           </div>
+          <ul className="hist-cards phone-only">
+            {data.loans.slice().reverse().map((l) => (
+              <li key={l.id}>
+                <div className="hist-card-top">
+                  <span className="muted num">{shortDay(l.date)} · {t(`df.kind.${l.kind}`)}</span>
+                  {l.amount != null && <span className="num">{f.money(l.amount)}</span>}
+                </div>
+                <strong>{l.name}</strong>
+                {l.note && <span className="muted">{l.note}</span>}
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </Panel>
 
       <Panel title={t('hi.notes')} id="notes">
         {data.notes.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.noNotes')}</p> : (
-          <div className="table-wrap">
+          <>
+          <div className="table-wrap desktop-only">
             <table>
               <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.note')}</th><th scope="col">{t('hi.by')}</th><th scope="col">{t('hi.state')}</th></tr></thead>
               <tbody>
@@ -222,6 +284,20 @@ function HistoryPage() {
               </tbody>
             </table>
           </div>
+          <ul className="hist-cards phone-only">
+            {data.notes.slice().reverse().map((n) => (
+              <li key={n.id}>
+                <div className="hist-card-top">
+                  <span className="muted num">{shortDay(n.date)}</span>
+                  {n.resolved ? <Pill tone="muted">{t('hi.resolved')}</Pill> : <Pill tone="waiting">{t('hi.open')}</Pill>}
+                </div>
+                <strong>{n.name}</strong>
+                <span>{n.body}</span>
+                {n.author && <span className="muted">{t('hi.by')}: {n.author}</span>}
+              </li>
+            ))}
+          </ul>
+          </>
         )}
       </Panel>
     </>

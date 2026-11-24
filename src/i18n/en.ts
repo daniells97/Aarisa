@@ -1117,6 +1117,7 @@ export const en = {
   "hi.open": "Open",
   "hi.nearRoute": "Near",
   "hi.company": "Company",
+  "hi.piecesUnit": "{n} pieces",
   "hi.fileName": "history",
   "hi.download": "Download Excel",
   "hi.downloadHint": "With these filters and every day, not only the ones shown.",

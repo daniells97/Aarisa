@@ -1119,6 +1119,7 @@ export const es: Record<MessageKey, string> = {
   "hi.open": "Abierta",
   "hi.nearRoute": "Cerca de",
   "hi.company": "Empresa",
+  "hi.piecesUnit": "{n} piezas",
   "hi.fileName": "historial",
   "hi.download": "Descargar Excel",
   "hi.downloadHint": "Con estos filtros y todos los días, no solo los que se ven.",
