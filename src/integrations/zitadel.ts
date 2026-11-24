@@ -75,10 +75,17 @@ export async function passwordResetLink(cfg: ZitadelAdminConfig, email: string) 
 
 /** Replaces the user's project roles with one role. */
 export async function setUserRole(cfg: ZitadelAdminConfig, userId: string, role: Role) {
-  const grants = await call<{ result?: { id: string; projectId: string }[] }>(cfg, 'POST', '/management/v1/users/grants/_search', {
+  const grants = await call<{ result?: { id: string; projectId: string; roleKeys?: string[] }[] }>(cfg, 'POST', '/management/v1/users/grants/_search', {
     queries: [{ userIdQuery: { userId } }, { projectIdQuery: { projectId: cfg.projectId } }],
   });
   const grant = grants.result?.find((g) => g.projectId === cfg.projectId);
-  if (grant) await call(cfg, 'PUT', `/management/v1/users/${userId}/grants/${grant.id}`, { roleKeys: [role] });
-  else await call(cfg, 'POST', `/management/v1/users/${userId}/grants`, { projectId: cfg.projectId, roleKeys: [role] });
+  // Invited again with the same role (e.g. the first invite was never used): nothing to change.
+  if (grant && grant.roleKeys?.length === 1 && grant.roleKeys[0] === role) return;
+  if (grant) {
+    try {
+      await call(cfg, 'PUT', `/management/v1/users/${userId}/grants/${grant.id}`, { roleKeys: [role] });
+    } catch (e) {
+      if (!(e instanceof Error && e.message.includes('COMMAND-Rs8fy'))) throw e; // "user grant has not been changed"
+    }
+  } else await call(cfg, 'POST', `/management/v1/users/${userId}/grants`, { projectId: cfg.projectId, roleKeys: [role] });
 }

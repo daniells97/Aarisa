@@ -64,6 +64,23 @@ describe('Zitadel codes instead of Zitadel emails', () => {
       .rejects.toMatchObject({ code: 'email_other_account' });
   });
 
+  it('inviting again someone who already has that role sends a new link instead of failing', async () => {
+    const paths: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      const path = url.replace(zitadel.issuer, '');
+      paths.push(`${init.method} ${path}`);
+      if (path === '/v2/users/human') return json({}, 409);
+      if (path === '/v2/users') return json({ result: [{ userId: 'u1', state: 'USER_STATE_ACTIVE' }] });
+      if (path.includes('grants/_search')) return json({ result: [{ id: 'g1', projectId: 'p1', roleKeys: ['owner'] }] });
+      if (init.method === 'PUT') return json({ code: 9, message: 'User grant has not been changed (COMMAND-Rs8fy)' }, 400);
+      if (path.endsWith('/invite_code')) return json({ inviteCode: 'C' });
+      return json({});
+    }));
+    const r = await inviteUser(zitadel, { email: 'ana@test.com', givenName: 'Ana', familyName: 'P', role: 'owner', locale: 'es' });
+    expect(r.userId).toBe('u1');
+    expect(paths.some((x) => x.startsWith('PUT'))).toBe(false);
+  });
+
   it('a reset link only for a known email', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) =>
       url.endsWith('/v2/users') ? json({ result: [] }) : json({ verificationCode: 'R' })));
