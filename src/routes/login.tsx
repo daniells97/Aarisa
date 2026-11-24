@@ -9,8 +9,8 @@ const search = z.object({ returnTo: z.string().optional(), error: z.string().opt
 
 export const Route = createFileRoute('/login')({
   validateSearch: search,
-  beforeLoad: ({ context, search: s }) => {
-    if (context.session.user) throw redirect({ href: s.returnTo?.startsWith('/') && !s.returnTo.startsWith('//') ? s.returnTo : '/' });
+  beforeLoad: ({ context }) => {
+    if (context.session.user) throw redirect({ href: '/' }); // signed in: Summary
   },
   component: Login,
 });
