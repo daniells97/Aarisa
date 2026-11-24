@@ -363,3 +363,9 @@ tr.row-selected td { background: var(--brand-tint); }
 .week-nav .input { border: 0; min-height: 40px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 899px) { .grid-3 { grid-template-columns: 1fr; } .icon-btn { width: 44px; height: 44px; } }
+
+/* The daily panel's shortcuts on a person: notes and loans, extra job. */
+.person-actions { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 13.5px; }
+.person-actions .link-btn { min-height: 28px; display: inline-flex; align-items: center; }
+.person-flags { color: var(--amber-ink); }
+@media (max-width: 899px) { .person-actions .link-btn { min-height: 44px; } }

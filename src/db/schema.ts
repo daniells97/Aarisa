@@ -66,6 +66,8 @@ export const users = core.table('users', {
   morningChannel: channelEnum('morning_channel').notNull().default('none'),
   locale: text('locale').notNull().default('en'),
   active: boolean('is_active').notNull().default(true),
+  // The owner can let someone else record loans and salary advances (taking them back stays the owner's).
+  canRecordLoans: boolean('can_record_loans').notNull().default(false),
   createdAt: createdAt(), updatedAt: updatedAt(),
 });
 
@@ -234,6 +236,14 @@ export const routeUsualSortCodes = core.table('route_usual_sort_codes', {
   createdBy: uuid('created_by_user_id').references(() => users.id),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.routeId, t.sortCodeId] })]);
+
+// A Hovership person's usual routes, suggested every day in Today's drivers like a T-Force driver code's.
+export const driverUsualSortCodes = core.table('driver_usual_sort_codes', {
+  driverId: uuid('driver_id').notNull().references(() => drivers.id),
+  sortCodeId: uuid('sort_code_id').notNull().references(() => sortCodes.id),
+  createdBy: uuid('created_by_user_id').references(() => users.id),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.driverId, t.sortCodeId] })]);
 
 // Who owns a route from a date: Aarisa or a contractor. Never edited; the next row ends the previous one.
 export const routeOwnerships = core.table('route_ownerships', {

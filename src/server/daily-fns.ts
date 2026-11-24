@@ -1,3 +1,5 @@
+import { can } from '~/domain/permissions';
+import { ledgerByDriver } from './driver-ledger';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
@@ -22,7 +24,12 @@ async function recheckRoute(tx: Tx, actor: Actor, date: string, routeId: string)
 
 export const getDay = createServerFn({ method: 'GET' })
   .validator(z.object({ date: isoDate, operation }))
-  .handler(({ data }) => read('payroll.view', (tx, actor) => loadDay(tx, actor, data.date, data.operation)));
+  .handler(({ data }) => read('payroll.view', async (tx, actor) => ({
+    ...(await loadDay(tx, actor, data.date, data.operation)),
+    // Per person: open notes and what they still owe, for the actions on each row.
+    ledger: Object.fromEntries(await ledgerByDriver(tx)),
+    canLogExtra: can(actor.role, 'extra_jobs.log'),
+  })));
 
 export const assign = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, routeId: uuid, payee }))

@@ -8,7 +8,7 @@ import { getExtraJobDraft, getExtraJobOptions, saveExtraJob } from '~/server/ext
 import { Button, FormError, Icon, PageHead, Panel, SelectField, TextField, WarningDiamond, centsToInput, parseAmount, useToast } from '~/ui';
 
 export const Route = createFileRoute('/_app/extra-jobs/new')({
-  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), draft: z.string().optional() }),
+  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), draft: z.string().optional(), payee: z.string().regex(/^[dc]:[0-9a-f-]{36}$/).optional() }),
   loaderDeps: ({ search }) => ({ draft: search.draft }),
   loader: async ({ deps }) => ({
     options: await getExtraJobOptions(),
@@ -21,7 +21,7 @@ function NewExtraJob() {
   const t = useT();
   const locale = useLocale();
   const { options, draft: draftRes } = Route.useLoaderData();
-  const { date: initialDate } = Route.useSearch();
+  const { date: initialDate, payee: initialPayee } = Route.useSearch();
   const draft = draftRes?.ok ? draftRes.value : null;
   const ai = draft?.fields;
   // Fields the AI filled in are tinted green until the person changes them (design 6.6).
@@ -35,7 +35,7 @@ function NewExtraJob() {
   const [service, setService] = useState(ai?.service ?? options.services[0]?.code ?? 'recovery_route');
   const [date, setDate] = useState(ai?.date ?? initialDate ?? todayLA());
   const [nearRouteId, setNearRoute] = useState(ai?.nearRouteId ?? '');
-  const [payee, setPayee] = useState(ai?.payee ?? '');
+  const [payee, setPayee] = useState(ai?.payee ?? initialPayee ?? '');
   const defaults = (code: string) => options.services.find((x) => x.code === code);
   const [clientAmount, setClientAmount] = useState(centsToInput(ai?.clientAmountCents ?? defaults(ai?.service ?? options.services[0]?.code ?? '')?.defaultClientCents));
   const [driverAmount, setDriverAmount] = useState(centsToInput(ai?.driverAmountCents ?? defaults(ai?.service ?? options.services[0]?.code ?? '')?.defaultDriverCents));

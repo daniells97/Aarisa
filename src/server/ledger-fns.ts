@@ -22,7 +22,7 @@ export const resolveDriverNote = createServerFn({ method: 'POST' })
 
 export const createLoan = createServerFn({ method: 'POST' })
   .validator(z.object({ driverId: uuid, kind: z.enum(['loan', 'advance']), amountCents: cents, givenOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), note: z.string().max(300).nullable() }))
-  .handler(({ data }) => run('payroll.approve', async (tx, actor) => (await addLoan(tx, actor, data)).id));
+  .handler(({ data }) => run('payroll.view', async (tx, actor) => (await addLoan(tx, actor, data)).id)); // addLoan checks who may
 
 export const getRunLoans = createServerFn({ method: 'GET' })
   .validator(z.object({ runId }))

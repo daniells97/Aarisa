@@ -55,4 +55,18 @@ describe('notes and loans on a driver', () => {
       await tx.insert(payrollRuns).values({ payPeriodId: period!.id, status: 'approved', approvedAt: new Date() }).onConflictDoNothing();
       await expect(deductLoan(tx, owner, { loanId: loan.id, runId: `tforce-${p.start}`, amountCents: 10_00 })).rejects.toMatchObject({ code: 'period_locked' });
     }));
+
+  it('the owner can let someone else record loans; deducting stays with the owner, and viewers never can', () =>
+    withRollback(async (tx) => {
+      const d = (await driverNamed(tx, 'Norwin Saloman'))!;
+      const loan = { driverId: d.id, kind: 'advance' as const, amountCents: 5000, givenOn: '2026-06-16', note: null };
+      await expect(addLoan(tx, actorAs('dispatcher'), loan)).rejects.toBeInstanceOf(ForbiddenError);
+      const allowed = { ...actorAs('dispatcher'), canRecordLoans: true };
+      const row = await addLoan(tx, allowed, loan);
+      expect((await loadDriverFile(tx, allowed, d.id, todayLA())).canLend).toBe(true);
+      await expect(addLoan(tx, { ...actorAs('viewer'), canRecordLoans: true }, loan)).rejects.toBeInstanceOf(ForbiddenError);
+      const op = await getOperation(tx, 'hovership');
+      const runId = `hovership-${periodFor(op.cycleAnchor, op.payCycle, '2026-06-16').start}`;
+      await expect(deductLoan(tx, allowed, { loanId: row.id, runId, amountCents: 1000 })).rejects.toBeInstanceOf(ForbiddenError);
+    }));
 });

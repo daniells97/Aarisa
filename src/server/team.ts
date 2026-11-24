@@ -15,7 +15,7 @@ export async function listTeam(tx: Tx, actor: Actor) {
   const rows = await tx.select().from(users).orderBy(asc(users.name));
   return rows.map((u) => ({
     id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role as Role,
-    morningChannel: u.morningChannel, locale: u.locale, active: u.active, zitadelSub: u.zitadelSub,
+    morningChannel: u.morningChannel, locale: u.locale, active: u.active, zitadelSub: u.zitadelSub, canRecordLoans: u.canRecordLoans,
     isSelf: u.id === actor.userId,
   }));
 }
@@ -25,6 +25,8 @@ export interface TeamMemberInput {
   morningChannel: 'whatsapp' | 'email' | 'none';
   locale: 'en' | 'es';
   active: boolean;
+  /** Lets this person record loans and salary advances. Ignored for the owner (always can). */
+  canRecordLoans?: boolean;
 }
 
 export async function updateTeamMember(tx: Tx, actor: Actor, id: string, input: TeamMemberInput) {
@@ -36,7 +38,8 @@ export async function updateTeamMember(tx: Tx, actor: Actor, id: string, input: 
   // Someone already on WhatsApp keeps it while it's off; nobody new can choose it.
   if (input.morningChannel === 'whatsapp' && !whatsappEnabled() && before.morningChannel !== 'whatsapp') throw new RuleError('whatsapp_unavailable');
   if (input.morningChannel === 'whatsapp' && !phone) throw new RuleError('phone_required_for_whatsapp');
-  const [after] = await tx.update(users).set({ ...input, phone, updatedAt: new Date() }).where(eq(users.id, id)).returning();
+  const canLend = before.role === 'viewer' ? false : input.canRecordLoans ?? before.canRecordLoans;
+  const [after] = await tx.update(users).set({ ...input, canRecordLoans: canLend, phone, updatedAt: new Date() }).where(eq(users.id, id)).returning();
   await audit(tx, { table: 'users', recordId: id, action: 'update', before, after, userId: actor.userId, source: actor.source });
   return after!;
 }

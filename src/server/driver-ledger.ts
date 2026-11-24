@@ -3,7 +3,7 @@ import type { Tx } from '~/db/client';
 import { adjustmentTypes, driverLoans, driverNotes, payAdjustments, payPeriods, users } from '~/db/schema';
 import { can } from '~/domain/permissions';
 import { periodFor } from '~/domain/periods';
-import { assertCan, type Actor } from './actor';
+import { ForbiddenError, assertCan, canRecordLoans, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
 import { payeeIdOf } from './executions';
@@ -12,7 +12,8 @@ import { driverProfiles } from './people';
 import { parseRunId } from './payroll';
 
 // Notes and loans on a driver. Notes: the owner and dispatchers write them; everyone reads them.
-// Loans and salary advances: the owner records them and, in each payroll, decides how much to take back.
+// Loans and salary advances: the owner (or someone the owner allowed in Team) records them; in each payroll
+// the owner decides how much to take back.
 // A repayment is a deduction (a negative pay adjustment) in that payroll's period, linked to the loan.
 
 export type LoanKind = 'loan' | 'advance';
@@ -47,7 +48,7 @@ export async function loadDriverFile(tx: Tx, actor: Actor, driverId: string, tod
   return {
     driver: { id: person.id, name: person.fullName },
     canWriteNotes: can(actor.role, 'drivers.confirm_today'),
-    canLend: can(actor.role, 'payroll.approve'),
+    canLend: canRecordLoans(actor),
     notes: notes.map(({ n, author }) => ({ id: n.id, body: n.body, author, at: n.createdAt.toISOString(), resolved: !!n.resolvedAt }))
       .sort((a, b) => Number(a.resolved) - Number(b.resolved)),
     loans: await loansOf(tx, [driverId]),
@@ -75,7 +76,8 @@ export async function setNoteResolved(tx: Tx, actor: Actor, id: string, resolved
 }
 
 export async function addLoan(tx: Tx, actor: Actor, input: { driverId: string; kind: LoanKind; amountCents: number; givenOn: string; note: string | null }) {
-  assertCan(actor, 'payroll.approve');
+  assertCan(actor, 'payroll.view');
+  if (!canRecordLoans(actor)) throw new ForbiddenError('payroll.approve');
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) throw new RuleError('invalid_amount');
   const [person] = await driverProfiles(tx, input.givenOn, [input.driverId]);
   if (!person) throw new RuleError('not_found');

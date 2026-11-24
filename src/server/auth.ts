@@ -13,7 +13,7 @@ export async function currentActor(): Promise<Actor | null> {
   if (!session) return null;
   const [user] = await db().select().from(users).where(eq(users.id, session.uid));
   if (!user || !user.active || !isRole(user.role)) return null;
-  return { userId: user.id, role: user.role, name: user.name, locale: isLocale(user.locale) ? user.locale : 'en', source: 'portal' };
+  return { userId: user.id, role: user.role, name: user.name, locale: isLocale(user.locale) ? user.locale : 'en', source: 'portal', canRecordLoans: user.canRecordLoans };
 }
 
 /** For server functions: returns the actor or throws 401/403. */

@@ -8,6 +8,13 @@ export interface Actor {
   name: string;
   locale: Locale;
   source: 'portal' | 'whatsapp' | 'email-import' | 'system';
+  /** The owner let this person record loans and salary advances (the owner always can). */
+  canRecordLoans?: boolean;
+}
+
+/** Records loans and salary advances: the owner, or someone the owner allowed (never a read-only viewer). */
+export function canRecordLoans(actor: Actor) {
+  return actor.role === 'owner' || (!!actor.canRecordLoans && actor.role !== 'viewer');
 }
 
 export class ForbiddenError extends Error {

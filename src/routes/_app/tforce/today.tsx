@@ -6,6 +6,7 @@ import { addDays, todayLA } from '~/domain/dates';
 import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, saveSortCodes, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { DayTabs } from '~/ui/DayTabs';
+import { PersonActions } from '~/ui/PersonActions';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -112,6 +113,12 @@ function TodayPage() {
     return t(`td.src.${r.source}` as MessageKey, { time });
   };
 
+  // Shortcuts on today's person (not a contractor): notes and loans, extra job.
+  const actions = (r: Row) => r.today.driverId && r.today.name ? (
+    <PersonActions driverId={r.today.driverId} name={r.today.name} date={day.date} openNotes={day.ledger[r.today.driverId]?.openNotes}
+      owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra} />
+  ) : null;
+
   const s = day.summary;
   const unknown = day.rows.filter((r) => r.rawName && r.status === 'no_driver');
   return (
@@ -125,7 +132,7 @@ function TodayPage() {
               <Link to="/tforce/today" search={{ date: addDays(day.date, 1), op: day.operation.isDefault ? undefined : day.operation.code }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
             {day.canEdit && <Button onClick={() => setAddingRoute(true)}><Icon name="plus" width={18} height={18} />{t('td.addRoute')}</Button>}
-            <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>
+            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>}
           </div>
         } />
       {day.operation.isDefault && <DayTabs current="tforce" date={day.date} />}
@@ -155,7 +162,7 @@ function TodayPage() {
                       return (
                         <tr key={r.routeId}>
                           <td><RoutePlate code={r.code} needsDriver={r.status === 'no_driver'} /></td>
-                          <td>{select(r)}<span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span></td>
+                          <td>{select(r)}<span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>{actions(r)}</td>
                           <td>{routesOf(r)}</td>
                           <td><Pill tone={st.tone}>{t(st.key)}</Pill></td>
                         </tr>
@@ -176,6 +183,7 @@ function TodayPage() {
                       {select(r)}
                       {routesOf(r)}
                       <span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>
+                      {actions(r)}
                     </li>
                   );
                 })}

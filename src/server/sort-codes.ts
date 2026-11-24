@@ -2,9 +2,12 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { executionSortCodes, operations, routes, routeUsualSortCodes, sortCodes } from '~/db/schema';
 import { can } from '~/domain/permissions';
+import { todayLA } from '~/domain/dates';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
+import { usualRoutesOf } from './hovership-day';
+import { driverProfiles } from './people';
 
 // The routes (sort codes) of each contract, kept by the owner in Drivers and rates, and each T-Force
 // driver code's usual routes, which Today's drivers suggests every day. Aarisa assigns them by hand.
@@ -22,6 +25,9 @@ export async function loadSortCodes(tx: Tx, actor: Actor) {
   const usual = driverCodes.length ? await tx.select({ routeId: routeUsualSortCodes.routeId, id: sortCodes.id, code: sortCodes.code })
     .from(routeUsualSortCodes).innerJoin(sortCodes, eq(sortCodes.id, routeUsualSortCodes.sortCodeId))
     .where(inArray(routeUsualSortCodes.routeId, driverCodes.map((d) => d.id))).orderBy(asc(sortCodes.code)) : [];
+  // Hovership has no driver codes: its people on Hovership keep usual routes of their own.
+  const hovershipPeople = (await driverProfiles(tx, todayLA())).filter((p) => p.active && p.worksHovership);
+  const personUsual = await usualRoutesOf(tx, hovershipPeople.map((p) => p.id));
   return {
     canEdit: can(actor.role, 'setup.edit'),
     operations: ops.map((o) => ({
@@ -30,6 +36,9 @@ export async function loadSortCodes(tx: Tx, actor: Actor) {
       drivers: driverCodes.filter((d) => d.operationId === o.id).map((d) => ({
         routeId: d.id, code: d.code, usual: usual.filter((u) => u.routeId === d.id).map(({ id, code }) => ({ id, code })),
       })),
+      people: o.driverSource === 'report_code'
+        ? hovershipPeople.map((p) => ({ driverId: p.id, name: p.fullName, code: p.hovershipCode, usual: personUsual.get(p.id) ?? [] }))
+        : [],
     })),
   };
 }
