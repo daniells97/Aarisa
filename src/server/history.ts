@@ -1,7 +1,8 @@
-import { and, asc, eq, gte, inArray, lte, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { executionSortCodes, executionView, routes, sortCodes, workView } from '~/db/schema';
+import { driverLoans, driverNotes, executionSortCodes, executionView, extraJobView, routes, serviceTypes, sortCodes, users, workView } from '~/db/schema';
 import { rangeTooLong } from '~/domain/history-range';
+import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { RuleError } from './errors';
 import { listOperations } from './ops';
@@ -74,8 +75,39 @@ export async function loadHistory(tx: Tx, actor: Actor, input: { from: string; t
     byPerson.set(key, p);
   }
 
+  // Everything else about the people in the period: extra jobs, loans and advances, notes (client request,
+  // Nov 24 2026). A person filter shows theirs; a driver-code filter, those of the people who drove it.
+  const onlyPeople = input.driverId ? [input.driverId] : input.routeId ? [...new Set(rows.map((r) => r.driverId).filter((x): x is string => !!x))] : null;
+  const services = new Map((await tx.select().from(serviceTypes)).map((s) => [s.id, s]));
+  const jobs = onlyPeople && !onlyPeople.length ? [] : await tx.select().from(extraJobView).where(and(
+    gte(extraJobView.date, input.from), lte(extraJobView.date, input.to),
+    op ? eq(extraJobView.operationId, op.id) : undefined,
+    onlyPeople ? inArray(extraJobView.driverId, onlyPeople) : undefined,
+  )).orderBy(asc(extraJobView.date));
+  const loans = onlyPeople && !onlyPeople.length ? [] : await tx.select().from(driverLoans).where(and(
+    gte(driverLoans.givenOn, input.from), lte(driverLoans.givenOn, input.to), onlyPeople ? inArray(driverLoans.driverId, onlyPeople) : undefined,
+  )).orderBy(asc(driverLoans.givenOn));
+  const dayAfter = new Date(`${input.to}T00:00:00Z`); dayAfter.setUTCDate(dayAfter.getUTCDate() + 2); // notes are timestamps; LA is behind UTC
+  const notes = onlyPeople && !onlyPeople.length ? [] : await tx.select({ n: driverNotes, author: users.name }).from(driverNotes).leftJoin(users, eq(users.id, driverNotes.createdBy)).where(and(
+    gte(driverNotes.createdAt, new Date(`${input.from}T00:00:00Z`)), lt(driverNotes.createdAt, dayAfter), onlyPeople ? inArray(driverNotes.driverId, onlyPeople) : undefined,
+  )).orderBy(asc(driverNotes.createdAt));
+  const money = can(actor.role, 'money.view');
+  const laDate = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(d);
+
   return {
     from: input.from, to: input.to,
+    extraJobs: jobs.map((j) => {
+      const s = services.get(j.serviceTypeId);
+      return {
+        id: j.id, date: j.date, operation: opCode.get(j.operationId) ?? '', service: s ? { name: s.name, nameEs: s.nameEs } : { name: '', nameEs: null },
+        driverId: j.driverId, name: j.driverId ? personName.get(j.driverId) ?? '' : j.contractorId ? companyName.get(j.contractorId) ?? '' : '',
+        nearRoute: j.nearRouteId ? routeCode.get(j.nearRouteId) ?? null : null, orderNumber: j.orderNumber, note: j.note,
+        // Amounts only for roles that see money (owner, finance); the rest see what was done.
+        driverPay: money && j.driverAmountCents != null ? Number(j.driverAmountCents) : null,
+      };
+    }),
+    loans: loans.map((l) => ({ id: l.id, date: l.givenOn, driverId: l.driverId, name: personName.get(l.driverId) ?? '', kind: l.kind, amount: money ? Number(l.amountCents) : null, note: l.note })),
+    notes: notes.map(({ n, author }) => laDate(n.createdAt) >= input.from && laDate(n.createdAt) <= input.to ? { id: n.id, date: laDate(n.createdAt), driverId: n.driverId, name: personName.get(n.driverId) ?? '', body: n.body, author, resolved: !!n.resolvedAt } : null).filter((x) => x !== null),
     totals: { days: rows.filter((r) => r.name).length, people: byPerson.size, pieces: rows.reduce((s, r) => s + (r.pieces ?? 0), 0) },
     byPerson: [...byPerson.values()].map((p) => ({
       key: p.key, driverId: p.driverId, name: p.name, days: p.days, pieces: p.pieces, driverCodes: [...p.driverCodes].sort(),

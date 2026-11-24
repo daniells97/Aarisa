@@ -1,6 +1,7 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
-import { useT } from '~/i18n';
+import { useLocale, useT } from '~/i18n';
+import { serviceLabel } from '~/ui/service-label';
 import { addDays, todayLA } from '~/domain/dates';
 import { MAX_RANGE_DAYS, historyRange, rangeTooLong, type HistoryPeriod } from '~/domain/history-range';
 import { getHistory } from '~/server/history-fns';
@@ -35,6 +36,7 @@ function HistoryPage() {
   const t = useT();
   const f = useFormat();
   const clientName = useClientName();
+  const locale = useLocale();
   const data = Route.useLoaderData();
   const s = Route.useSearch();
   const navigate = useNavigate({ from: '/history' });
@@ -96,7 +98,7 @@ function HistoryPage() {
           </div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <p className="muted" style={{ margin: 0 }}>{rangeLabel}{range.cut ? ` · ${t('hi.cut', { days: MAX_RANGE_DAYS })}` : ''}</p>
-            {data.rows.length > 0 && (
+            {(data.rows.length > 0 || data.extraJobs.length > 0 || data.loans.length > 0 || data.notes.length > 0) && (
               <a className={buttonClass()} title={t('hi.downloadHint')} download
                 href={`/history-export?${new URLSearchParams({ from: range.from, to: range.to, ...(s.op ? { op: s.op } : {}), ...(s.driver ? { driver: s.driver } : {}), ...(s.code ? { code: s.code } : {}) })}`}>
                 <Icon name="file" width={18} height={18} />{t('hi.download')}
@@ -156,6 +158,71 @@ function HistoryPage() {
           </div>
         )}
         {data.truncated && <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.truncated')}</p>}
+      </Panel>
+
+      <Panel title={t('hi.extraJobs')} id="extra-jobs">
+        {data.extraJobs.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.noExtra')}</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.contract')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.service')}</th><th scope="col">{t('hi.order')}</th><th scope="col">{t('hi.note')}</th><th scope="col" className="r">{t('hi.driverPay')}</th></tr></thead>
+              <tbody>
+                {data.extraJobs.slice().reverse().map((j) => (
+                  <tr key={j.id}>
+                    <td className="num">{f.date(j.date, { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                    <td>{clientName(j.operation)}</td>
+                    <td>{j.name}</td>
+                    <td>{serviceLabel(j.service, locale)}{j.nearRoute && <span className="sub">{t('hi.nearRoute')} {j.nearRoute}</span>}</td>
+                    <td>{j.orderNumber ?? <span className="muted">–</span>}</td>
+                    <td className="muted">{j.note ?? '–'}</td>
+                    <td className="r num">{j.driverPay == null ? <span className="muted">–</span> : f.money(j.driverPay)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <Panel title={t('hi.loans')} id="loans">
+        {data.loans.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.noLoans')}</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.type')}</th><th scope="col">{t('hi.note')}</th><th scope="col" className="r">{t('hi.amount')}</th></tr></thead>
+              <tbody>
+                {data.loans.slice().reverse().map((l) => (
+                  <tr key={l.id}>
+                    <td className="num">{f.date(l.date, { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                    <td>{l.name}</td>
+                    <td>{t(`df.kind.${l.kind}`)}</td>
+                    <td className="muted">{l.note ?? '–'}</td>
+                    <td className="r num">{l.amount == null ? <span className="muted">–</span> : f.money(l.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      <Panel title={t('hi.notes')} id="notes">
+        {data.notes.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('hi.noNotes')}</p> : (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.note')}</th><th scope="col">{t('hi.by')}</th><th scope="col">{t('hi.state')}</th></tr></thead>
+              <tbody>
+                {data.notes.slice().reverse().map((n) => (
+                  <tr key={n.id}>
+                    <td className="num">{f.date(n.date, { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                    <td>{n.name}</td>
+                    <td>{n.body}</td>
+                    <td className="muted">{n.author ?? '–'}</td>
+                    <td>{n.resolved ? <Pill tone="muted">{t('hi.resolved')}</Pill> : <Pill tone="waiting">{t('hi.open')}</Pill>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Panel>
     </>
   );

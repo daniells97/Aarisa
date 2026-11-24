@@ -440,3 +440,5 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .menu-sheet svg { width: 20px; height: 20px; flex: none; }
 .menu-sheet .side-group { font-size: 13px; color: var(--ink-4); font-weight: 500; padding: 14px 12px 4px; }
 @media (max-width: 899px) { .menu-btn { display: inline-flex; align-items: center; justify-content: center; } }
+/* Dates and numbers in tables stay on one line (the table scrolls sideways on a phone). */
+.table-wrap td.num { white-space: nowrap; }

@@ -8,6 +8,7 @@ import { ForbiddenError, UnauthorizedError } from '~/server/actor';
 import { RuleError } from '~/server/errors';
 import { loadHistory } from '~/server/history';
 import { xlsx } from '~/server/xlsx';
+import { serviceLabel } from '~/ui/service-label';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const query = z.object({
@@ -38,6 +39,21 @@ export const Route = createFileRoute('/history-export')({
                 r.date, opName.get(r.operation) ?? r.operation, r.driverCode ?? '', r.name ?? (r.rawName ? `“${r.rawName}”` : t('td.noDriver')),
                 r.company && r.driverId ? r.company : '', r.sortCodes.join(', '), r.pieces,
               ]),
+            },
+            {
+              name: t('hi.extraJobs'),
+              header: [t('hi.date'), t('hi.contract'), t('hi.person'), t('hi.service'), t('hi.nearRoute'), t('hi.order'), t('hi.note'), t('hi.driverPay')],
+              rows: data.extraJobs.map((j) => [j.date, opName.get(j.operation) ?? j.operation, j.name, serviceLabel(j.service, actor.locale), j.nearRoute ?? '', j.orderNumber ?? '', j.note ?? '', j.driverPay == null ? null : j.driverPay / 100]),
+            },
+            {
+              name: t('hi.loans'),
+              header: [t('hi.date'), t('hi.person'), t('hi.type'), t('hi.note'), t('hi.amount')],
+              rows: data.loans.map((l) => [l.date, l.name, t(`df.kind.${l.kind}` as MessageKey), l.note ?? '', l.amount == null ? null : l.amount / 100]),
+            },
+            {
+              name: t('hi.notes'),
+              header: [t('hi.date'), t('hi.person'), t('hi.note'), t('hi.by'), t('hi.state')],
+              rows: data.notes.map((n) => [n.date, n.name, n.body, n.author ?? '', t(n.resolved ? 'hi.resolved' : 'hi.open')]),
             },
             {
               name: t('hi.byPerson'),

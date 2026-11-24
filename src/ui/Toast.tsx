@@ -5,7 +5,11 @@ interface ToastItem { id: number; message: string; onUndo?: () => void }
 type Show = (message: string, onUndo?: () => void) => void;
 
 const ToastContext = createContext<Show>(() => {});
-export const TOAST_MS = 10_000;
+/** A plain message goes away after 4 seconds; one with Undo stays 7 so there is time to tap it. */
+export const TOAST_MS = 4_000;
+export const TOAST_UNDO_MS = 7_000;
+/** At most this many on screen; a new one pushes out the oldest. */
+const MAX_TOASTS = 2;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -13,7 +17,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const dismiss = useCallback((id: number) => setItems((xs) => xs.filter((x) => x.id !== id)), []);
   const show = useCallback<Show>((message, onUndo) => {
     const id = next.current++;
-    setItems((xs) => [...xs, { id, message, onUndo }]);
+    setItems((xs) => [...xs, { id, message, onUndo }].slice(-MAX_TOASTS));
   }, []);
   return (
     <ToastContext.Provider value={show}>
@@ -27,13 +31,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function Toast({ item, onDone }: { item: ToastItem; onDone: () => void }) {
   const t = useT();
+  // The timer starts once: onDone is a new function on every render, and restarting the timer with it
+  // kept older messages on screen while new ones arrived.
+  const done = useRef(onDone);
+  done.current = onDone;
   useEffect(() => {
-    const timer = setTimeout(onDone, TOAST_MS);
+    const timer = setTimeout(() => done.current(), item.onUndo ? TOAST_UNDO_MS : TOAST_MS);
     return () => clearTimeout(timer);
-  }, [onDone]);
+  }, [item.onUndo]);
   return (
     <li className="toast">
-      <span>{item.message}</span>
+      <span onClick={onDone}>{item.message}</span>
       {item.onUndo && (
         <button type="button" onClick={() => { item.onUndo!(); onDone(); }}>{t('common.undo')}</button>
       )}
@@ -41,7 +49,7 @@ function Toast({ item, onDone }: { item: ToastItem; onDone: () => void }) {
   );
 }
 
-/** Show a toast for 10 seconds, with an optional Undo action. */
+/** Show a short message (4 s; 7 s with Undo). Tapping the message closes it. */
 export function useToast(): Show {
   return useContext(ToastContext);
 }
