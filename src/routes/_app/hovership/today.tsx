@@ -194,6 +194,11 @@ function HovershipTodayPage() {
               </ul>
             </>
           )}
+          {day.canEdit && (
+            <div className="list-add">
+              <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('hd.addPerson')}</Button>
+            </div>
+          )}
         </Panel></div>
         <div className="stack today-aside today-aside-after">
           <Panel title={t('td.changesTitle')} id="changes">

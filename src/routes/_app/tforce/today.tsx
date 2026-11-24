@@ -215,6 +215,11 @@ function TodayPage() {
               </ul>
             </>
           )}
+          {day.canEdit && (
+            <div className="list-add">
+              <Button onClick={() => setAddingRoute(true)}><Icon name="plus" width={18} height={18} />{t('hd.addPerson')}</Button>
+            </div>
+          )}
         </Panel></div>
 
         <div className="stack today-aside">
