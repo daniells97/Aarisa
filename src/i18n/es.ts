@@ -1153,4 +1153,7 @@ export const es: Record<MessageKey, string> = {
   "hd.recordSaved": "{name} guardado. La siguiente línea está lista.",
   "hd.newPerson": "Nuevo",
   "hd.whoNew": "Quién trabaja el {date}",
+  "td.driverCodePlaceholder": "Driver (9000X)",
+  "td.newDriverCode": "+ Nuevo driver “{code}”",
+  "td.driverCodeHint": "Escribe para buscar un driver o crear uno nuevo",
 };

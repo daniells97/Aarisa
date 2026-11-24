@@ -400,3 +400,4 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .today-list td .picker { min-width: 170px; }
 .today-list .sort-add:has(.picker) { width: 150px; }
 .today-list td .pill { white-space: nowrap; }
+.today-list tr.new-record td:first-child .picker { min-width: 130px; width: 140px; }

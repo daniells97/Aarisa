@@ -1151,6 +1151,9 @@ export const en = {
   "hd.recordSaved": "{name} saved. The next line is ready.",
   "hd.newPerson": "New",
   "hd.whoNew": "Who works on {date}",
+  "td.driverCodePlaceholder": "Driver (9000X)",
+  "td.newDriverCode": "+ New driver “{code}”",
+  "td.driverCodeHint": "Type to find a driver code, or a new one",
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -103,6 +103,11 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
 
   const count = (s: DayStatus | 'contractor') => rows.filter((r) => (s === 'contractor' ? r.contractorRoute && r.status !== 'no_driver' : !r.contractorRoute && r.status === s)).length;
   const first = await operationFor(tx, undefined, 'daily_list');
+  // Driver codes taken off the list: picking one in a new record brings it back with its usual driver and routes.
+  const offRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, false))).orderBy(asc(routes.code));
+  const offUsual = await usualSortCodes(tx, offRows.map((r) => r.id));
+  const offList = offRows.map((r) => ({ code: r.code, usualDriverId: r.usualDriverId, usual: offUsual.get(r.id) ?? [] }));
+
   return {
     date,
     operation: { code: op.code, name: op.name, isDefault: op.code === first.code },
@@ -126,7 +131,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       contractors: contractorRows,
       sortCodes: sortCodeOptions,
       // Driver codes taken off the list: typing one in a new record brings it back with its history.
-      offList: (await tx.select({ code: routes.code }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, false))).orderBy(asc(routes.code))).map((r) => r.code),
+      offList,
     },
     changes,
   };

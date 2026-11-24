@@ -317,7 +317,13 @@ function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabe
   const [routes, setRoutes] = useState<{ id: string; code: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const listId = `off-${layout}`;
+  // A code taken off earlier comes back with its usual driver and routes already filled in (still editable).
+  const pickCode = (c: string) => {
+    setCode(c);
+    const off = day.options.offList.find((o) => o.code === c);
+    if (off?.usualDriverId && !who) setWho({ value: `d:${off.usualDriverId}` });
+    if (off?.usual.length && !routes.length) setRoutes(off.usual);
+  };
   const whoName = !who ? null : 'newName' in who ? who.newName
     : who.value.startsWith('d:') ? day.options.drivers.find((d) => d.id === who.value.slice(2))?.name
       : day.options.contractors.find((c) => c.id === who.value.slice(2))?.name;
@@ -336,7 +342,6 @@ function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabe
       toast(t('td.recordSaved', { route: res.value.code, name: whoName ?? '' }));
       setCode(''); setWho(null); setRoutes([]); setError(null);
       await router.invalidate();
-      setTimeout(() => document.getElementById(`new-code-${layout}`)?.focus(), 50);
     } catch {
       setError(t('error.generic'));
     } finally {
@@ -345,11 +350,13 @@ function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabe
   };
   const allCodes = [...day.options.sortCodes, ...routes.filter((r) => !day.options.sortCodes.some((o) => o.id === r.id))];
   const cells = [
-    <span key="code">
-      <input id={`new-code-${layout}`} className="input new-record-code" aria-label={t('td.routeCode')} placeholder="9000X" autoComplete="off" autoCapitalize="characters"
-        list={listId} value={code} autoFocus={layout === 'row'} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-      <datalist id={listId}>{day.options.offList.map((c) => <option key={c} value={c} />)}</datalist>
-    </span>,
+    // The driver code: pick one taken off earlier (its usual driver and routes fill in), or type a new one.
+    <PersonPicker key="code" value={day.options.offList.some((o) => o.code === code) ? `d:${code}` : ''}
+      options={{ drivers: day.options.offList.map((o) => ({ id: o.code, name: o.code })), contractors: [] }}
+      label={t('td.routeCode')} placeholder={code || t('td.driverCodePlaceholder')} allowNone={false} createFirst
+      createLabel={(typed) => t('td.newDriverCode', { code: typed.toUpperCase().replace(/\s+/g, '') })}
+      emptyHint={t('td.driverCodeHint')}
+      onPick={(v) => pickCode(v.slice(2))} onCreate={(typed) => setCode(typed.toUpperCase().replace(/\s+/g, ''))} />,
     <PersonPicker key="who" value={who && 'value' in who ? who.value : ''} options={day.options} label={t('td.driverFor', { route: code || '…', date: dateLabel })}
       placeholder={who && 'newName' in who ? who.newName : t('td.whoDrives')} allowNone={false}
       onPick={(v) => setWho({ value: v })} onCreate={(name) => setWho({ newName: name })} />,
