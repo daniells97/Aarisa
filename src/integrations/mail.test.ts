@@ -81,6 +81,18 @@ describe('Zitadel codes instead of Zitadel emails', () => {
     expect(paths.some((x) => x.startsWith('PUT'))).toBe(false);
   });
 
+  it('someone who already set a password is given the role and no invite code', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const path = url.replace(zitadel.issuer, '');
+      if (path === '/v2/users/human') return json({}, 409);
+      if (path === '/v2/users') return json({ result: [{ userId: 'u1', state: 'USER_STATE_ACTIVE' }] });
+      if (path.includes('grants/_search')) return json({ result: [] });
+      if (path.endsWith('/invite_code')) return json({ code: 9, message: 'User is already initialized (COMMAND-EF34g)' }, 400);
+      return json({});
+    }));
+    expect(await inviteUser(zitadel, { email: 'ana@test.com', givenName: 'Ana', familyName: 'P', role: 'finance', locale: 'es' })).toEqual({ userId: 'u1', link: null });
+  });
+
   it('a reset link only for a known email', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) =>
       url.endsWith('/v2/users') ? json({ result: [] }) : json({ verificationCode: 'R' })));

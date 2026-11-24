@@ -950,6 +950,8 @@ export const en = {
   "mail.invite.subject": "Your access to the Aarisa portal",
   "mail.invite.lead": "Hi {name}, you have been invited to the Aarisa portal. Set your password to start.",
   "mail.invite.button": "Set my password",
+  "mail.access.lead": "Hi {name}, you now have access to the Aarisa portal. Sign in with your email and the password you already have.",
+  "mail.access.button": "Sign in to the portal",
   "mail.reset.subject": "Set a new password for the Aarisa portal",
   "mail.reset.lead": "Someone asked to reset the password of your Aarisa portal account. If it was you, set a new one. If not, ignore this email: nothing changes.",
   "mail.reset.button": "Set a new password",

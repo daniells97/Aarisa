@@ -10,7 +10,7 @@ import { addSortCode, loadSortCodes, setUsualSortCodes, updateSortCode } from '.
 import { inviteUser, setUserRole } from '~/integrations/zitadel';
 import { sendMail } from '~/integrations/mail';
 import { translate } from '~/i18n';
-import { inviteEmail } from './emails';
+import { inviteEmail, accessEmail } from './emails';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const cents = z.number().int().min(0).max(100_000_00).nullable();
@@ -92,9 +92,10 @@ export const invite = createServerFn({ method: 'POST' })
     if (!cfg) return { invited: false, emailed: false, link: null };
     const invited = await inviteUser(cfg, data);
     await recordInvite(tx, actor, { ...data, sub: invited.userId });
-    const link = throughPortal(invited.link);
+    // Already has a password: the email just says they have access, with a button to sign in.
+    const link = invited.link ? throughPortal(invited.link) : `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}/auth/login`;
     // From Aarisa's mailbox; without mail set up (or if Resend refuses) the owner gets the link to share.
-    const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName));
+    const emailed = await sendMail(invited.link ? inviteEmail(data.locale, data.email, link, data.givenName) : accessEmail(data.locale, data.email, data.givenName));
     return { invited: true, emailed, link: emailed ? null : link };
   }));
 

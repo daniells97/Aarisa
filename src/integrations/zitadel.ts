@@ -61,8 +61,14 @@ export async function inviteUser(cfg: ZitadelAdminConfig, p: { email: string; gi
     userId = existing.userId;
   }
   await setUserRole(cfg, userId, p.role);
-  const { inviteCode } = await call<{ inviteCode: string }>(cfg, 'POST', `/v2/users/${userId}/invite_code`, { returnCode: {} });
-  return { userId, link: loginPage(cfg, 'verify', { userId, code: inviteCode, invite: 'true' }) };
+  try {
+    const { inviteCode } = await call<{ inviteCode: string }>(cfg, 'POST', `/v2/users/${userId}/invite_code`, { returnCode: {} });
+    return { userId, link: loginPage(cfg, 'verify', { userId, code: inviteCode, invite: 'true' }) as string | null };
+  } catch (e) {
+    // They already set a password (an earlier invite was used): nothing to set up, they just sign in.
+    if (e instanceof Error && e.message.includes('COMMAND-EF34g')) return { userId, link: null };
+    throw e;
+  }
 }
 
 /** A link to set a new password for the user with this email, or null when there is no such user. */

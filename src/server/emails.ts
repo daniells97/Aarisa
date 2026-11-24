@@ -41,6 +41,10 @@ function signIn(locale: Locale, to: string, p: { subject: MessageKey; lead: Mess
 export const inviteEmail = (locale: Locale, to: string, link: string, name: string) =>
   signIn(locale, to, { subject: 'mail.invite.subject', lead: 'mail.invite.lead', button: 'mail.invite.button', vars: { name } }, link);
 
+/** For someone invited who already has a password: the button goes to the portal's sign-in. */
+export const accessEmail = (locale: Locale, to: string, name: string) =>
+  signIn(locale, to, { subject: 'mail.invite.subject', lead: 'mail.access.lead', button: 'mail.access.button', vars: { name } }, `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}/auth/login`);
+
 export const resetEmail = (locale: Locale, to: string, link: string) =>
   signIn(locale, to, { subject: 'mail.reset.subject', lead: 'mail.reset.lead', button: 'mail.reset.button', vars: {} }, link);
 

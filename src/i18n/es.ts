@@ -952,6 +952,8 @@ export const es: Record<MessageKey, string> = {
   "mail.invite.subject": "Tu acceso al portal de Aarisa",
   "mail.invite.lead": "Hola {name}, te invitaron al portal de Aarisa. Pon tu contraseña para empezar.",
   "mail.invite.button": "Poner mi contraseña",
+  "mail.access.lead": "Hola {name}, ya tienes acceso al portal de Aarisa. Entra con tu correo y la contraseña que ya tienes.",
+  "mail.access.button": "Entrar al portal",
   "mail.reset.subject": "Pon una contraseña nueva para el portal de Aarisa",
   "mail.reset.lead": "Alguien pidió restablecer la contraseña de tu cuenta del portal de Aarisa. Si fuiste tú, pon una nueva. Si no, ignora este correo: no cambia nada.",
   "mail.reset.button": "Poner contraseña nueva",
