@@ -16,13 +16,13 @@ describe('sign-in emails', () => {
       calls.push([url, init]);
       return json({ id: 'email-1' });
     }));
-    const mail = inviteEmail('es', 'ana@test.com', 'https://auth.test/ui/v2/login/verify?code=1', 'Ana', 'Despachador');
+    const mail = inviteEmail('es', 'ana@test.com', 'https://auth.test/ui/v2/login/verify?code=1', 'Ana', 'Operador');
     expect(await sendMail(mail, cfg)).toBe(true);
     expect(calls[0]![0]).toBe('https://api.resend.com/emails');
     expect(new Headers(calls[0]![1].headers).get('authorization')).toBe('Bearer re_test');
     const body = JSON.parse(String(calls[0]![1].body));
     expect(body).toMatchObject({ from: 'Aarisa Consulting <no-reply@aarisaconsulting.com>', to: ['ana@test.com'], subject: 'Tu acceso al portal de Aarisa' });
-    expect(body.html).toContain('Hola Ana, te invitaron al portal de Aarisa como Despachador.');
+    expect(body.html).toContain('Hola Ana, te invitaron al portal de Aarisa como Operador.');
   });
 
   it('says no instead of throwing when mail is not set up or Resend refuses', async () => {
