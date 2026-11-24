@@ -41,7 +41,8 @@ export function authorizeUrl(endpoint: string, cfg: OidcConfig, p: { state: stri
     response_type: 'code',
     client_id: cfg.clientId,
     redirect_uri: cfg.redirectUri,
-    scope: SCOPES,
+    // Naming Aarisa's organization makes the sign-in pages use its look and accept only its users.
+    scope: process.env.ZITADEL_ORG_ID ? `${SCOPES} urn:zitadel:iam:org:id:${process.env.ZITADEL_ORG_ID}` : SCOPES,
     state: p.state,
     nonce: p.nonce,
     code_challenge: pkceChallenge(p.verifier),
