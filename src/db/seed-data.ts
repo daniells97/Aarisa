@@ -14,6 +14,7 @@ export const SERVICE_TYPES: {
   { operation: 'hovership', code: 'hovership_packages', nameEs: 'Paquetes Hovership', name: 'Hovership packages', unit: 'package', fromReport: true },
   { operation: 'hovership', code: 'stat', nameEs: 'Parada stat', name: 'Stat stop', unit: 'stop', fromReport: true },
   { operation: 'hovership', code: 'pharma_pickup', nameEs: 'Recogida de farmacia', name: 'Pharma pickup', unit: 'job', fromReport: false },
+  { operation: 'hovership', code: 'other', nameEs: 'Otro', name: 'Other', unit: 'job', fromReport: false, requiresNote: true },
   { operation: 'tforce', code: 'ecommerce', nameEs: 'E-commerce', name: 'E-commerce', unit: 'piece', fromReport: true },
   { operation: 'tforce', code: 'pickup', nameEs: 'Pickup', name: 'Pickup', unit: 'job', fromReport: false },
   { operation: 'tforce', code: 'grainger', nameEs: 'Grainger', name: 'Grainger', unit: 'job', fromReport: false },
