@@ -9,7 +9,7 @@ const NEW = '__new__';
  * The routes (sort codes) a driver ran on a day: one chip per route, × takes it off, and a select adds
  * one ("Add a route", then "Add another"). Read-only shows the chips alone. `suggested` chips are the
  * driver's usual routes, not saved yet: dashed, until the day is confirmed or someone edits them.
- * With `onCreate`, the select's last option creates a route that isn't on the list yet, right there.
+ * With `onCreate`, the select's first option creates a route that isn't on the list yet, right there.
  */
 export function SortCodes({ value, options, label, disabled, suggested = false, onChange, onCreate }: {
   value: SortCode[]; options: SortCode[]; label: string; disabled?: boolean; suggested?: boolean; onChange: (ids: string[]) => void;
@@ -63,8 +63,8 @@ export function SortCodes({ value, options, label, disabled, suggested = false, 
         <select className="input sort-add" aria-label={t(value.length ? 'td.addAnotherSortCode' : 'td.addSortCode')} value=""
           onChange={(e) => { if (e.target.value === NEW) setCreating(true); else if (e.target.value) onChange([...ids, e.target.value]); }}>
           <option value="">{t(value.length ? 'td.addAnotherSortCode' : 'td.addSortCode')}</option>
-          {left.map((o) => <option key={o.id} value={o.id}>{o.code}</option>)}
           {onCreate && <option value={NEW}>{t('td.createSortCode')}</option>}
+          {left.map((o) => <option key={o.id} value={o.id}>{o.code}</option>)}
         </select>
       )}
     </span>
