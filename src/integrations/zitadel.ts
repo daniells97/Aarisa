@@ -1,5 +1,6 @@
 import type { Role } from '~/domain/permissions';
 import { RuleError } from '~/server/errors';
+import { loginPagesBase } from '~/server/oidc';
 
 // Zitadel management calls for Team access. Needs a service user's token with
 // permission on the Aarisa project (open question 23). Without it, invites and role
@@ -32,7 +33,7 @@ async function call<T>(cfg: ZitadelAdminConfig, method: string, path: string, bo
 
 /** Zitadel's own login pages, where an invite or reset code is used to set a password. */
 const loginPage = (cfg: ZitadelAdminConfig, page: 'verify' | 'password/set', q: Record<string, string>) =>
-  `${cfg.issuer}/ui/v2/login/${page}?${new URLSearchParams({ ...q, ...(cfg.orgId ? { organization: cfg.orgId } : {}) })}`;
+  `${loginPagesBase(cfg.issuer)}/${page}?${new URLSearchParams({ ...q, ...(cfg.orgId ? { organization: cfg.orgId } : {}) })}`;
 
 async function userByEmail(cfg: ZitadelAdminConfig, email: string) {
   const found = await call<{ result?: { userId: string; state?: string }[] }>(cfg, 'POST', '/v2/users', {

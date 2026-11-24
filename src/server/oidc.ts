@@ -97,6 +97,20 @@ export function roleFromClaims(claims: Record<string, unknown>): Role | null {
   return pickRole(rolesFromClaims(claims));
 }
 
+/**
+ * Where people see the sign-in pages: Aarisa's own address (auth.aarisaconsulting.com, a pass-through to the
+ * shared pages, see docs/deployment.md) when ZITADEL_LOGIN_BASE is set, else the issuer's.
+ */
+export function loginPagesBase(issuer: string) {
+  return process.env.ZITADEL_LOGIN_BASE?.replace(/\/$/, '') || `${issuer.replace(/\/$/, '')}/ui/v2/login`;
+}
+
+/** A sign-in page link of the issuer, moved to Aarisa's address. Anything else comes back unchanged. */
+export function toPublicLogin(link: string, issuer: string) {
+  const own = `${issuer.replace(/\/$/, '')}/ui/v2/login`;
+  return link.startsWith(`${own}/`) || link.startsWith(`${own}?`) ? loginPagesBase(issuer) + link.slice(own.length) : link;
+}
+
 /** Only same-site relative paths, to avoid open redirects. */
 export function safeReturnTo(value: string | null | undefined): string {
   return value && value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : '/';

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { setCookie } from '@tanstack/react-start/server';
-import { authorizeUrl, discover, oidcConfig, publicUrl, randomToken } from '~/server/oidc';
+import { authorizeUrl, discover, loginPagesBase, oidcConfig, publicUrl, randomToken, toPublicLogin } from '~/server/oidc';
 import { LOGIN_COOKIE, cookieOptions, seal } from '~/server/session';
 import { localeFromHeader } from '~/i18n';
 import { withLoginRequest } from '~/server/invite-link';
@@ -19,9 +19,9 @@ export const Route = createFileRoute('/auth/continue')({
         const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? url.host;
         if (base && host !== base.host) return new Response(null, { status: 302, headers: { location: publicUrl(url.pathname + url.search, url.toString()) } });
         const cfg = oidcConfig();
-        const to = url.searchParams.get('to') ?? '';
-        // Only the sign-in pages of our own issuer, never anywhere else.
-        if (!cfg || !to.startsWith(`${cfg.issuer}/ui/v2/login/`)) return new Response(null, { status: 302, headers: { location: publicUrl('/login', url.toString()) } });
+        const to = cfg ? toPublicLogin(url.searchParams.get('to') ?? '', cfg.issuer) : '';
+        // Only the sign-in pages (ours or the issuer's), never anywhere else.
+        if (!cfg || !to.startsWith(`${loginPagesBase(cfg.issuer)}/`)) return new Response(null, { status: 302, headers: { location: publicUrl('/login', url.toString()) } });
         try {
           const doc = await discover(cfg);
           const login = { state: randomToken(), nonce: randomToken(), verifier: randomToken(48), returnTo: '/' };
