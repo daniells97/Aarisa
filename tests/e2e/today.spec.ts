@@ -35,25 +35,27 @@ test('a name that is not on the list can be added right from the picker', async 
   await expect(page.getByRole('status')).toContainText('Change undone.');
 });
 
-test('add a route with its driver from the same screen', async ({ page, isMobile }) => {
+test('add a record (driver code, who drives it) as a new line in the list; it saves by itself', async ({ page, isMobile }) => {
   test.skip(isMobile, 'one device is enough; it writes data');
   const code = `E2E${String(Date.now()).slice(-5)}`;
   await signInAs(page, 'owner', '/tforce/today?date=2027-01-05');
-  await page.getByRole('button', { name: 'Add driver' }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Driver code').fill(code);
-  const who = dialog.getByRole('combobox', { name: 'Who drives it' });
+  await page.getByRole('button', { name: 'Add record' }).first().click();
+  const line = page.locator('tr.new-record');
+  const codePicker = line.getByRole('combobox').first();
+  await codePicker.click();
+  await codePicker.fill(code);
+  await page.getByRole('option', { name: `+ New driver “${code}”` }).click();
+  const who = line.getByRole('combobox').nth(1);
   await who.click();
   await who.fill('Diana');
   await page.getByRole('option', { name: 'Diana Arvelo' }).click();
-  await dialog.getByRole('button', { name: 'Add driver' }).click();
-  await expect(page.getByRole('status')).toContainText(`Driver ${code} added with Diana Arvelo.`);
+  await expect(page.locator('.toasts')).toContainText(`${code} saved with Diana Arvelo.`);
   await expect(page.getByText(code, { exact: true }).locator('visible=true').first()).toBeVisible();
 });
 
 test('finance sees the list but cannot change it', async ({ page }) => {
   await signInAs(page, 'finance', '/tforce/today?date=2026-06-18');
-  await expect(page.getByText("You can see the list; dispatchers and the owner change it.")).toBeVisible();
+  await expect(page.getByText("You can see the list; operators and the admin change it.")).toBeVisible();
   await expect(page.getByRole('combobox', { name: /Person for 9000A on/ }).locator('visible=true')).toBeDisabled();
 });
 

@@ -9,5 +9,7 @@ export default defineConfig({
     environment: 'node',
     // Database tests share one dev database; each runs in a rolled-back transaction.
     fileParallelism: false,
+    // Some database tests build a whole payroll; on a busy server they can pass 5 s.
+    testTimeout: 15_000,
   },
 });
