@@ -4,6 +4,7 @@ import { users } from '~/db/schema';
 import { isLocale } from '~/i18n';
 import { sendMail } from '~/integrations/mail';
 import { passwordResetLink, zitadelAdminConfig } from '~/integrations/zitadel';
+import { throughPortal } from './invite-link';
 import { resetEmail } from './emails';
 
 // "Forgot your password?" on the portal's sign-in page. Only people on the team get a link, from
@@ -24,5 +25,5 @@ export async function sendPasswordReset(email: string) {
   if (!user) return false;
   const link = await passwordResetLink(cfg, user.email);
   if (!link) return false;
-  return sendMail(resetEmail(isLocale(user.locale) ? user.locale : 'en', user.email, link));
+  return sendMail(resetEmail(isLocale(user.locale) ? user.locale : 'en', user.email, throughPortal(link)));
 }

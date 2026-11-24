@@ -1,5 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { throughPortal } from './invite-link';
 import { todayLA } from '~/domain/dates';
 import { zitadelAdminConfig } from '~/integrations/zitadel';
 import { read, run } from './fn';
@@ -89,7 +90,7 @@ export const invite = createServerFn({ method: 'POST' })
   .handler(({ data }) => run('team.manage', async () => {
     const cfg = zitadelAdminConfig();
     if (!cfg) return { invited: false, emailed: false, link: null };
-    const { link } = await inviteUser(cfg, data);
+    const link = throughPortal((await inviteUser(cfg, data)).link);
     // From Aarisa's mailbox; without mail set up (or if Resend refuses) the owner gets the link to share.
     const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName));
     return { invited: true, emailed, link: emailed ? null : link };

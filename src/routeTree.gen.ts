@@ -20,6 +20,7 @@ import { Route as AppServicesRouteImport } from './routes/_app/services'
 import { Route as AppStyleguideRouteImport } from './routes/_app/styleguide'
 import { Route as AppWeekRouteImport } from './routes/_app/week'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
+import { Route as AuthContinueRouteImport } from './routes/auth/continue'
 import { Route as AuthDevRouteImport } from './routes/auth/dev'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
@@ -101,6 +102,11 @@ const AppWeekRoute = AppWeekRouteImport.update({
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthContinueRoute = AuthContinueRouteImport.update({
+  id: '/auth/continue',
+  path: '/auth/continue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthDevRoute = AuthDevRouteImport.update({
@@ -262,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/continue': typeof AuthContinueRoute
   '/auth/dev': typeof AuthDevRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
@@ -301,6 +308,7 @@ export interface FileRoutesByTo {
   '/styleguide': typeof AppStyleguideRoute
   '/week': typeof AppWeekRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/continue': typeof AuthContinueRoute
   '/auth/dev': typeof AuthDevRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
@@ -343,6 +351,7 @@ export interface FileRoutesById {
   '/_app/styleguide': typeof AppStyleguideRoute
   '/_app/week': typeof AppWeekRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/auth/continue': typeof AuthContinueRoute
   '/auth/dev': typeof AuthDevRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
@@ -386,6 +395,7 @@ export interface FileRouteTypes {
     | '/styleguide'
     | '/week'
     | '/auth/callback'
+    | '/auth/continue'
     | '/auth/dev'
     | '/auth/login'
     | '/auth/logout'
@@ -425,6 +435,7 @@ export interface FileRouteTypes {
     | '/styleguide'
     | '/week'
     | '/auth/callback'
+    | '/auth/continue'
     | '/auth/dev'
     | '/auth/login'
     | '/auth/logout'
@@ -466,6 +477,7 @@ export interface FileRouteTypes {
     | '/_app/styleguide'
     | '/_app/week'
     | '/auth/callback'
+    | '/auth/continue'
     | '/auth/dev'
     | '/auth/login'
     | '/auth/logout'
@@ -502,6 +514,7 @@ export interface RootRouteChildren {
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  AuthContinueRoute: typeof AuthContinueRoute
   AuthDevRoute: typeof AuthDevRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
@@ -594,6 +607,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/continue': {
+      id: '/auth/continue'
+      path: '/auth/continue'
+      fullPath: '/auth/continue'
+      preLoaderRoute: typeof AuthContinueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/dev': {
@@ -852,6 +872,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  AuthContinueRoute: AuthContinueRoute,
   AuthDevRoute: AuthDevRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthLogoutRoute: AuthLogoutRoute,
