@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addHovershipDriver, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
+import { addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
@@ -25,6 +25,7 @@ const STATUS: Record<Row['status'], { key: MessageKey; tone: PillTone }> = {
   confirmed: { key: 'td.status.confirmed', tone: 'ok' },
   changed: { key: 'td.status.changed', tone: 'ok' },
   off: { key: 'hd.status.off', tone: 'muted' },
+  covered: { key: 'td.status.changed', tone: 'ok' },
   none: { key: 'hd.status.none', tone: 'waiting' },
 };
 
@@ -65,7 +66,30 @@ function HovershipTodayPage() {
     });
   };
 
-  const routesOf = (r: Row) => (
+  // "Driver today", as on T-Force: someone else runs this person's routes today (Undo puts everyone back).
+  const cover = async (r: Row, by: { driverId: string } | { newName: string }) => {
+    const res = await coverHovershipDriver({ data: { date: day.date, driverId: r.driverId, by } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    const back = 'driverId' in by && by.driverId === r.driverId;
+    toast(back ? t('hd.backToUsual', { name: r.name }) : t('hd.coveredToast', { name: r.name, by: res.value.name }), async () => {
+      const u = await restoreHovershipDrivers({ data: { date: day.date, previous: res.value.previous } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
+
+  const picker = (r: Row) => (
+    <PersonPicker value={`d:${r.today.driverId}`} options={{ drivers: day.options.drivers, contractors: [] }} disabled={!day.canEdit} allowNone={false}
+      label={t('td.driverFor', { route: r.name, date: dateLabel })} state={r.status === 'covered' ? 'changed' : undefined}
+      onPick={(v) => v.startsWith('d:') && v.slice(2) !== r.today.driverId && cover(r, { driverId: v.slice(2) })}
+      onCreate={(name) => cover(r, { newName: name })} />
+  );
+
+  const routesOf = (r: Row) => r.status === 'covered' ? (
+    <span className="sort-codes">{r.usual.map((u) => <span key={u.id} className="sort-chip">{u.code}</span>)}<span className="sort-hint">{t('hd.runBy', { name: r.today.name })}</span></span>
+  ) : (
     <SortCodes value={r.sortCodes} suggested={r.suggested} options={day.options.sortCodes} disabled={!day.canEdit} label={t('hd.routesOf', { name: r.name, date: dateLabel })}
       onChange={async (ids) => {
         const res = await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: ids } });
@@ -79,12 +103,15 @@ function HovershipTodayPage() {
     r.setBy ? t(r.setBy.source === 'whatsapp' ? 'td.src.whatsapp' : 'td.src.manual', { time: time(r.setBy.at) }) + (r.setBy.user ? ` · ${r.setBy.user}` : '')
       : r.status === 'proposed' ? t('hd.src.usual') : t('hd.src.noUsual'),
     r.status === 'changed' && r.usual.length ? t('td.usualIs', { name: r.usual.map((u) => u.code).join(', ') }) : null,
+    r.status === 'covered' ? t('hd.coveredBy', { name: r.today.name }) : null,
   ].filter(Boolean).join(' · ');
 
   const who = (r: Row) => (
+    <><strong style={{ whiteSpace: 'nowrap' }}>{r.name}</strong>{r.code && <span className="sub">{r.code}</span>}</>
+  );
+
+  const actions = (r: Row) => (
     <>
-      <strong>{r.name}</strong>{r.code && <span className="muted"> · {r.code}</span>}
-      <span className="sub">{about(r)}</span>
       <PersonActions driverId={r.driverId} name={r.name} date={day.date} op={day.operation.code} openNotes={r.openNotes} owedCents={r.owedCents} canLogExtra={day.canLogExtra}
         onRemove={day.canEdit ? () => remove(r) : undefined} />
     </>
@@ -129,11 +156,12 @@ function HovershipTodayPage() {
             <>
               <div className="table-wrap desktop-only">
                 <table>
-                  <thead><tr><th scope="col">{t('hd.person')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
+                  <thead><tr><th scope="col">{t('td.route')}</th><th scope="col">{t('td.driverToday')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
                   <tbody>
                     {day.rows.map((r) => (
                       <tr key={r.driverId}>
                         <td>{who(r)}</td>
+                        <td>{picker(r)}<span className="sub">{about(r)}</span>{actions(r)}</td>
                         <td>{routesOf(r)}</td>
                         <td><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill></td>
                       </tr>
@@ -148,7 +176,10 @@ function HovershipTodayPage() {
                       <div>{who(r)}</div>
                       {r.status !== 'proposed' && r.status !== 'confirmed' && <Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>}
                     </div>
+                    {picker(r)}
                     {routesOf(r)}
+                    <span className="sub">{about(r)}</span>
+                    {actions(r)}
                   </li>
                 ))}
               </ul>

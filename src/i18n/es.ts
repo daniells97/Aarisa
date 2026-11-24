@@ -1133,4 +1133,9 @@ export const es: Record<MessageKey, string> = {
   "pa.removeFor": "Quitar a {name} de la lista",
   "td.removeRoute": "Quitar el driver {route} de la lista",
   "td.routeRemoved": "El driver {route} salió de la lista. “Agregar driver” con el mismo código lo devuelve.",
+  "hd.coveredBy": "Hoy lo cubre {name}",
+  "hd.runBy": "las hace {name}",
+  "hd.coveredToast": "{by} hace hoy las rutas de {name}.",
+  "hd.backToUsual": "{name} volvió a sus rutas habituales.",
+  "error.no_routes_to_cover": "Esta persona no tiene rutas hoy para pasar. Ponle rutas primero, o agrégale rutas al otro conductor.",
 };

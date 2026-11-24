@@ -1131,6 +1131,11 @@ export const en = {
   "pa.removeFor": "Remove {name} from the list",
   "td.removeRoute": "Remove driver {route} from the list",
   "td.routeRemoved": "Driver {route} is off the list. “Add driver” with the same code brings it back.",
+  "hd.coveredBy": "{name} covers today",
+  "hd.runBy": "run by {name}",
+  "hd.coveredToast": "{by} runs {name}'s routes today.",
+  "hd.backToUsual": "{name} is back on their usual routes.",
+  "error.no_routes_to_cover": "This person has no routes today to hand over. Give them routes first, or add routes to the other driver.",
 } as const;
 
 export type MessageKey = keyof typeof en;

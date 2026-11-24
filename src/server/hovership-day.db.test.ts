@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { actorAs, withRollback } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
-import { addHovershipPerson, setOnHovership, confirmUsualHovership, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
+import { coverHovership, restoreHovership, addHovershipPerson, setOnHovership, confirmUsualHovership, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
 import { periodFor } from '~/domain/periods';
 import { getOperation } from './ops';
 import { loadRun } from './payroll';
@@ -86,5 +86,36 @@ describe("Today's drivers for Hovership", () => {
       await setOnHovership(tx, d, made.driverId, false);
       expect((await loadHovershipDay(tx, d, DATE)).rows.some((r) => r.driverId === made.driverId)).toBe(false);
       await expect(setOnHovership(tx, actorAs('viewer'), made.driverId, true)).rejects.toBeInstanceOf(ForbiddenError);
+    }));
+
+  it('"Driver today": someone else runs a person\'s routes, Undo or picking them again puts it back', () =>
+    withRollback(async (tx) => {
+      const d = actorAs('dispatcher');
+      const day = await loadHovershipDay(tx, owner, DATE);
+      const [a, b] = day.rows;
+      const id = (x: string) => day.options.sortCodes.find((s) => s.code === x)!.id;
+      for (const r of day.rows.slice(0, 2)) await setHovershipUsual(tx, owner, { driverId: r.driverId, sortCodeIds: [] });
+      await setHovershipUsual(tx, owner, { driverId: a!.driverId, sortCodeIds: [id('200'), id('202')] });
+      await setHovershipUsual(tx, owner, { driverId: b!.driverId, sortCodeIds: [id('210')] });
+      const row = async (x: string) => (await loadHovershipDay(tx, owner, DATE)).rows.find((r) => r.driverId === x)!;
+
+      const res = await coverHovership(tx, d, { date: DATE, driverId: a!.driverId, by: { driverId: b!.driverId } });
+      expect(res.name).toBe(b!.name);
+      expect(await row(a!.driverId)).toMatchObject({ status: 'covered', today: { driverId: b!.driverId }, sortCodes: [] });
+      expect((await row(b!.driverId)).sortCodes.map((s) => s.code)).toEqual(['200', '202', '210']);
+
+      await restoreHovership(tx, d, { date: DATE, previous: res.previous });
+      expect(await row(a!.driverId)).toMatchObject({ status: 'proposed', today: { driverId: a!.driverId } });
+      expect(await row(b!.driverId)).toMatchObject({ status: 'proposed' });
+
+      await coverHovership(tx, d, { date: DATE, driverId: a!.driverId, by: { driverId: b!.driverId } });
+      await coverHovership(tx, d, { date: DATE, driverId: a!.driverId, by: { driverId: a!.driverId } });
+      expect(await row(a!.driverId)).toMatchObject({ status: 'confirmed', sortCodes: [{ code: '200' }, { code: '202' }] });
+      expect((await row(b!.driverId)).sortCodes.map((s) => s.code)).toEqual(['210']);
+
+      const fresh = await coverHovership(tx, d, { date: DATE, driverId: b!.driverId, by: { newName: 'Nuevo Cubre Ruta' } });
+      expect(fresh.name).toBe('Nuevo Cubre Ruta');
+      expect(await row(b!.driverId)).toMatchObject({ status: 'covered', today: { name: 'Nuevo Cubre Ruta' } });
+      await expect(coverHovership(tx, actorAs('finance'), { date: DATE, driverId: a!.driverId, by: { driverId: b!.driverId } })).rejects.toBeInstanceOf(ForbiddenError);
     }));
 });

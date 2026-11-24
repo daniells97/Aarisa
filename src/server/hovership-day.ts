@@ -19,7 +19,8 @@ import { createDriver, driverProfiles } from './people';
 // day or changes them; routes other than the usual ones show as a change, and no routes means off that day.
 // A driver-day made here is the same one the weekly report fills, and pays nothing by itself.
 
-export type HovershipStatus = 'proposed' | 'none' | 'confirmed' | 'changed' | 'off';
+// 'covered': off today while someone else runs their usual routes (another driver took their place).
+export type HovershipStatus = 'proposed' | 'none' | 'confirmed' | 'changed' | 'off' | 'covered';
 type Code = { id: string; code: string };
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
@@ -60,7 +61,7 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
     .where(and(eq(auditLog.tableName, 'execution_sort_codes'), inArray(auditLog.recordId, days.map((d) => d.id)))).orderBy(asc(auditLog.at)) : [];
   const lastSet = new Map(log.map(({ log: l, user }) => [l.recordId, { at: l.at.toISOString(), user: user ?? null, source: l.source }]));
 
-  const rows = people.map((p) => {
+  const base = people.map((p) => {
     const day = dayOf.get(p.id);
     const set = day ? lastSet.get(day.id) ?? null : null;
     const mine = usual.get(p.id) ?? [];
@@ -72,6 +73,16 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
       // Until the day is set, the usual routes show as suggestions (dashed), like T-Force.
       sortCodes: status === 'proposed' ? mine : routes, suggested: status === 'proposed',
       openNotes: ledger.get(p.id)?.openNotes ?? 0, owedCents: ledger.get(p.id)?.owedCents ?? 0,
+    };
+  });
+  // Who drives each row today: the person, or whoever runs their usual routes while they are off.
+  const rows = base.map((r) => {
+    const by = r.status === 'off' && r.usual.length
+      ? base.find((o) => o.driverId !== r.driverId && !o.suggested && o.sortCodes.some((s) => r.usual.some((u) => u.id === s.id)))
+      : undefined;
+    return {
+      ...r, status: by ? 'covered' as HovershipStatus : r.status,
+      today: by ? { driverId: by.driverId, name: by.name } : { driverId: r.driverId, name: r.name },
     };
   });
   // Suggested routes count as taken: a route nobody has is one no one has, even as a suggestion.
@@ -88,11 +99,17 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
     canLogExtra: can(actor.role, 'extra_jobs.log'),
     rows,
     // People not on the list yet, for "Add driver".
-    options: { sortCodes: options, others: everyone.filter((d) => d.active && !d.worksHovership).map((d) => ({ id: d.id, name: d.fullName })) },
+    options: {
+      sortCodes: options,
+      others: everyone.filter((d) => d.active && !d.worksHovership).map((d) => ({ id: d.id, name: d.fullName })),
+      // For "Driver today": people on Hovership first, then everyone else (labelled), so nobody is created twice.
+      drivers: [...everyone.filter((d) => d.active && d.worksHovership).map((d) => ({ id: d.id, name: d.fullName, contractor: null as string | null })),
+        ...everyone.filter((d) => d.active && !d.worksHovership).map((d) => ({ id: d.id, name: d.fullName, contractor: 'T-Force' }))],
+    },
     summary: {
       drivers: rows.length,
       working: rows.filter((r) => r.sortCodes.length > 0 && r.status !== 'off').length,
-      confirmed: count('confirmed'), changed: count('changed'), proposed: count('proposed'), off: count('off'), none: count('none'),
+      confirmed: count('confirmed'), changed: count('changed') + count('covered'), proposed: count('proposed'), off: count('off'), none: count('none'),
       // Usual routes confirmed as they were, which "Leave unconfirmed" can take back.
       usualConfirmed: rows.filter((r) => r.status === 'confirmed' && r.usual.length && sameSet(r.sortCodes.map((s) => s.id), r.usual.map((u) => u.id))).length,
       unassigned: options.filter((o) => !taken.has(o.code)).map((o) => o.code),
@@ -238,4 +255,65 @@ export async function setOnHovership(tx: Tx, actor: Actor, driverId: string, on:
   if (before.worksHovership === on) return;
   const [after] = await tx.update(drivers).set({ worksHovership: on }).where(eq(drivers.id, driverId)).returning();
   await audit(tx, { table: 'drivers', recordId: driverId, action: 'update', before, after, userId: actor.userId, source: actor.source });
+}
+
+/**
+ * "Driver today" on a Hovership row: someone else runs this person's routes today. Their routes for the day
+ * (the ones set, or else the usual ones) move to the other driver, on top of what that driver already has;
+ * this person is off. Picking the person themself again gives them their usual routes back. A typed name
+ * that isn't in the portal is created on the spot. Returns what both had before, for Undo.
+ */
+export async function coverHovership(tx: Tx, actor: Actor, input: { date: string; driverId: string; by: { driverId: string } | { newName: string }; operation?: string }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const day = await loadHovershipDay(tx, actor, input.date, input.operation);
+  const row = day.rows.find((r) => r.driverId === input.driverId);
+  if (!row) throw new RuleError('not_found');
+  const byId = 'newName' in input.by ? (await addHovershipPerson(tx, actor, input.by)).driverId : input.by.driverId;
+  const routesOf = (id: string) => day.rows.find((r) => r.driverId === id)?.sortCodes.map((s) => s.id) ?? [];
+  const previous = [
+    { driverId: row.driverId, sortCodeIds: row.suggested ? null : routesOf(row.driverId) },
+    ...(byId !== row.driverId ? [{ driverId: byId, sortCodeIds: (() => { const o = day.rows.find((r) => r.driverId === byId); return !o || o.suggested ? null : routesOf(byId); })() }] : []),
+  ];
+  if (byId === row.driverId) {
+    // Back to the person: their usual routes, taken from whoever had them.
+    const usual = row.usual.map((u) => u.id);
+    for (const o of day.rows) {
+      if (o.driverId === row.driverId || o.suggested) continue;
+      const mine = o.sortCodes.map((s) => s.id);
+      if (mine.some((x) => usual.includes(x))) {
+        previous.push({ driverId: o.driverId, sortCodeIds: mine });
+        await setHovershipRoutes(tx, actor, { date: input.date, driverId: o.driverId, sortCodeIds: mine.filter((x) => !usual.includes(x)), operation: input.operation });
+      }
+    }
+    await setHovershipRoutes(tx, actor, { date: input.date, driverId: row.driverId, sortCodeIds: usual, operation: input.operation });
+    return { name: row.name, previous };
+  }
+  const moving = row.status === 'covered' ? row.usual.map((u) => u.id) : row.sortCodes.map((s) => s.id);
+  if (!moving.length) throw new RuleError('no_routes_to_cover');
+  await setOnHovership(tx, actor, byId, true);
+  const other = day.rows.find((r) => r.driverId === byId);
+  const has = other ? other.sortCodes.map((s) => s.id) : [];
+  await setHovershipRoutes(tx, actor, { date: input.date, driverId: byId, sortCodeIds: [...new Set([...has, ...moving])], operation: input.operation });
+  await setHovershipRoutes(tx, actor, { date: input.date, driverId: row.driverId, sortCodeIds: [], operation: input.operation });
+  const [who] = await driverProfiles(tx, input.date, [byId]);
+  return { name: who?.fullName ?? '', previous };
+}
+
+/** Undo for "Driver today": each person back to the routes they had (or to their suggestion). */
+export async function restoreHovership(tx: Tx, actor: Actor, input: { date: string; previous: { driverId: string; sortCodeIds: string[] | null }[]; operation?: string }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const op = await operationFor(tx, input.operation, 'report_code');
+  for (const p of input.previous) {
+    if (p.sortCodeIds) { await setHovershipRoutes(tx, actor, { date: input.date, driverId: p.driverId, sortCodeIds: p.sortCodeIds, operation: op.code }); continue; }
+    // It was only a suggestion: drop the day made here, if nothing else depends on it.
+    const payeeId = (await payeeIdOf(tx, { driverId: p.driverId, contractorId: null }))!;
+    const [row] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, input.date),
+      eq(routeExecutions.payeeId, payeeId), eq(routeExecutions.kind, 'route'), isNull(routeExecutions.routeId)));
+    if (!row || row.importId || !(await unused(tx, row.id))) continue;
+    const codes = (await tx.select({ id: executionSortCodes.sortCodeId }).from(executionSortCodes).where(eq(executionSortCodes.executionId, row.id))).map((x) => x.id);
+    await tx.delete(executionSortCodes).where(eq(executionSortCodes.executionId, row.id));
+    await audit(tx, { table: 'execution_sort_codes', recordId: row.id, action: 'undo', before: { sortCodeIds: codes }, userId: actor.userId, source: actor.source });
+    await tx.delete(routeExecutions).where(eq(routeExecutions.id, row.id));
+    await audit(tx, { table: 'route_executions', recordId: row.id, action: 'undo', before: row, userId: actor.userId, source: actor.source });
+  }
 }
