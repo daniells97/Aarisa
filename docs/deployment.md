@@ -100,3 +100,8 @@ Setup:
 - DNS: `auth` A record → 2.25.229.44 (Namecheap). Certificate from Traefik's `letsencrypt` resolver.
 - The sign-in scope names Aarisa's organization, so the pages use its branding (label policy, set Nov 24)
   and accept only its users.
+- The proxy also serves Aarisa's own branding files (`/assets/v1/<Aarisa org id>/policy/label/`) and rewrites
+  logo links in the pages to this address: the pages only allow images from their own address. Sign-up
+  (`/ui/v2/login/register`) is blocked there too; registration is also off in Aarisa's login policy.
+- After changing branding or login settings, the shared login container keeps the old ones in memory until it
+  restarts (`docker restart dmx-zitadel-login`, a few seconds without sign-in for every client: ask first).
