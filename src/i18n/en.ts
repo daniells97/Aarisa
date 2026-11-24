@@ -1154,6 +1154,8 @@ export const en = {
   "td.driverCodePlaceholder": "Driver (9000X)",
   "td.newDriverCode": "+ New driver “{code}”",
   "td.driverCodeHint": "Type to find a driver code, or a new one",
+  "td.savingRecord": "Saving…",
+  "td.closeRecord": "Close the new line",
 } as const;
 
 export type MessageKey = keyof typeof en;

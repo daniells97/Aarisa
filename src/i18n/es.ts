@@ -1156,4 +1156,6 @@ export const es: Record<MessageKey, string> = {
   "td.driverCodePlaceholder": "Driver (9000X)",
   "td.newDriverCode": "+ Nuevo driver “{code}”",
   "td.driverCodeHint": "Escribe para buscar un driver o crear uno nuevo",
+  "td.savingRecord": "Guardando…",
+  "td.closeRecord": "Cerrar la línea nueva",
 };

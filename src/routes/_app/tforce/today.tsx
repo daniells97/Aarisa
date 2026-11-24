@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
@@ -327,8 +327,10 @@ function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabe
   const whoName = !who ? null : 'newName' in who ? who.newName
     : who.value.startsWith('d:') ? day.options.drivers.find((d) => d.id === who.value.slice(2))?.name
       : day.options.contractors.find((c) => c.id === who.value.slice(2))?.name;
+  // Saves by itself once the driver code and who drives it are filled in.
+  useEffect(() => { if (code.trim() && who && !busy) void save(); }, [code, who]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
-    if (!code.trim() || !who) return setError(t('td.recordNeeds'));
+    if (!code.trim() || !who) return;
     const payee = 'newName' in who ? { newDriverName: who.newName }
       : who.value.startsWith('d:') ? { driverId: who.value.slice(2) } : { contractorId: who.value.slice(2) };
     setBusy(true);
@@ -369,5 +371,5 @@ function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabe
         return res.value.id;
       }} />,
   ];
-  return <NewRecord cells={cells} layout={layout} canSave={!!code.trim() && !!who} busy={busy} error={error} onSave={save} onCancel={onCancel} />;
+  return <NewRecord cells={cells} layout={layout} busy={busy} error={error} onCancel={onCancel} />;
 }

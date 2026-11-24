@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
@@ -241,8 +241,10 @@ function HovershipRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateL
   const [routes, setRoutes] = useState<{ id: string; code: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Saves by itself as soon as the person is picked (or a new name typed); routes go on the saved line.
+  useEffect(() => { if (who && !busy) void save(); }, [who]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
-    if (!who) return setError(t('td.choosePerson'));
+    if (!who) return;
     setBusy(true);
     try {
       const res = await addHovershipDriver({ data: who });
@@ -276,5 +278,5 @@ function HovershipRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateL
         return res.value.id;
       }} />,
   ];
-  return <NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} canSave={!!who} busy={busy} error={error} onSave={save} onCancel={onCancel} />;
+  return <NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} busy={busy} error={error} onCancel={onCancel} />;
 }
