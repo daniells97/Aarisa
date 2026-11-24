@@ -87,7 +87,7 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
     canEdit: can(actor.role, 'drivers.confirm_today'),
     canLogExtra: can(actor.role, 'extra_jobs.log'),
     rows,
-    // People not on the list yet, for "Add person".
+    // People not on the list yet, for "Add driver".
     options: { sortCodes: options, others: everyone.filter((d) => d.active && !d.worksHovership).map((d) => ({ id: d.id, name: d.fullName })) },
     summary: {
       drivers: rows.length,
