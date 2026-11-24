@@ -379,9 +379,9 @@ tr.row-selected td { background: var(--brand-tint); }
 @media (max-width: 899px) { .sort-add:has(.picker) { width: 100%; } .sort-add .picker-input { min-height: 44px; } }
 
 /* Contract tabs (T-Force | Hovership) on Today's drivers and Extra jobs: two big, clearly separate choices. */
-.tabs.tabs-contract { display: inline-flex; align-self: flex-start; gap: 6px; padding: 5px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--muted-tint); max-width: 100%; }
-.tabs.tabs-contract a { min-height: 48px; padding: 0 28px; margin: 0; border: 0; border-radius: var(--r-md); font: 600 20px var(--font-cond); letter-spacing: .01em; color: var(--ink-3); }
+.tabs.tabs-contract { display: inline-flex; align-self: flex-start; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--muted-tint); max-width: 100%; }
+.tabs.tabs-contract a { min-height: 40px; padding: 0 20px; margin: 0; border: 0; border-radius: var(--r-md); font: 600 17px var(--font-cond); letter-spacing: .01em; color: var(--ink-3); }
 .tabs.tabs-contract a:hover { background: var(--surface); color: var(--ink); }
 .tabs.tabs-contract a[aria-current='page'] { background: var(--brand); color: #fff; box-shadow: 0 1px 3px rgba(18, 42, 90, .3); }
 .tabs.tabs-contract a[aria-current='page']:hover { background: var(--brand-hover); }
-@media (max-width: 899px) { .tabs.tabs-contract { display: flex; align-self: stretch; } .tabs.tabs-contract a { flex: 1; justify-content: center; padding: 0 12px; } }
+@media (max-width: 899px) { .tabs.tabs-contract { display: flex; align-self: stretch; } .tabs.tabs-contract a { flex: 1; justify-content: center; padding: 0 12px; min-height: 44px; } }
