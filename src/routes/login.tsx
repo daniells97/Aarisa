@@ -15,7 +15,7 @@ export const Route = createFileRoute('/login')({
   component: Login,
 });
 
-const errors = ['no_role', 'state', 'provider', 'inactive', 'not_configured'] as const;
+const errors = ['no_role', 'state', 'provider', 'inactive', 'not_configured', 'unknown_user'] as const;
 
 function Login() {
   const t = useT();
