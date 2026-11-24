@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { users } from '~/db/schema';
 import { ALL_ROLES, actorAs, withRollback } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
-import { listTeam, recordRoleChange, updateTeamMember } from './team';
+import { listTeam, recordInvite, recordRoleChange, updateTeamMember } from './team';
+import { upsertUserFromIdentity } from './users';
 
 async function makeUsers(tx: Parameters<Parameters<typeof withRollback>[0]>[0]) {
   const [owner] = await tx.insert(users).values({ zitadelSub: 'test:owner', name: 'T Owner', email: 'o@test', role: 'owner' }).returning();
@@ -49,4 +50,21 @@ describe('team access (server)', () => {
       await expect(recordRoleChange(tx, me, owner.id, 'viewer')).rejects.toMatchObject({ code: 'cannot_demote_self' });
       vi.unstubAllEnvs();
     }));
+});
+
+describe('invites show in Team access', () => {
+  it('an invite adds the person as invited; signing in makes them active; inviting again updates them', async () => {
+    await withRollback(async (tx) => {
+      const { owner } = await makeUsers(tx);
+      const actor = { ...actorAs('owner'), userId: owner.id };
+      await recordInvite(tx, actor, { sub: 'zit-1', email: 'New@Test.com', givenName: 'Ana', familyName: 'Ruiz', role: 'dispatcher', locale: 'es' });
+      let ana = (await listTeam(tx, actor)).find((m) => m.email === 'new@test.com')!;
+      expect(ana).toMatchObject({ name: 'Ana Ruiz', role: 'dispatcher', invited: true });
+      await recordInvite(tx, actor, { sub: 'zit-1', email: 'new@test.com', givenName: 'Ana', familyName: 'Ruiz', role: 'owner', locale: 'es' });
+      expect((await listTeam(tx, actor)).filter((m) => m.email === 'new@test.com')).toHaveLength(1);
+      await upsertUserFromIdentity(tx, { sub: 'zit-1', name: 'Ana Ruiz', email: 'new@test.com', role: 'owner' });
+      ana = (await listTeam(tx, actor)).find((m) => m.email === 'new@test.com')!;
+      expect(ana).toMatchObject({ role: 'owner', invited: false });
+    });
+  });
 });

@@ -5,7 +5,7 @@ import { todayLA } from '~/domain/dates';
 import { zitadelAdminConfig } from '~/integrations/zitadel';
 import { read, run } from './fn';
 import { addContractor, addDriver, addRate, addService, loadSetup, updateDriver, updateService } from './setup';
-import { listTeam, recordRoleChange, updateTeamMember } from './team';
+import { listTeam, recordInvite, recordRoleChange, updateTeamMember } from './team';
 import { addSortCode, loadSortCodes, setUsualSortCodes, updateSortCode } from './sort-codes';
 import { inviteUser, setUserRole } from '~/integrations/zitadel';
 import { sendMail } from '~/integrations/mail';
@@ -87,10 +87,12 @@ export const changeRole = createServerFn({ method: 'POST' })
 
 export const invite = createServerFn({ method: 'POST' })
   .validator(z.object({ email: z.string().email(), givenName: z.string().min(1).max(60), familyName: z.string().min(1).max(60), role, locale: z.enum(['en', 'es']) }))
-  .handler(({ data }) => run('team.manage', async () => {
+  .handler(({ data }) => run('team.manage', async (tx, actor) => {
     const cfg = zitadelAdminConfig();
     if (!cfg) return { invited: false, emailed: false, link: null };
-    const link = throughPortal((await inviteUser(cfg, data)).link);
+    const invited = await inviteUser(cfg, data);
+    await recordInvite(tx, actor, { ...data, sub: invited.userId });
+    const link = throughPortal(invited.link);
     // From Aarisa's mailbox; without mail set up (or if Resend refuses) the owner gets the link to share.
     const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName));
     return { invited: true, emailed, link: emailed ? null : link };

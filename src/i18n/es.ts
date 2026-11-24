@@ -273,6 +273,7 @@ export const es: Record<MessageKey, string> = {
   "team.actions": "Acciones",
   "team.active": "Activo",
   "team.paused": "Pausado",
+  "team.invitedPending": "Invitado, aún no entra",
   "team.you": "Tú",
   "channel.whatsapp": "WhatsApp",
   "channel.email": "Correo",

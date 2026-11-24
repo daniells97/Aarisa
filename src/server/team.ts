@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { users } from '~/db/schema';
 import type { Role } from '~/domain/permissions';
@@ -16,6 +16,7 @@ export async function listTeam(tx: Tx, actor: Actor) {
   return rows.map((u) => ({
     id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role as Role,
     morningChannel: u.morningChannel, locale: u.locale, active: u.active, zitadelSub: u.zitadelSub, canRecordLoans: u.canRecordLoans,
+    invited: !u.firstSignInAt,
     isSelf: u.id === actor.userId,
   }));
 }
@@ -53,4 +54,26 @@ export async function recordRoleChange(tx: Tx, actor: Actor, id: string, role: R
   const [after] = await tx.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, id)).returning();
   await audit(tx, { table: 'users', recordId: id, action: 'update', before, after, userId: actor.userId, source: actor.source });
   return after!;
+}
+
+/**
+ * An invite puts the person in Team access right away (as invited) instead of only after their first
+ * sign-in. Their sign-in account id is the key; inviting again updates the name and role.
+ */
+export async function recordInvite(tx: Tx, actor: Actor, p: { sub: string; email: string; givenName: string; familyName: string; role: Role; locale: 'en' | 'es' }) {
+  assertCan(actor, 'team.manage');
+  const name = `${p.givenName} ${p.familyName}`.trim();
+  const email = p.email.trim().toLowerCase();
+  const [bySub] = await tx.select().from(users).where(eq(users.zitadelSub, p.sub));
+  const [byEmail] = bySub ? [bySub] : await tx.select().from(users).where(eq(sql`lower(${users.email})`, email));
+  const before = bySub ?? byEmail;
+  if (before) {
+    if (before.firstSignInAt) return before; // already using the portal: role changes go through Change role
+    const [after] = await tx.update(users).set({ zitadelSub: p.sub, name, email, role: p.role, locale: p.locale, updatedAt: new Date() }).where(eq(users.id, before.id)).returning();
+    await audit(tx, { table: 'users', recordId: before.id, action: 'update', before, after, userId: actor.userId, source: actor.source });
+    return after!;
+  }
+  const [row] = await tx.insert(users).values({ zitadelSub: p.sub, name, email, role: p.role, locale: p.locale }).returning();
+  await audit(tx, { table: 'users', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
+  return row!;
 }

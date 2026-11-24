@@ -271,6 +271,7 @@ export const en = {
   "team.actions": "Actions",
   "team.active": "Active",
   "team.paused": "Paused",
+  "team.invitedPending": "Invited, not signed in yet",
   "team.you": "You",
   "channel.whatsapp": "WhatsApp",
   "channel.email": "Email",

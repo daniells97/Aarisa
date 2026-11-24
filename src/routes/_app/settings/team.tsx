@@ -43,7 +43,7 @@ function TeamPage() {
                   <td><strong>{m.name}</strong>{m.isSelf && <> <Pill tone="muted">{t('team.you')}</Pill></>}<span className="sub">{m.email}</span></td>
                   <td>{t(`role.${m.role}`)}{m.role !== 'owner' && m.role !== 'viewer' && m.canRecordLoans && <span className="sub">{t('team.loansShort')}</span>}</td>
                   <td>{t(m.morningChannel === 'whatsapp' && !whatsapp ? 'channel.whatsappSoon' : `channel.${m.morningChannel}` as MessageKey)}</td>
-                  <td>{m.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('team.paused')}</Pill>}</td>
+                  <td>{!m.active ? <Pill tone="muted">{t('team.paused')}</Pill> : m.invited ? <Pill tone="waiting">{t('team.invitedPending')}</Pill> : <Pill tone="ok">{t('team.active')}</Pill>}</td>
                   <td className="r"><Button size="sm" aria-label={t('team.editTitle', { name: m.name })} onClick={() => setEditing(m)}>{t('drivers.edit')}</Button></td>
                 </tr>
               ))}

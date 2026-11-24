@@ -68,6 +68,8 @@ export const users = core.table('users', {
   active: boolean('is_active').notNull().default(true),
   // The owner can let someone else record loans and salary advances (taking them back stays the owner's).
   canRecordLoans: boolean('can_record_loans').notNull().default(false),
+  // Empty while an invite is pending: the person shows in Team access as invited until they first sign in.
+  firstSignInAt: timestamp('first_sign_in_at', { withTimezone: true }),
   createdAt: createdAt(), updatedAt: updatedAt(),
 });
 
