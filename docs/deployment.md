@@ -105,3 +105,14 @@ Setup:
   (`/ui/v2/login/register`) is blocked there too; registration is also off in Aarisa's login policy.
 - After changing branding or login settings, the shared login container keeps the old ones in memory until it
   restarts (`docker restart dmx-zitadel-login`, a few seconds without sign-in for every client: ask first).
+
+## Daily database backup — Nov 24, 2026
+
+- Service `aarisa-backup` (postgres:16-alpine, in `/docker/aarisa`, script `/docker/aarisa/backup/run.sh`) makes a
+  `pg_dump -Fc` of aarisa_db every day at ~03:00 Los Angeles time into `/docker/aarisa/backups/daily/`, mode 600,
+  and deletes daily copies older than 30 days. Deploy copies (`backups/aarisa_db-<date>-before-<change>.dump`)
+  are separate and kept.
+- Check: `docker logs aarisa-backup` shows `backup ok <file>` each night.
+- Restore (stop the portal first): `pg_restore --clean --if-exists -d "$DATABASE_URL" <file>` from a
+  postgres:16-alpine container on the `data` network.
+- These copies live on the same server; an off-server copy is still an open item.
