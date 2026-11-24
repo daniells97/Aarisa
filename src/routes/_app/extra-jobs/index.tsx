@@ -5,15 +5,16 @@ import { useLocale, useT, type MessageKey } from '~/i18n';
 import { serviceLabel } from '~/ui/service-label';
 import { addDays, todayLA } from '~/domain/dates';
 import { fillExtraJob, getExtraJobs } from '~/server/extra-jobs-fns';
+import { ExtraJobTabs } from '~/ui/ExtraJobTabs';
 import { Button, Icon, PageHead, Panel, Pill, RoutePlate, WarningDiamond, buttonClass, parseAmount, useFormat, useToast } from '~/ui';
 
 type Data = Awaited<ReturnType<typeof getExtraJobs>>;
 type Job = Data['jobs'][number];
 
 export const Route = createFileRoute('/_app/extra-jobs/')({
-  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }),
-  loaderDeps: ({ search }) => ({ date: search.date ?? todayLA() }),
-  loader: async ({ deps }) => ({ date: deps.date, ...(await getExtraJobs({ data: { from: deps.date, to: deps.date } })) }),
+  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional() }),
+  loaderDeps: ({ search }) => ({ date: search.date ?? todayLA(), op: search.op }),
+  loader: async ({ deps }) => ({ date: deps.date, ...(await getExtraJobs({ data: { from: deps.date, to: deps.date, operation: deps.op } })) }),
   component: ExtraJobsPage,
 });
 
@@ -28,13 +29,14 @@ function ExtraJobsPage() {
         actions={
           <div className="row">
             <div className="week-nav">
-              <Link to="/extra-jobs" search={{ date: addDays(data.date, -1) }} aria-label={t('td.prevDay')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+              <Link to="/extra-jobs" search={{ date: addDays(data.date, -1), op: data.operation.code }} aria-label={t('td.prevDay')}><Icon name="chevronLeft" width={18} height={18} /></Link>
               <span className="num">{dateLabel}</span>
-              <Link to="/extra-jobs" search={{ date: addDays(data.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
+              <Link to="/extra-jobs" search={{ date: addDays(data.date, 1), op: data.operation.code }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
-            {data.canLog && <Link to="/extra-jobs/new" search={{ date: data.date }} className={buttonClass('primary')}><Icon name="plus" width={18} height={18} />{t('xj.log')}</Link>}
+            {data.canLog && <Link to="/extra-jobs/new" search={{ date: data.date, op: data.operation.code }} className={buttonClass('primary')}><Icon name="plus" width={18} height={18} />{t('xj.log')}</Link>}
           </div>
         } />
+      <ExtraJobTabs to="/extra-jobs" contracts={data.contracts} current={data.operation.code} date={data.date} />
       <Panel title={t('xj.dayTitle', { date: dateLabel })} id="jobs">
         {data.jobs.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('xj.none')}</p> : (
           <ul className="job-list">{data.jobs.map((j) => <JobCard key={j.id} job={j} data={data} />)}</ul>
@@ -80,25 +82,25 @@ function JobCard({ job, data }: { job: Job; data: Data }) {
         {job.orderNumber && <>, {t('xj.order', { order: job.orderNumber })}</>}
       </p>
       <p className="muted num" style={{ margin: 0, fontSize: 14 }}>
-        {data.showMoney && job.clientAmountCents != null && <>{t('xj.clientPays')} {f.money(job.clientAmountCents)} · </>}
+        {data.showMoney && job.clientAmountCents != null && <>{t('xj.clientPays', { client: data.operation.name })} {f.money(job.clientAmountCents)} · </>}
         {t('xj.driverGets')} {f.money(job.driverAmountCents)} · {t('xj.saved', { time, who: job.by ?? t('audit.system') })}
       </p>
       {job.note && <p style={{ margin: 0, fontSize: 14 }}>{job.note}</p>}
       {missing.map((m) => (
         <div key={m} className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
-          <WarningDiamond size={20} /><span style={{ fontSize: 14 }}>{t(`xj.missing.${m}` as MessageKey)}</span>
+          <WarningDiamond size={20} /><span style={{ fontSize: 14 }}>{t(`xj.missing.${m}` as MessageKey, { client: data.operation.name })}</span>
         </div>
       ))}
       {!editing && missing.length > 0 && (
         <div className="row">
-          {missing.includes('client_amount') && <Button size="sm" onClick={() => setEditing('client_amount')}>{t('xj.addClient')}</Button>}
+          {missing.includes('client_amount') && <Button size="sm" onClick={() => setEditing('client_amount')}>{t('xj.addClient', { client: data.operation.name })}</Button>}
           {missing.includes('order_number') && data.canLog && <Button size="sm" onClick={() => setEditing('order_number')}>{t('xj.addOrder')}</Button>}
         </div>
       )}
       {editing && (
         <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={save}>
           <div className="field" style={{ flex: '1 1 180px' }}>
-            <label htmlFor={`fix-${job.id}`}>{t(editing === 'client_amount' ? 'xj.clientPays' : 'xj.orderNumber')}</label>
+            <label htmlFor={`fix-${job.id}`}>{t(editing === 'client_amount' ? 'xj.clientPays' : 'xj.orderNumber', { client: data.operation.name })}</label>
             <input id={`fix-${job.id}`} className="input" autoFocus required inputMode={editing === 'client_amount' ? 'decimal' : 'text'} value={value} onChange={(e) => setValue(e.target.value)} />
           </div>
           <Button type="submit" variant="primary">{t('common.save')}</Button>

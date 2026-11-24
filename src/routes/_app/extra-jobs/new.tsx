@@ -5,19 +5,26 @@ import { useLocale, useT, type MessageKey } from '~/i18n';
 import { serviceLabel } from '~/ui/service-label';
 import { todayLA } from '~/domain/dates';
 import { getExtraJobDraft, getExtraJobOptions, saveExtraJob } from '~/server/extra-jobs-fns';
+import { ExtraJobTabs } from '~/ui/ExtraJobTabs';
 import { Button, FormError, Icon, PageHead, Panel, SelectField, TextField, WarningDiamond, centsToInput, parseAmount, useToast } from '~/ui';
 
 export const Route = createFileRoute('/_app/extra-jobs/new')({
-  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), draft: z.string().optional(), payee: z.string().regex(/^[dc]:[0-9a-f-]{36}$/).optional() }),
-  loaderDeps: ({ search }) => ({ draft: search.draft }),
+  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), draft: z.string().optional(), payee: z.string().regex(/^[dc]:[0-9a-f-]{36}$/).optional(), op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional() }),
+  loaderDeps: ({ search }) => ({ draft: search.draft, op: search.op }),
   loader: async ({ deps }) => ({
-    options: await getExtraJobOptions(),
+    options: await getExtraJobOptions({ data: { operation: deps.op } }),
     draft: deps.draft ? await getExtraJobDraft({ data: { token: deps.draft } }) : null,
   }),
   component: NewExtraJob,
 });
 
+// A new contract starts a fresh form (its own services and routes).
 function NewExtraJob() {
+  const { options } = Route.useLoaderData();
+  return <ExtraJobForm key={options.operation.code} />;
+}
+
+function ExtraJobForm() {
   const t = useT();
   const locale = useLocale();
   const { options, draft: draftRes } = Route.useLoaderData();
@@ -67,11 +74,11 @@ function NewExtraJob() {
         clientUuid, service, date, nearRouteId: nearRouteId || null,
         payee: payee.startsWith('c:') ? { contractorId: payee.slice(2) } : { driverId: payee.slice(2) },
         clientAmountCents: options.showMoney ? clientCents : null, driverAmountCents: driverCents,
-        orderNumber: orderNumber || null, note: note || null, aiSuggestionId: draft?.suggestionId ?? null,
+        orderNumber: orderNumber || null, note: note || null, aiSuggestionId: draft?.suggestionId ?? null, operation: options.operation.code,
       } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       toast(t(res.value.created ? 'xj.savedToast' : 'xj.alreadySaved'));
-      await navigate({ to: '/extra-jobs', search: { date } });
+      await navigate({ to: '/extra-jobs', search: { date, op: options.operation.code } });
     } catch {
       setError(t('error.generic'));
     } finally {
@@ -81,13 +88,15 @@ function NewExtraJob() {
 
   return (
     <>
-      <PageHead title={t('xj.formTitle')} actions={<Link to="/extra-jobs" search={{ date }} className="close-btn" aria-label={t('common.close')}><Icon name="close" width={20} height={20} /></Link>} />
+      <PageHead title={t('xj.formTitle')} actions={<Link to="/extra-jobs" search={{ date, op: options.operation.code }} className="close-btn" aria-label={t('common.close')}><Icon name="close" width={20} height={20} /></Link>} />
       {draftRes && !draftRes.ok && <p className="notice" role="alert" style={{ margin: 0 }}><WarningDiamond size={22} />{t(`error.${draftRes.code}` as MessageKey)}</p>}
       {draft && (
         <p className="notice notice-ai" style={{ margin: 0 }}>
           {t(draft.fromVoice ? 'xj.fromVoice' : 'xj.fromText', { time: new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(draft.at)) })}
         </p>
       )}
+      {!draft && <ExtraJobTabs to="/extra-jobs/new" contracts={options.contracts} current={options.operation.code} date={date} payee={initialPayee} />}
+      {options.services.length === 0 && <p className="notice notice-info" style={{ margin: 0 }}>{t('xj.noServices', { client: options.operation.name })}</p>}
       <Panel>
         <form className="panel-body stack xj-form" style={{ paddingTop: 20 }} onSubmit={submit}>
           <fieldset className="svc-toggles">
@@ -96,12 +105,12 @@ function NewExtraJob() {
               <button key={s.code} type="button" aria-pressed={service === s.code} className={service === s.code && aiClass('service') ? 'ai-picked' : undefined} onClick={() => { pickService(s.code); touch('service'); }}>{serviceLabel(s, locale)}</button>
             ))}
           </fieldset>
-          <div className="grid-2">
+          <div className={options.routes.length ? 'grid-2' : undefined}>
             <TextField label={t('xj.date')} type="date" required className={aiClass('date')} value={date} onChange={(e) => { setDate(e.target.value); touch('date'); }} />
-            <SelectField label={t('xj.nearRoute')} className={aiClass('nearRouteId')} value={nearRouteId} onChange={(e) => { setNearRoute(e.target.value); touch('nearRouteId'); }}>
+            {options.routes.length > 0 && <SelectField label={t('xj.nearRoute')} className={aiClass('nearRouteId')} value={nearRouteId} onChange={(e) => { setNearRoute(e.target.value); touch('nearRouteId'); }}>
               <option value="">{t('xj.noRoute')}</option>
               {options.routes.map((r) => <option key={r.id} value={r.id}>{r.code}</option>)}
-            </SelectField>
+            </SelectField>}
           </div>
           <SelectField label={t('xj.doneBy')} required className={aiClass('payee')} value={payee} onChange={(e) => { setPayee(e.target.value); touch('payee'); }}>
             <option value="">{t('xj.choose')}</option>
@@ -110,15 +119,15 @@ function NewExtraJob() {
           </SelectField>
           <div className="grid-2">
             {options.showMoney && (
-              <TextField label={t('xj.clientPays')} inputMode="decimal" className={aiClass('clientAmountCents')} value={clientAmount} onChange={(e) => { setClientAmount(e.target.value); touch('clientAmountCents'); }}
+              <TextField label={t('xj.clientPays', { client: options.operation.name })} inputMode="decimal" className={aiClass('clientAmountCents')} value={clientAmount} onChange={(e) => { setClientAmount(e.target.value); touch('clientAmountCents'); }}
                 hint={t('rates.leaveBlank')} error={clientCents === undefined ? t('error.invalid_amount') : undefined} />
             )}
             <TextField label={payeeName ? t('xj.payeeGets', { who: payeeName }) : t('xj.driverGets')} inputMode="decimal" required className={aiClass('driverAmountCents')} value={driverAmount}
               onChange={(e) => { setDriverAmount(e.target.value); touch('driverAmountCents'); }} error={driverCents === undefined ? t('error.invalid_amount') : undefined} />
           </div>
-          {!options.showMoney && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('xj.clientHidden')}</p>}
-          <TextField label={t('xj.orderNumber')} required={svc?.requiresOrderNumber} className={aiClass('orderNumber')} value={orderNumber} onChange={(e) => { setOrderNumber(e.target.value); touch('orderNumber'); }}
-            hint={svc?.requiresOrderNumber ? `${t('xj.orderRequired')} ${t('xj.orderHint')}` : t('xj.orderHint')} autoComplete="off" />
+          {!options.showMoney && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('xj.clientHidden', { client: options.operation.name })}</p>}
+          <TextField label={t('xj.orderNumber', { client: options.operation.name })} required={svc?.requiresOrderNumber} className={aiClass('orderNumber')} value={orderNumber} onChange={(e) => { setOrderNumber(e.target.value); touch('orderNumber'); }}
+            hint={svc?.requiresOrderNumber ? `${t('xj.orderRequired')} ${t('xj.orderHint', { client: options.operation.name })}` : t('xj.orderHint', { client: options.operation.name })} autoComplete="off" />
           <TextField label={t('xj.note')} required={svc?.requiresNote} className={aiClass('note')} value={note} onChange={(e) => { setNote(e.target.value); touch('note'); }} hint={t('xj.noteHint')} />
           <FormError>{error}</FormError>
           <Button type="submit" variant="primary" size="lg" disabled={busy} style={{ width: '100%' }}>{t('xj.save')}</Button>

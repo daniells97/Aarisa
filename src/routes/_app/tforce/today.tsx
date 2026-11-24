@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, saveSortCodes, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
@@ -113,10 +113,26 @@ function TodayPage() {
     return t(`td.src.${r.source}` as MessageKey, { time });
   };
 
-  // Shortcuts on today's person (not a contractor): notes and loans, extra job.
+  // A driver code off the list from now on, with Undo; "Add driver" with the same code brings it back.
+  const removeRoute = async (r: Row) => {
+    const res = await setRouteListed({ data: { routeId: r.routeId, active: false } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.routeRemoved', { route: r.code }), async () => {
+      const u = await setRouteListed({ data: { routeId: r.routeId, active: true } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
+
+  // Shortcuts on today's person (not a contractor): notes and loans, extra job; and taking the row off.
   const actions = (r: Row) => r.today.driverId && r.today.name ? (
     <PersonActions driverId={r.today.driverId} name={r.today.name} date={day.date} openNotes={day.ledger[r.today.driverId]?.openNotes}
-      owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra} />
+      owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra}
+      onRemove={day.canEdit ? () => removeRoute(r) : undefined} removeLabel={t('td.removeRoute', { route: r.code })} />
+  ) : day.canEdit ? (
+    <span className="person-actions"><button type="button" className="link-btn" onClick={() => removeRoute(r)} aria-label={t('td.removeRoute', { route: r.code })}>{t('pa.remove')}</button></span>
   ) : null;
 
   const s = day.summary;

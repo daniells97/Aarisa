@@ -4,7 +4,8 @@ import { and, eq } from 'drizzle-orm';
 import { auditLog, routes } from '~/db/schema';
 import { actorAs, withRollback, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
-import { addRoute, assignNewDriver, loadDay } from './daily';
+import { addRoute, assignNewDriver, loadDay, setAssignment, setRouteOnList } from './daily';
+import { drivers } from '~/db/schema';
 
 const DATE = '2026-09-03';
 
@@ -52,5 +53,30 @@ describe("adding routes and drivers from Today's drivers (server)", () => {
         await expect(addRoute(tx, actorAs(role), { date: DATE, code: '9000P', payee: { newDriverName: 'X Y' } })).rejects.toBeInstanceOf(ForbiddenError);
         await expect(assignNewDriver(tx, actorAs(role), { date: DATE, routeId: a!.id, fullName: 'X Y' })).rejects.toBeInstanceOf(ForbiddenError);
       }
+    }));
+
+  it('a driver code can be taken off the list and comes back (Undo, or Add driver with the same code)', () =>
+    withRollback(async (tx) => {
+      const d = actorAs('dispatcher');
+      const day = await loadDay(tx, d, DATE);
+      const a = day.rows.find((x) => x.code === '9000A')!;
+      await expect(setRouteOnList(tx, actorAs('finance'), { routeId: a.routeId, active: false })).rejects.toBeInstanceOf(ForbiddenError);
+      await setRouteOnList(tx, d, { routeId: a.routeId, active: false });
+      expect((await loadDay(tx, d, DATE)).rows.find((x) => x.code === '9000A')).toBeUndefined();
+      const norwin = (await driverNamed(tx, 'Norwin Saloman'))!;
+      const back = await addRoute(tx, d, { date: DATE, code: '9000A', payee: { driverId: norwin.id } });
+      expect(back).toMatchObject({ id: a.routeId, active: true, usualDriverId: norwin.id });
+      expect((await loadDay(tx, d, DATE)).rows.find((x) => x.code === '9000A')).toMatchObject({ status: 'confirmed', today: { name: 'Norwin Saloman' } });
+    }));
+
+  it('the picker also offers people not on T-Force, and picking one puts them on T-Force', () =>
+    withRollback(async (tx) => {
+      const d = actorAs('dispatcher');
+      const norwin = (await driverNamed(tx, 'Norwin Saloman'))!;
+      await tx.update(drivers).set({ worksTforce: false }).where(eq(drivers.id, norwin.id));
+      const day = await loadDay(tx, d, DATE);
+      expect(day.options.drivers.find((x) => x.id === norwin.id)).toMatchObject({ contractor: 'Hovership' });
+      await setAssignment(tx, d, { date: DATE, routeId: day.rows[0]!.routeId, payee: { driverId: norwin.id } });
+      expect((await driverProfile(tx, norwin.id, DATE))!.worksTforce).toBe(true);
     }));
 });

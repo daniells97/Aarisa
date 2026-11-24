@@ -6,7 +6,7 @@ import { read, run } from './fn';
 import { requireSignedIn } from './auth';
 import { importHovership, latestHovershipWeek, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
 import { classifyOtherRevenue } from './revenue';
-import { confirmUsualHovership, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
+import { addHovershipPerson, setOnHovership, confirmUsualHovership, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 // Any contract whose report names the driver; omitted = the first one (Hovership).
@@ -76,3 +76,11 @@ export const unconfirmHovershipUsual = createServerFn({ method: 'POST' })
 export const saveHovershipUsual = createServerFn({ method: 'POST' })
   .validator(z.object({ driverId: z.string().uuid(), sortCodeIds: z.array(z.string().uuid()).max(20), operation }))
   .handler(({ data }) => run('setup.edit', (tx, actor) => setHovershipUsual(tx, actor, data)));
+
+export const addHovershipDriver = createServerFn({ method: 'POST' })
+  .validator(z.union([z.object({ driverId: z.string().uuid() }), z.object({ newName: z.string().min(1).max(120) })]))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => addHovershipPerson(tx, actor, data)));
+
+export const setHovershipDriverOnList = createServerFn({ method: 'POST' })
+  .validator(z.object({ driverId: z.string().uuid(), on: z.boolean() }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => setOnHovership(tx, actor, data.driverId, data.on)));

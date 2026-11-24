@@ -7,7 +7,7 @@ import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
 import { audit, type AuditEntry } from './audit';
 import { RuleError } from './errors';
-import { assertNotLocked, getOperationById, operationFor, rateRows as rateRows_ } from './ops';
+import { assertNotLocked, getOperationById, listOperations, operationFor, rateRows as rateRows_ } from './ops';
 import { extraDay } from './executions';
 import { contractorProfiles, driverProfiles, payeeNameMaps } from './people';
 
@@ -16,6 +16,15 @@ import { contractorProfiles, driverProfiles, payeeNameMaps } from './people';
 
 /** Services the seed starts with, in the order the form shows them; services added in Drivers and rates follow, "other" last. */
 export const BASE_EXTRA_SERVICES = ['recovery_route', 'pickup', 'grainger'] as const;
+
+/** Contracts that have extra-job services, for the T-Force | Hovership tabs on Extra jobs. */
+async function extraContracts(tx: Tx) {
+  // Daily-list contracts (T-Force) first, as on Today's drivers.
+  const ops = (await listOperations(tx)).sort((a, b) => Number(a.driverSource !== 'daily_list') - Number(b.driverSource !== 'daily_list'));
+  const out: { code: string; name: string }[] = [];
+  for (const o of ops) if ((await extraServices(tx, o.id)).length) out.push({ code: o.code, name: o.name });
+  return out;
+}
 
 /** Active extra-job services of an operation (unit `job`, not from a report), in display order. */
 export async function extraServices(tx: Tx, operationId: string) {
@@ -154,6 +163,8 @@ export async function listExtraJobs(tx: Tx, actor: Actor, from: string, to: stri
   const dName = names?.driver ?? new Map<string, string>();
   const cName = names?.contractor ?? new Map<string, string>();
   return {
+    operation: { code: op.code, name: op.name },
+    contracts: await extraContracts(tx),
     showMoney,
     canLog: can(actor.role, 'extra_jobs.log'),
     jobs: rows.map(({ job, service, route, by }) => ({
@@ -174,6 +185,8 @@ export async function extraJobOptions(tx: Tx, actor: Actor, today = todayLA(), o
   const showMoney = can(actor.role, 'money.view');
   const rateRows = await rateRows_(tx, services.map((x) => x.id));
   return {
+    operation: { code: op.code, name: op.name },
+    contracts: await extraContracts(tx),
     showMoney,
     services: services.map((x) => {
       const r = rateFor(rateRows, x.id, null, null, today);

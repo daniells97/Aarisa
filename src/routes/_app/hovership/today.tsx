@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, unconfirmHovershipUsual } from '~/server/hovership-fns';
-import { Button, Icon, PageHead, Panel, Pill, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
+import { addHovershipDriver, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
+import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { SortCodes } from '~/ui/SortCodes';
@@ -36,6 +37,7 @@ function HovershipTodayPage() {
   const dateLabel = f.date(day.date, { weekday: 'short', month: 'short', day: 'numeric' });
   const time = (at: string) => new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(at));
   const s = day.summary;
+  const [adding, setAdding] = useState(false);
 
   const confirm = async () => {
     const res = await confirmHovershipUsual({ data: { date: day.date } });
@@ -48,6 +50,19 @@ function HovershipTodayPage() {
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
     toast(t('hd.unconfirmedAll', { count: res.value }));
+  };
+
+  // Off the list with Undo: it changes the person's platform, never what they already worked.
+  const remove = async (r: Row) => {
+    const res = await setHovershipDriverOnList({ data: { driverId: r.driverId, on: false } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('hd.removed', { name: r.name }), async () => {
+      const u = await setHovershipDriverOnList({ data: { driverId: r.driverId, on: true } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
   };
 
   const routesOf = (r: Row) => (
@@ -70,7 +85,8 @@ function HovershipTodayPage() {
     <>
       <strong>{r.name}</strong>{r.code && <span className="muted"> · {r.code}</span>}
       <span className="sub">{about(r)}</span>
-      <PersonActions driverId={r.driverId} name={r.name} date={day.date} openNotes={r.openNotes} owedCents={r.owedCents} canLogExtra={day.canLogExtra} />
+      <PersonActions driverId={r.driverId} name={r.name} date={day.date} op={day.operation.code} openNotes={r.openNotes} owedCents={r.owedCents} canLogExtra={day.canLogExtra}
+        onRemove={day.canEdit ? () => remove(r) : undefined} />
     </>
   );
 
@@ -84,7 +100,8 @@ function HovershipTodayPage() {
               <span className="num">{dateLabel}</span>
               <Link to="/hovership/today" search={{ date: addDays(day.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
-            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+            {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('hd.addPerson')}</Button>}
+            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, op: day.operation.code }} className={buttonClass()}>{t('td.logExtra')}</Link>}
           </div>
         } />
       <DayTabs current="hovership" date={day.date} />
@@ -158,6 +175,50 @@ function HovershipTodayPage() {
           </Panel>
         </div>
       </div>
+      {adding && <AddPersonDialog day={day} onClose={() => setAdding(false)} />}
     </>
+  );
+}
+
+/** Someone already in the portal, or a new name typed in the same picker (created on the spot). */
+function AddPersonDialog({ day, onClose }: { day: Day; onClose: () => void }) {
+  const t = useT();
+  const router = useRouter();
+  const toast = useToast();
+  const [who, setWho] = useState<{ driverId: string } | { newName: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const options = { drivers: day.options.others, contractors: [] };
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!who) return setError(t('td.choosePerson'));
+    setBusy(true);
+    try {
+      const res = await addHovershipDriver({ data: who });
+      if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
+      toast(t(res.value.created ? 'hd.addedNew' : 'hd.added', { name: res.value.name }));
+      await router.invalidate();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open onClose={onClose} title={t('hd.addPersonTitle', { client: day.operation.name })}>
+      <form onSubmit={submit} className="stack">
+        <div className="field">
+          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)' }}>{t('hd.person')}</span>
+          <PersonPicker value={who && 'driverId' in who ? `d:${who.driverId}` : ''} options={options} label={t('hd.person')} allowNone={false}
+            placeholder={who && 'newName' in who ? who.newName : undefined}
+            onPick={(v) => setWho(v.startsWith('d:') ? { driverId: v.slice(2) } : null)} onCreate={(name) => setWho({ newName: name })} />
+          <span className="muted" style={{ fontSize: 13.5 }}>{who && 'newName' in who ? t('picker.create', { name: who.newName }) : t('hd.addPersonHint')}</span>
+        </div>
+        <FormError>{error}</FormError>
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" variant="primary" disabled={busy}>{t('hd.addPerson')}</Button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

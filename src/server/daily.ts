@@ -119,8 +119,10 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       noDriver: rows.filter((r) => r.status === 'no_driver').length,
     },
     options: {
-      // Only people who work on T-Force (Drivers and rates → Platform); others still show by name if they were assigned.
-      drivers: driverRows.filter((d) => d.active && d.worksTforce).map((d) => ({ id: d.id, name: d.fullName, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : null })),
+      // People on T-Force first (Drivers and rates → Platform); the rest can still be picked, labelled with their
+      // platform, so nobody gets created twice. Picking one of them puts them on T-Force too.
+      drivers: [...driverRows.filter((d) => d.active && d.worksTforce), ...driverRows.filter((d) => d.active && !d.worksTforce)]
+        .map((d) => ({ id: d.id, name: d.fullName, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : d.worksTforce ? null : 'Hovership' })),
       contractors: contractorRows,
       sortCodes: sortCodeOptions,
     },
@@ -171,6 +173,7 @@ export async function assignRoute(tx: Tx, actor: Actor, input: { date: string; r
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
   const cols = payeeCols(input.payee);
+  if (cols.driverId) await putOnTforce(tx, actor, cols.driverId);
   const usual = usualOf(route, await ownerOn(tx, route.id, input.date));
   const status: DayStatus = !cols.driverId && !cols.contractorId ? 'no_driver' : samePayee(cols, usual) ? 'confirmed' : 'changed';
   const { before, after } = await writeAssignment(tx, actor, input.date, input.routeId, { ...cols, status });
@@ -245,19 +248,49 @@ export async function addRoute(tx: Tx, actor: Actor, input: { date: string; code
   if (!/^[A-Z0-9-]{2,12}$/.test(code)) throw new RuleError('route_code_invalid');
   const op = await operationFor(tx, input.operation, 'daily_list');
   await assertNotLocked(tx, op, input.date);
-  const [clash] = await tx.select({ id: routes.id, active: routes.active }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.code, code)));
-  if (clash) throw new RuleError(clash.active ? 'route_exists' : 'route_inactive');
+  const [clash] = await tx.select().from(routes).where(and(eq(routes.operationId, op.id), eq(routes.code, code)));
+  if (clash?.active) throw new RuleError('route_exists');
 
   let payee: { driverId: string } | { contractorId: string };
   if ('newDriverName' in input.payee) payee = { driverId: (await createQuickDriver(tx, actor, input.payee.newDriverName, null)).id };
   else payee = input.payee;
   const cols = payeeCols(payee);
   if (cols.driverId && !(await tx.select({ id: drivers.id }).from(drivers).where(eq(drivers.id, cols.driverId))).length) throw new RuleError('not_found');
+  if (cols.driverId) await putOnTforce(tx, actor, cols.driverId);
   if (cols.contractorId && !(await tx.select({ id: contractors.id }).from(contractors).where(eq(contractors.id, cols.contractorId))).length) throw new RuleError('not_found');
 
-  const route = await createRoute(tx, actor, { operationId: op.id, code, contractorId: cols.contractorId, usualDriverId: cols.driverId });
+  // A driver code taken off the list earlier comes back with its history; the person becomes its usual driver.
+  const route = clash ? await reactivate(tx, actor, clash, cols.driverId) : await createRoute(tx, actor, { operationId: op.id, code, contractorId: cols.contractorId, usualDriverId: cols.driverId });
   await writeAssignment(tx, actor, input.date, route.id, { ...cols, status: 'confirmed' });
   return route;
+}
+
+/** Someone given a T-Force driver code works on T-Force from now on (Drivers and rates → Platform). */
+async function putOnTforce(tx: Tx, actor: Actor, driverId: string) {
+  const [before] = await tx.select().from(drivers).where(eq(drivers.id, driverId));
+  if (!before || before.worksTforce) return;
+  const [after] = await tx.update(drivers).set({ worksTforce: true }).where(eq(drivers.id, driverId)).returning();
+  await audit(tx, { table: 'drivers', recordId: driverId, action: 'update', before, after, userId: actor.userId, source: actor.source });
+}
+
+async function reactivate(tx: Tx, actor: Actor, before: typeof routes.$inferSelect, usualDriverId: string | null) {
+  const [after] = await tx.update(routes).set({ active: true, ...(usualDriverId ? { usualDriverId } : {}) }).where(eq(routes.id, before.id)).returning();
+  await audit(tx, { table: 'routes', recordId: before.id, action: 'update', before, after, userId: actor.userId, source: actor.source });
+  return after!;
+}
+
+/**
+ * Takes a driver code off Today's drivers from now on (it can be added back with "Add driver", or undone).
+ * Days already worked keep it; that day's assignment, if any, is left as it was.
+ */
+export async function setRouteOnList(tx: Tx, actor: Actor, input: { routeId: string; active: boolean }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const [before] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
+  if (!before) throw new RuleError('not_found');
+  if (before.active === input.active) return before;
+  const [after] = await tx.update(routes).set({ active: input.active }).where(eq(routes.id, before.id)).returning();
+  await audit(tx, { table: 'routes', recordId: before.id, action: 'update', before, after, userId: actor.userId, source: actor.source });
+  return after!;
 }
 
 /** Assigns someone typed in the driver picker who isn't on the list: creates them, then assigns. */

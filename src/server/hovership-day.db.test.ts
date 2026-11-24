@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { actorAs, withRollback } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
-import { confirmUsualHovership, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
+import { addHovershipPerson, setOnHovership, confirmUsualHovership, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
 import { periodFor } from '~/domain/periods';
 import { getOperation } from './ops';
 import { loadRun } from './payroll';
@@ -66,5 +66,25 @@ describe("Today's drivers for Hovership", () => {
       expect(await row(a!.driverId)).toMatchObject({ status: 'proposed', suggested: true });
       expect(await row(b!.driverId)).toMatchObject({ status: 'changed' });
       expect(await row(c!.driverId)).toMatchObject({ status: 'off' });
+    }));
+
+  it('people are added (existing, or new from the same picker) and taken off the list', () =>
+    withRollback(async (tx) => {
+      const d = actorAs('dispatcher');
+      const first = (await loadHovershipDay(tx, d, DATE)).rows[0]!;
+      await setOnHovership(tx, d, first.driverId, false);
+      const day = await loadHovershipDay(tx, d, DATE);
+      const other = day.options.others.find((o) => o.id === first.driverId)!;
+      expect(day.rows.some((r) => r.driverId === first.driverId)).toBe(false);
+      await addHovershipPerson(tx, d, { driverId: other.id });
+      expect((await loadHovershipDay(tx, d, DATE)).rows.some((r) => r.driverId === other.id)).toBe(true);
+      const made = await addHovershipPerson(tx, d, { newName: 'Zoe Testperson' });
+      expect(made.created).toBe(true);
+      const row = (await loadHovershipDay(tx, d, DATE)).rows.find((r) => r.driverId === made.driverId);
+      expect(row).toMatchObject({ name: 'Zoe Testperson', status: 'none' });
+      await expect(addHovershipPerson(tx, d, { newName: 'Zoe Testperson' })).rejects.toMatchObject({ code: 'driver_exists' });
+      await setOnHovership(tx, d, made.driverId, false);
+      expect((await loadHovershipDay(tx, d, DATE)).rows.some((r) => r.driverId === made.driverId)).toBe(false);
+      await expect(setOnHovership(tx, actorAs('viewer'), made.driverId, true)).rejects.toBeInstanceOf(ForbiddenError);
     }));
 });

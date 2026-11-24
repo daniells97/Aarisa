@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import {
-  auditLog, driverUsualSortCodes, exceptions, executionSortCodes, executionView, otherRevenues, payAdjustments, routeExecutions, sortCodes, users, workRecords,
+  auditLog, drivers, driverUsualSortCodes, exceptions, executionSortCodes, executionView, otherRevenues, payAdjustments, routeExecutions, sortCodes, users, workRecords,
 } from '~/db/schema';
 import { can } from '~/domain/permissions';
 import { todayLA } from '~/domain/dates';
@@ -11,7 +11,7 @@ import { ledgerByDriver } from './driver-ledger';
 import { RuleError } from './errors';
 import { payeeIdOf } from './executions';
 import { assertNotLocked, operationFor } from './ops';
-import { driverProfiles } from './people';
+import { createDriver, driverProfiles } from './people';
 
 // Today's drivers for Hovership: which routes (sort codes) each Hovership driver runs on a day. Hovership's
 // report already names the driver, so there is no driver code; Aarisa assigns the routes by hand. It works
@@ -43,7 +43,8 @@ async function daysOn(tx: Tx, operationId: string, date: string) {
 export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'payroll.view');
   const op = await operationFor(tx, operation, 'report_code');
-  const people = (await driverProfiles(tx, date)).filter((d) => d.active && d.worksHovership);
+  const everyone = await driverProfiles(tx, date);
+  const people = everyone.filter((d) => d.active && d.worksHovership);
   const days = await daysOn(tx, op.id, date);
   const dayOf = new Map(days.filter((d) => d.payeeDriverId).map((d) => [d.payeeDriverId!, d]));
   const ran = days.length ? await tx.select({ executionId: executionSortCodes.executionId, id: sortCodes.id, code: sortCodes.code })
@@ -86,7 +87,8 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
     canEdit: can(actor.role, 'drivers.confirm_today'),
     canLogExtra: can(actor.role, 'extra_jobs.log'),
     rows,
-    options: { sortCodes: options },
+    // People not on the list yet, for "Add person".
+    options: { sortCodes: options, others: everyone.filter((d) => d.active && !d.worksHovership).map((d) => ({ id: d.id, name: d.fullName })) },
     summary: {
       drivers: rows.length,
       working: rows.filter((r) => r.sortCodes.length > 0 && r.status !== 'off').length,
@@ -207,4 +209,33 @@ async function saveUsual(tx: Tx, actor: Actor, driverId: string, wanted: string[
   await tx.delete(driverUsualSortCodes).where(eq(driverUsualSortCodes.driverId, driverId));
   if (wanted.length) await tx.insert(driverUsualSortCodes).values(wanted.map((sortCodeId) => ({ driverId, sortCodeId, createdBy: actor.userId })));
   await audit(tx, { table: 'driver_usual_sort_codes', recordId: driverId, action: 'update', before: { sortCodeIds: before }, after: { sortCodeIds: wanted }, userId: actor.userId, source: actor.source });
+}
+
+/**
+ * Adds someone to Today's drivers for Hovership: a person already in the portal is marked as working on
+ * Hovership; a typed name that isn't there yet is created on the spot (marked "Finish setup" for the owner).
+ */
+export async function addHovershipPerson(tx: Tx, actor: Actor, input: { driverId: string } | { newName: string }) {
+  assertCan(actor, 'drivers.confirm_today');
+  if ('newName' in input) {
+    const d = await createDriver(tx, actor, {
+      fullName: input.newName, contractorId: null, hovershipCode: null, phone: null, aliases: [], active: true, setupComplete: false,
+      worksTforce: false, worksHovership: true,
+    }, todayLA());
+    return { driverId: d.id, name: d.fullName, created: true };
+  }
+  const [person] = await driverProfiles(tx, todayLA(), [input.driverId]);
+  if (!person) throw new RuleError('not_found');
+  await setOnHovership(tx, actor, person.id, true);
+  return { driverId: person.id, name: person.fullName, created: false };
+}
+
+/** Takes someone off Today's drivers for Hovership (or puts them back): their platform, not their history. */
+export async function setOnHovership(tx: Tx, actor: Actor, driverId: string, on: boolean) {
+  assertCan(actor, 'drivers.confirm_today');
+  const [before] = await tx.select().from(drivers).where(eq(drivers.id, driverId));
+  if (!before) throw new RuleError('not_found');
+  if (before.worksHovership === on) return;
+  const [after] = await tx.update(drivers).set({ worksHovership: on }).where(eq(drivers.id, driverId)).returning();
+  await audit(tx, { table: 'drivers', recordId: driverId, action: 'update', before, after, userId: actor.userId, source: actor.source });
 }
