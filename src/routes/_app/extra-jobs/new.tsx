@@ -9,7 +9,7 @@ import { ExtraJobTabs } from '~/ui/ExtraJobTabs';
 import { Button, FormError, Icon, PageHead, Panel, SelectField, TextField, WarningDiamond, centsToInput, parseAmount, useToast } from '~/ui';
 
 export const Route = createFileRoute('/_app/extra-jobs/new')({
-  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), draft: z.string().optional(), payee: z.string().regex(/^[dc]:[0-9a-f-]{36}$/).optional(), op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional() }),
+  validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), draft: z.string().optional(), payee: z.string().regex(/^[dc]:[0-9a-f-]{36}$/).optional(), op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional(), from: z.enum(['today']).optional() }),
   loaderDeps: ({ search }) => ({ draft: search.draft, op: search.op }),
   loader: async ({ deps }) => ({
     options: await getExtraJobOptions({ data: { operation: deps.op } }),
@@ -28,7 +28,7 @@ function ExtraJobForm() {
   const t = useT();
   const locale = useLocale();
   const { options, draft: draftRes } = Route.useLoaderData();
-  const { date: initialDate, payee: initialPayee } = Route.useSearch();
+  const { date: initialDate, payee: initialPayee, from } = Route.useSearch();
   const draft = draftRes?.ok ? draftRes.value : null;
   const ai = draft?.fields;
   // Fields the AI filled in are tinted green until the person changes them (design 6.6).
@@ -41,6 +41,11 @@ function ExtraJobForm() {
   const clientUuid = useMemo(() => crypto.randomUUID(), []);
   const [service, setService] = useState(ai?.service ?? options.services[0]?.code ?? 'recovery_route');
   const [date, setDate] = useState(ai?.date ?? initialDate ?? todayLA());
+  // Opened from Today's drivers: closing or saving goes back there; otherwise to the Extra jobs list.
+  const code = options.operation.code;
+  const back = from === 'today'
+    ? code === 'hovership' ? { to: '/hovership/today' as const, search: { date } } : { to: '/tforce/today' as const, search: code === 'tforce' ? { date } : { date, op: code } }
+    : { to: '/extra-jobs' as const, search: { date, op: code } };
   const [nearRouteId, setNearRoute] = useState(ai?.nearRouteId ?? '');
   const [payee, setPayee] = useState(ai?.payee ?? initialPayee ?? '');
   const defaults = (code: string) => options.services.find((x) => x.code === code);
@@ -78,7 +83,7 @@ function ExtraJobForm() {
       } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       toast(t(res.value.created ? 'xj.savedToast' : 'xj.alreadySaved'));
-      await navigate({ to: '/extra-jobs', search: { date, op: options.operation.code } });
+      await navigate(back);
     } catch {
       setError(t('error.generic'));
     } finally {
@@ -88,14 +93,15 @@ function ExtraJobForm() {
 
   return (
     <>
-      <PageHead title={t('xj.formTitle')} actions={<Link to="/extra-jobs" search={{ date, op: options.operation.code }} className="close-btn" aria-label={t('common.close')}><Icon name="close" width={20} height={20} /></Link>} />
+      {from === 'today' && <Link {...back} className="back-link">← {t('nav.todayDrivers')}</Link>}
+      <PageHead title={t('xj.formTitle')} actions={<Link {...back} className="close-btn" aria-label={t('common.close')}><Icon name="close" width={20} height={20} /></Link>} />
       {draftRes && !draftRes.ok && <p className="notice" role="alert" style={{ margin: 0 }}><WarningDiamond size={22} />{t(`error.${draftRes.code}` as MessageKey)}</p>}
       {draft && (
         <p className="notice notice-ai" style={{ margin: 0 }}>
           {t(draft.fromVoice ? 'xj.fromVoice' : 'xj.fromText', { time: new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(draft.at)) })}
         </p>
       )}
-      {!draft && <ExtraJobTabs to="/extra-jobs/new" contracts={options.contracts} current={options.operation.code} date={date} payee={initialPayee} />}
+      {!draft && <ExtraJobTabs to="/extra-jobs/new" contracts={options.contracts} current={options.operation.code} date={date} payee={initialPayee} from={from} />}
       {options.services.length === 0 && <p className="notice notice-info" style={{ margin: 0 }}>{t('xj.noServices', { client: options.operation.name })}</p>}
       <Panel>
         <form className="panel-body stack xj-form" style={{ paddingTop: 20 }} onSubmit={submit}>

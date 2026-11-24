@@ -22,7 +22,7 @@ export function PersonActions({ driverId, name, date, op, openNotes = 0, owedCen
       <button type="button" className="link-btn" onClick={() => setOpen(true)} aria-label={t('pa.fileFor', { name })}>
         {t('pa.file')}{flags.length > 0 && <span className="person-flags"> · {flags.join(' · ')}</span>}
       </button>
-      {canLogExtra && <Link to="/extra-jobs/new" search={{ date, payee: `d:${driverId}`, op }} className="link-btn" aria-label={t('pa.extraFor', { name })}>{t('pa.extra')}</Link>}
+      {canLogExtra && <Link to="/extra-jobs/new" search={{ date, payee: `d:${driverId}`, op, from: 'today' }} className="link-btn" aria-label={t('pa.extraFor', { name })}>{t('pa.extra')}</Link>}
       {onRemove && <button type="button" className="link-btn" onClick={onRemove} aria-label={removeLabel ?? t('pa.removeFor', { name })}>{t('pa.remove')}</button>}
       {open && <DriverFile driverId={driverId} name={name} onClose={() => setOpen(false)} />}
     </span>

@@ -401,3 +401,7 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .today-list .sort-add:has(.picker) { width: 150px; }
 .today-list td .pill { white-space: nowrap; }
 .today-list tr.new-record td:first-child .picker { min-width: 130px; width: 140px; }
+
+/* "← Today's drivers" above a form opened from the daily list */
+.back-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; color: var(--brand); text-decoration: none; align-self: flex-start; }
+.back-link:hover { text-decoration: underline; }

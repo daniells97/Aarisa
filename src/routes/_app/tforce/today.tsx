@@ -160,7 +160,7 @@ function TodayPage() {
               <Link to="/tforce/today" search={{ date: addDays(day.date, 1), op: day.operation.isDefault ? undefined : day.operation.code }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
             {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
-            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, from: 'today' }} className={buttonClass()}>{t('td.logExtra')}</Link>}
           </div>
         } />
       {day.operation.isDefault && <DayTabs current="tforce" date={day.date} />}

@@ -140,7 +140,7 @@ function HovershipTodayPage() {
               <Link to="/hovership/today" search={{ date: addDays(day.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
             {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
-            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, op: day.operation.code }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, op: day.operation.code, from: 'today' }} className={buttonClass()}>{t('td.logExtra')}</Link>}
           </div>
         } />
       <DayTabs current="hovership" date={day.date} />
