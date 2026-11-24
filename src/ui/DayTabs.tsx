@@ -7,7 +7,7 @@ export function DayTabs({ current, date }: { current: 'tforce' | 'hovership'; da
   const t = useT();
   const clientName = useClientName();
   return (
-    <nav className="tabs" aria-label={t('td.tabs')}>
+    <nav className="tabs tabs-contract" aria-label={t('td.tabs')}>
       <Link to="/tforce/today" search={{ date }} aria-current={current === 'tforce' ? 'page' : undefined}>{clientName('tforce')}</Link>
       <Link to="/hovership/today" search={{ date }} aria-current={current === 'hovership' ? 'page' : undefined}>{clientName('hovership')}</Link>
     </nav>

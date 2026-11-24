@@ -8,7 +8,7 @@ export function ExtraJobTabs({ to, contracts, current, date, payee }: {
   const t = useT();
   if (contracts.length < 2) return null;
   return (
-    <nav className="tabs" aria-label={t('xj.tabs')}>
+    <nav className="tabs tabs-contract" aria-label={t('xj.tabs')}>
       {contracts.map((c) => (
         <Link key={c.code} to={to} search={to === '/extra-jobs' ? { date, op: c.code } : { date, op: c.code, payee }} aria-current={c.code === current ? 'page' : undefined}>{c.name}</Link>
       ))}
