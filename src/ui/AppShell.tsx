@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import { can, type Role } from '~/domain/permissions';
 import { Icon, type IconName } from './icons';
 import { BrandLogo } from './BrandLogo';
 import { Badge } from './Pill';
+import { Sheet } from './Dialog';
 
 export interface ShellUser { name: string; role: Role }
 
@@ -68,42 +69,54 @@ export function AppShell({ user, children, badges = {}, operations = [] }: { use
   const currentOp = useRouterState({ select: (s) => (s.location.search as { op?: string }).op });
   const groups: NavGroup[] = [{ items: [{ to: '/', label: 'nav.overview', icon: 'home' }, { to: '/tforce/today', label: 'nav.todayDrivers', icon: 'calendar' }, { to: '/history', label: 'nav.history', icon: 'chart' }] }, ...operationGroups(operations), ...fixedGroups];
   const active = (i: NavItem) => isActive(path, i.to) && (i.op ?? undefined) === (currentOp ?? undefined);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The same menu in the side bar (desktop) and in the phone's menu sheet (every screen, not only the tabs).
+  const navList = (onGo?: () => void) => groups.map((g, gi) => {
+    const items = g.items.filter((i) => !i.show || i.show(user.role));
+    if (!items.length) return null;
+    return (
+      <div key={gi} style={{ display: 'contents' }}>
+        {(g.label || g.title) && <div className="side-group">{g.title ?? t(g.label!)}</div>}
+        {items.map((i) => (
+          <Link key={`${i.to}${i.op ?? ''}`} to={i.to} search={(i.op ? { op: i.op } : {}) as never} activeOptions={{ exact: true, includeSearch: false }} aria-current={active(i) ? 'page' : undefined} onClick={onGo}>
+            <Icon name={i.icon} />{t(i.label)}
+            <Badge count={badges[i.to] ?? 0} label={String(badges[i.to] ?? 0)} />
+          </Link>
+        ))}
+      </div>
+    );
+  });
   return (
     <div className="shell">
       <aside className="side">
         <Link to="/" className="side-brand" aria-label={t('nav.overview')}><BrandLogo height={58} /></Link>
-        <nav aria-label={t('nav.main')}>
-          {groups.map((g, gi) => {
-            const items = g.items.filter((i) => !i.show || i.show(user.role));
-            if (!items.length) return null;
-            return (
-              <div key={gi} style={{ display: 'contents' }}>
-                {(g.label || g.title) && <div className="side-group">{g.title ?? t(g.label!)}</div>}
-                {items.map((i) => (
-                  <Link key={`${i.to}${i.op ?? ''}`} to={i.to} search={(i.op ? { op: i.op } : {}) as never} activeOptions={{ exact: true, includeSearch: false }} aria-current={active(i) ? 'page' : undefined}>
-                    <Icon name={i.icon} />{t(i.label)}
-                    <Badge count={badges[i.to] ?? 0} label={String(badges[i.to] ?? 0)} />
-                  </Link>
-                ))}
-              </div>
-            );
-          })}
-        </nav>
-        <div className="side-user">
-          <span className="avatar" aria-hidden="true">{initials(user.name)}</span>
-          <span style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: 600, fontSize: 14.5 }}>{user.name}</span>
-            <span className="muted" style={{ fontSize: 13 }}>{t(`role.${user.role}`)}</span>
-          </span>
-          <a href="/auth/logout" className="btn btn-sm" aria-label={t('nav.signOut')} style={{ width: 44, padding: 0 }}>
-            <Icon name="signOut" width={19} height={19} />
-          </a>
-        </div>
+        <nav aria-label={t('nav.main')}>{navList()}</nav>
       </aside>
       <main className="content" id="main">
-        <div className="phone-brand"><BrandLogo variant="horizontal" height={34} /></div>
+        {/* Top bar: the logo on a phone (no side menu there), and who is signed in, top right. */}
+        <div className="topbar">
+          <Link to="/" className="phone-brand" aria-label={t('nav.overview')}><BrandLogo variant="horizontal" height={34} /></Link>
+          <div className="top-user">
+            <span className="avatar" aria-hidden="true">{initials(user.name)}</span>
+            <span className="top-user-text">
+              <span style={{ fontWeight: 600, fontSize: 14.5 }}>{user.name}</span>
+              <span className="muted" style={{ fontSize: 13 }}>{t(`role.${user.role}`)}</span>
+            </span>
+            <a href="/auth/logout" className="btn btn-sm" aria-label={t('nav.signOut')} title={t('nav.signOut')} style={{ width: 44, padding: 0 }}>
+              <Icon name="signOut" width={19} height={19} />
+            </a>
+            <button type="button" className="btn btn-sm menu-btn" onClick={() => setMenuOpen(true)} aria-label={t('nav.menu')} title={t('nav.menu')}>
+              <Icon name="menu" width={20} height={20} />
+            </button>
+          </div>
+        </div>
         {children}
       </main>
+      {menuOpen && (
+        <Sheet open onClose={() => setMenuOpen(false)} title={t('nav.menu')}>
+          <nav className="menu-sheet" aria-label={t('nav.main')}>{navList(() => setMenuOpen(false))}</nav>
+        </Sheet>
+      )}
       <nav className="tabbar" aria-label={t('nav.main')}>
         {tabs.map((i) => (
           <Link key={i.to} to={i.to} activeOptions={{ exact: true, includeSearch: false }} aria-current={isActive(path, i.to) ? 'page' : undefined}>

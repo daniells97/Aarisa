@@ -2,6 +2,7 @@
 export const en = {
   'app.name': 'Aarisa',
   'nav.main': 'Main',
+  'nav.menu': 'Menu',
   'nav.overview': 'Overview',
   'nav.group.tforce': 'T-Force',
   'nav.group.hovership': 'Hovership',

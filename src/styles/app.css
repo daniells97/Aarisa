@@ -30,7 +30,9 @@ h1, h2, h3 { font-family: var(--font-cond); font-weight: 600; margin: 0; line-he
 .side nav a[aria-current='page'] { background: var(--brand-tint); color: var(--brand); font-weight: 600; box-shadow: inset 3px 0 0 var(--brand-red); }
 .side svg { width: 19px; height: 19px; flex: none; }
 .side-group { font-size: 13px; color: var(--ink-4); font-weight: 500; padding: 14px 12px 4px; }
-.side-user { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 12px 8px 0; border-top: 1px solid var(--line-soft); }
+.topbar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin: -12px 0 -8px; }
+.top-user { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.top-user-text { display: flex; flex-direction: column; line-height: 1.25; text-align: right; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex: none; }
 .content { flex: 999 1 560px; min-width: 0; padding: 32px clamp(24px, 2.6vw, 56px) 56px; display: flex; flex-direction: column; gap: 24px; }
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
@@ -40,7 +42,9 @@ h1, h2, h3 { font-family: var(--font-cond); font-weight: 600; margin: 0; line-he
 
 @media (max-width: 899px) {
   .side { display: none; }
-  .phone-brand { display: flex; align-items: center; margin: -4px 0 4px; }
+  .phone-brand { display: flex; align-items: center; }
+  .topbar { justify-content: space-between; margin: -4px 0 4px; }
+  .top-user-text { display: none; } /* phone: initials and Sign out only */
   .content { padding: 20px 16px calc(var(--tabbar-h) + 32px); }
   .page-head h1 { font-size: 36px; }
   .tabbar { display: flex; position: fixed; inset: auto 0 0 0; height: var(--tabbar-h); background: var(--surface); border-top: 1px solid var(--line); padding: 0 8px env(safe-area-inset-bottom); z-index: 20; }
@@ -427,3 +431,12 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
   .today-buttons > .btn { white-space: normal; text-align: center; line-height: 1.15; min-height: 52px; padding-left: 6px; padding-right: 6px; }
   .today-buttons > .btn svg { display: none; }
 }
+
+/* Phone menu: every screen, in a sheet opened from the top bar. */
+.menu-btn { display: none; width: 44px; padding: 0; }
+.menu-sheet { display: flex; flex-direction: column; gap: 2px; }
+.menu-sheet a { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px; border-radius: 8px; color: var(--ink-2); text-decoration: none; font-weight: 500; font-size: 16px; }
+.menu-sheet a[aria-current='page'] { background: var(--brand-tint); color: var(--brand); font-weight: 600; box-shadow: inset 3px 0 0 var(--brand-red); }
+.menu-sheet svg { width: 20px; height: 20px; flex: none; }
+.menu-sheet .side-group { font-size: 13px; color: var(--ink-4); font-weight: 500; padding: 14px 12px 4px; }
+@media (max-width: 899px) { .menu-btn { display: inline-flex; align-items: center; justify-content: center; } }
