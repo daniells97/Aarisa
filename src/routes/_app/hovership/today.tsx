@@ -4,9 +4,10 @@ import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
 import { addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
-import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
+import { Button, Icon, PageHead, Panel, PersonPicker, Pill, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
+import { NewRecord } from '~/ui/NewRecord';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 
@@ -39,7 +40,9 @@ function HovershipTodayPage() {
   const dateLabel = f.date(day.date, { weekday: 'short', month: 'short', day: 'numeric' });
   const time = (at: string) => new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(at));
   const s = day.summary;
+  // The new-record line: open when the list is empty, or after "+ Add record".
   const [adding, setAdding] = useState(false);
+  const draftOpen = day.canEdit && (adding || day.rows.length === 0);
 
   const confirm = async () => {
     const res = await confirmHovershipUsual({ data: { date: day.date } });
@@ -136,7 +139,7 @@ function HovershipTodayPage() {
               <span className="num">{dateLabel}</span>
               <Link to="/hovership/today" search={{ date: addDays(day.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
-            {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('hd.addPerson')}</Button>}
+            {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
             {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, op: day.operation.code }} className={buttonClass()}>{t('td.logExtra')}</Link>}
           </div>
         } />
@@ -161,7 +164,7 @@ function HovershipTodayPage() {
 
       <div className="today-layout">
         <div className="today-list"><Panel>
-          {day.rows.length === 0 ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('hd.noPeople')}</p> : (
+          {day.rows.length === 0 && !draftOpen ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('hd.noPeople')}</p> : (
             <>
               <div className="table-wrap desktop-only">
                 <table>
@@ -175,6 +178,7 @@ function HovershipTodayPage() {
                         <td><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill></td>
                       </tr>
                     ))}
+                    {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="row" onCancel={() => setAdding(false)} />}
                   </tbody>
                 </table>
               </div>
@@ -191,12 +195,13 @@ function HovershipTodayPage() {
                     {actions(r)}
                   </li>
                 ))}
+                {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="card" onCancel={() => setAdding(false)} />}
               </ul>
             </>
           )}
-          {day.canEdit && (
+          {day.canEdit && !draftOpen && (
             <div className="list-add">
-              <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('hd.addPerson')}</Button>
+              <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>
             </div>
           )}
         </Panel></div>
@@ -220,50 +225,56 @@ function HovershipTodayPage() {
           </Panel>
         </div>
       </div>
-      {adding && <AddPersonDialog day={day} onClose={() => setAdding(false)} />}
     </>
   );
 }
 
-/** Someone already in the portal, or a new name typed in the same picker (created on the spot). */
-function AddPersonDialog({ day, onClose }: { day: Day; onClose: () => void }) {
+/**
+ * A new line on the list: who (someone in the portal, or a new name created on the spot) and their routes
+ * today. Saving puts them on the Hovership list, then sets the routes (the first ones become their usual).
+ */
+function HovershipRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabel: string; layout: 'row' | 'card'; onCancel: () => void }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [who, setWho] = useState<{ driverId: string } | { newName: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<{ id: string; code: string }[]>([]);
   const [busy, setBusy] = useState(false);
-  const options = { drivers: day.options.others, contractors: [] };
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
     if (!who) return setError(t('td.choosePerson'));
     setBusy(true);
     try {
       const res = await addHovershipDriver({ data: who });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
-      toast(t(res.value.created ? 'hd.addedNew' : 'hd.added', { name: res.value.name }));
+      if (routes.length) {
+        const r = await saveHovershipRoutes({ data: { date: day.date, driverId: res.value.driverId, sortCodeIds: routes.map((x) => x.id) } });
+        if (!r.ok) toast(t(`error.${r.code}` as MessageKey));
+      }
+      toast(t(res.value.created ? 'hd.addedNew' : 'hd.recordSaved', { name: res.value.name }));
+      setWho(null); setRoutes([]); setError(null);
       await router.invalidate();
-      onClose();
+    } catch {
+      setError(t('error.generic'));
     } finally {
       setBusy(false);
     }
   };
-  return (
-    <Dialog open onClose={onClose} title={t('hd.addPersonTitle', { client: day.operation.name })}>
-      <form onSubmit={submit} className="stack">
-        <div className="field">
-          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)' }}>{t('hd.person')}</span>
-          <PersonPicker value={who && 'driverId' in who ? `d:${who.driverId}` : ''} options={options} label={t('hd.person')} allowNone={false}
-            placeholder={who && 'newName' in who ? who.newName : undefined}
-            onPick={(v) => setWho(v.startsWith('d:') ? { driverId: v.slice(2) } : null)} onCreate={(name) => setWho({ newName: name })} />
-          <span className="muted" style={{ fontSize: 13.5 }}>{who && 'newName' in who ? t('picker.create', { name: who.newName }) : t('hd.addPersonHint')}</span>
-        </div>
-        <FormError>{error}</FormError>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>{t('hd.addPerson')}</Button>
-        </div>
-      </form>
-    </Dialog>
-  );
+  const allCodes = [...day.options.sortCodes, ...routes.filter((r) => !day.options.sortCodes.some((o) => o.id === r.id))];
+  const name = !who ? '' : 'newName' in who ? who.newName : day.options.others.find((o) => o.id === who.driverId)?.name ?? '';
+  const cells = [
+    <span key="code" className="muted">{'newName' in (who ?? {}) ? t('hd.newPerson') : '—'}</span>,
+    <PersonPicker key="who" value={who && 'driverId' in who ? `d:${who.driverId}` : ''} options={{ drivers: day.options.others, contractors: [] }}
+      label={t('hd.whoNew', { date: dateLabel })} placeholder={who && 'newName' in who ? who.newName : t('td.whoDrives')} allowNone={false}
+      onPick={(v) => v.startsWith('d:') && setWho({ driverId: v.slice(2) })} onCreate={(n) => setWho({ newName: n })} />,
+    <SortCodes key="routes" value={routes} options={allCodes} label={t('hd.routesOf', { name: name || '…', date: dateLabel })}
+      onChange={(ids) => setRoutes(ids.map((id) => allCodes.find((c) => c.id === id)!).filter(Boolean))}
+      onCreate={async (typed) => {
+        const res = await createSortCodeFromDay({ data: { operation: day.operation.code, code: typed } });
+        if (!res.ok) { toast(t(`error.${res.code}` as MessageKey)); return null; }
+        setRoutes((rs) => [...rs, { id: res.value.id, code: res.value.code }]);
+        return res.value.id;
+      }} />,
+  ];
+  return <NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} canSave={!!who} busy={busy} error={error} onSave={save} onCancel={onCancel} />;
 }

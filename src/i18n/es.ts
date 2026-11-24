@@ -1146,4 +1146,11 @@ export const es: Record<MessageKey, string> = {
   "td.createSortCodeNamed": "+ Crear ruta “{code}”",
   "td.sortCodeSearchOrCreate": "Escribe para buscar una ruta o crear una nueva",
   "td.sortCodeSearch": "Escribe para buscar una ruta",
+  "td.addRecord": "Agregar registro",
+  "td.saveRecord": "Guardar",
+  "td.recordNeeds": "Escribe el código del driver y quién lo maneja.",
+  "td.recordSaved": "{route} guardado con {name}. La siguiente línea está lista.",
+  "hd.recordSaved": "{name} guardado. La siguiente línea está lista.",
+  "hd.newPerson": "Nuevo",
+  "hd.whoNew": "Quién trabaja el {date}",
 };

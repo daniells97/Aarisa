@@ -389,3 +389,14 @@ tr.row-selected td { background: var(--brand-tint); }
 /* "+ Add driver" at the end of Today's drivers, also when the list is empty. */
 .list-add { padding: 12px 16px 16px; border-top: 1px solid var(--line-soft); }
 @media (max-width: 899px) { .list-add .btn { width: 100%; min-height: 44px; } }
+
+/* A new record typed into Today's drivers, like a new spreadsheet line. */
+tr.new-record td { background: var(--brand-tint); vertical-align: top; }
+li.new-record { background: var(--brand-tint); display: flex; flex-direction: column; gap: 10px; }
+.new-record-code { width: 110px; text-transform: uppercase; font-weight: 600; }
+.new-record-actions { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 899px) { .new-record-code { width: 100%; } .new-record-actions .btn { flex: 1; min-height: 44px; } .new-record-actions { display: flex; } }
+/* Today's drivers tables: narrower pickers so the status column fits beside the side panel. */
+.today-list td .picker { min-width: 170px; }
+.today-list .sort-add:has(.picker) { width: 150px; }
+.today-list td .pill { white-space: nowrap; }

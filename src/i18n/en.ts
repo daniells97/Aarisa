@@ -1144,6 +1144,13 @@ export const en = {
   "td.createSortCodeNamed": "+ Create route “{code}”",
   "td.sortCodeSearchOrCreate": "Type to find a route, or to create a new one",
   "td.sortCodeSearch": "Type to find a route",
+  "td.addRecord": "Add record",
+  "td.saveRecord": "Save",
+  "td.recordNeeds": "Type the driver code and who drives it.",
+  "td.recordSaved": "{route} saved with {name}. The next line is ready.",
+  "hd.recordSaved": "{name} saved. The next line is ready.",
+  "hd.newPerson": "New",
+  "hd.whoNew": "Who works on {date}",
 } as const;
 
 export type MessageKey = keyof typeof en;

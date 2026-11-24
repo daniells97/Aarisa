@@ -8,6 +8,7 @@ import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
+import { NewRecord } from '~/ui/NewRecord';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -39,7 +40,9 @@ function TodayPage() {
   const router = useRouter();
   const toast = useToast();
   const dateLabel = f.date(day.date, { weekday: 'short', month: 'short', day: 'numeric' });
-  const [addingRoute, setAddingRoute] = useState(false);
+  // The new-record line: open when the list is empty, or after "+ Add record".
+  const [adding, setAdding] = useState(false);
+  const draftOpen = day.canEdit && (adding || day.rows.length === 0);
 
   const change = async (r: Row, value: string) => {
     const payee = decode(value);
@@ -156,7 +159,7 @@ function TodayPage() {
               <span className="num">{dateLabel}</span>
               <Link to="/tforce/today" search={{ date: addDays(day.date, 1), op: day.operation.isDefault ? undefined : day.operation.code }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
-            {day.canEdit && <Button onClick={() => setAddingRoute(true)}><Icon name="plus" width={18} height={18} />{t('td.addRoute')}</Button>}
+            {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
             {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date }} className={buttonClass()}>{t('td.logExtra')}</Link>}
           </div>
         } />
@@ -176,7 +179,7 @@ function TodayPage() {
 
       <div className="today-layout">
         <div className="today-list"><Panel>
-          {day.rows.length === 0 ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('td.noRoutes', { client: day.operation.name })}</p> : (
+          {day.rows.length === 0 && !draftOpen ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('td.noRoutes', { client: day.operation.name })}</p> : (
             <>
               <div className="table-wrap desktop-only">
                 <table>
@@ -193,6 +196,7 @@ function TodayPage() {
                         </tr>
                       );
                     })}
+                    {draftOpen && <TforceRecord day={day} dateLabel={dateLabel} layout="row" onCancel={() => setAdding(false)} />}
                   </tbody>
                 </table>
               </div>
@@ -212,12 +216,13 @@ function TodayPage() {
                     </li>
                   );
                 })}
+                {draftOpen && <TforceRecord day={day} dateLabel={dateLabel} layout="card" onCancel={() => setAdding(false)} />}
               </ul>
             </>
           )}
-          {day.canEdit && (
+          {day.canEdit && !draftOpen && (
             <div className="list-add">
-              <Button onClick={() => setAddingRoute(true)}><Icon name="plus" width={18} height={18} />{t('hd.addPerson')}</Button>
+              <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>
             </div>
           )}
         </Panel></div>
@@ -253,7 +258,6 @@ function TodayPage() {
           </Panel>
         </div>
       </div>
-      {addingRoute && <AddRouteDialog day={day} dateLabel={dateLabel} onClose={() => setAddingRoute(false)} />}
     </>
   );
 }
@@ -300,59 +304,63 @@ function UnknownName({ row, day }: { row: Row; day: Day }) {
   );
 }
 
-function AddRouteDialog({ day, dateLabel, onClose }: { day: Day; dateLabel: string; onClose: () => void }) {
+/**
+ * A new line on the list: the driver code (new, or one taken off earlier), who drives it today and the routes.
+ * Saving adds the driver code with that person as its usual driver, confirmed for the day, then its routes.
+ */
+function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabel: string; layout: 'row' | 'card'; onCancel: () => void }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
   const [code, setCode] = useState('');
   const [who, setWho] = useState<{ value: string } | { newName: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<{ id: string; code: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const listId = `off-${layout}`;
   const whoName = !who ? null : 'newName' in who ? who.newName
     : who.value.startsWith('d:') ? day.options.drivers.find((d) => d.id === who.value.slice(2))?.name
       : day.options.contractors.find((c) => c.id === who.value.slice(2))?.name;
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!who || ('value' in who && !who.value)) return setError(t('td.choosePerson'));
+  const save = async () => {
+    if (!code.trim() || !who) return setError(t('td.recordNeeds'));
     const payee = 'newName' in who ? { newDriverName: who.newName }
       : who.value.startsWith('d:') ? { driverId: who.value.slice(2) } : { contractorId: who.value.slice(2) };
     setBusy(true);
     try {
       const res = await createRoute({ data: { date: day.date, code, payee, operation: day.operation.code } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
-      toast(t('td.routeAdded', { route: res.value.code, name: whoName ?? '' }));
+      if (routes.length) {
+        const r = await saveSortCodes({ data: { date: day.date, routeId: res.value.routeId, sortCodeIds: routes.map((x) => x.id) } });
+        if (!r.ok) toast(t(`error.${r.code}` as MessageKey));
+      }
+      toast(t('td.recordSaved', { route: res.value.code, name: whoName ?? '' }));
+      setCode(''); setWho(null); setRoutes([]); setError(null);
       await router.invalidate();
-      onClose();
+      setTimeout(() => document.getElementById(`new-code-${layout}`)?.focus(), 50);
     } catch {
       setError(t('error.generic'));
     } finally {
       setBusy(false);
     }
   };
-  return (
-    <Dialog open onClose={onClose} title={t('td.addRouteTitle', { date: dateLabel })}>
-      <form onSubmit={submit} className="stack">
-        <TextField label={t('td.routeCode')} hint={t('td.routeCodeHint')} required autoComplete="off" autoCapitalize="characters"
-          value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-        <div className="field">
-          <span id="who-label" style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)' }}>{t('td.whoDrives')}</span>
-          <PersonPicker
-            value={who && 'value' in who ? who.value : ''}
-            options={day.options}
-            label={t('td.whoDrives')}
-            placeholder={who && 'newName' in who ? who.newName : undefined}
-            allowNone={false}
-            onPick={(v) => setWho({ value: v })}
-            onCreate={(name) => setWho({ newName: name })}
-          />
-          <span className="muted" style={{ fontSize: 13.5 }}>{who && 'newName' in who ? t('picker.create', { name: who.newName }) : t('td.newRouteHint')}</span>
-        </div>
-        <FormError>{error}</FormError>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>{t('td.saveRoute')}</Button>
-        </div>
-      </form>
-    </Dialog>
-  );
+  const allCodes = [...day.options.sortCodes, ...routes.filter((r) => !day.options.sortCodes.some((o) => o.id === r.id))];
+  const cells = [
+    <span key="code">
+      <input id={`new-code-${layout}`} className="input new-record-code" aria-label={t('td.routeCode')} placeholder="9000X" autoComplete="off" autoCapitalize="characters"
+        list={listId} value={code} autoFocus={layout === 'row'} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+      <datalist id={listId}>{day.options.offList.map((c) => <option key={c} value={c} />)}</datalist>
+    </span>,
+    <PersonPicker key="who" value={who && 'value' in who ? who.value : ''} options={day.options} label={t('td.driverFor', { route: code || '…', date: dateLabel })}
+      placeholder={who && 'newName' in who ? who.newName : t('td.whoDrives')} allowNone={false}
+      onPick={(v) => setWho({ value: v })} onCreate={(name) => setWho({ newName: name })} />,
+    <SortCodes key="routes" value={routes} options={allCodes} label={t('td.sortCodesFor', { route: code || '…', date: dateLabel })}
+      onChange={(ids) => setRoutes(ids.map((id) => allCodes.find((c) => c.id === id)!).filter(Boolean))}
+      onCreate={async (typed) => {
+        const res = await createSortCodeFromDay({ data: { operation: day.operation.code, code: typed } });
+        if (!res.ok) { toast(t(`error.${res.code}` as MessageKey)); return null; }
+        setRoutes((rs) => [...rs, { id: res.value.id, code: res.value.code }]);
+        return res.value.id;
+      }} />,
+  ];
+  return <NewRecord cells={cells} layout={layout} canSave={!!code.trim() && !!who} busy={busy} error={error} onSave={save} onCancel={onCancel} />;
 }

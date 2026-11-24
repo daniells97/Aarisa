@@ -125,6 +125,8 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
         .map((d) => ({ id: d.id, name: d.fullName, contractor: d.contractorId ? cName.get(d.contractorId) ?? null : d.worksTforce ? null : 'Hovership' })),
       contractors: contractorRows,
       sortCodes: sortCodeOptions,
+      // Driver codes taken off the list: typing one in a new record brings it back with its history.
+      offList: (await tx.select({ code: routes.code }).from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, false))).orderBy(asc(routes.code))).map((r) => r.code),
     },
     changes,
   };
