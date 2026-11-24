@@ -4,7 +4,7 @@ import { useT } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
 import { MAX_RANGE_DAYS, historyRange, rangeTooLong, type HistoryPeriod } from '~/domain/history-range';
 import { getHistory } from '~/server/history-fns';
-import { Figures, Icon, PageHead, Panel, Pill, RoutePlate, SelectField, TextField, useFormat } from '~/ui';
+import { Figures, Icon, PageHead, Panel, Pill, RoutePlate, SelectField, TextField, buttonClass, useFormat } from '~/ui';
 import { useClientName } from '~/ui/ClientNames';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -56,7 +56,7 @@ function HistoryPage() {
       <PageHead title={t('hi.title')} lead={t('hi.lead')} />
 
       <Panel>
-        <div className="panel-body stack">
+        <div className="panel-body stack" style={{ paddingTop: 20 }}>
           <div className="row" style={{ alignItems: 'flex-end' }}>
             <nav className="seg" aria-label={t('hi.period')}>
               {(['day', 'week', 'month', 'range'] as const).map((p) => (
@@ -94,7 +94,15 @@ function HistoryPage() {
               </SelectField>
             )}
           </div>
-          <p className="muted" style={{ margin: 0 }}>{rangeLabel}{range.cut ? ` · ${t('hi.cut', { days: MAX_RANGE_DAYS })}` : ''}</p>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <p className="muted" style={{ margin: 0 }}>{rangeLabel}{range.cut ? ` · ${t('hi.cut', { days: MAX_RANGE_DAYS })}` : ''}</p>
+            {data.rows.length > 0 && (
+              <a className={buttonClass()} title={t('hi.downloadHint')} download
+                href={`/history-export?${new URLSearchParams({ from: range.from, to: range.to, ...(s.op ? { op: s.op } : {}), ...(s.driver ? { driver: s.driver } : {}), ...(s.code ? { code: s.code } : {}) })}`}>
+                <Icon name="file" width={18} height={18} />{t('hi.download')}
+              </a>
+            )}
+          </div>
         </div>
       </Panel>
 

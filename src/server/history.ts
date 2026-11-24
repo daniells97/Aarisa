@@ -13,7 +13,7 @@ import { contractorProfiles, driverProfiles } from './people';
 
 const MAX_ROWS = 1000;
 
-export async function loadHistory(tx: Tx, actor: Actor, input: { from: string; to: string; operation?: string; driverId?: string; routeId?: string }, today: string) {
+export async function loadHistory(tx: Tx, actor: Actor, input: { from: string; to: string; operation?: string; driverId?: string; routeId?: string }, today: string, opts: { allRows?: boolean } = {}) {
   assertCan(actor, 'payroll.view');
   if (input.from > input.to) throw new RuleError('invalid_range');
   if (rangeTooLong(input.from, input.to)) throw new RuleError('range_too_long');
@@ -81,8 +81,8 @@ export async function loadHistory(tx: Tx, actor: Actor, input: { from: string; t
       key: p.key, driverId: p.driverId, name: p.name, days: p.days, pieces: p.pieces, driverCodes: [...p.driverCodes].sort(),
       sortCodes: [...p.sortCodes].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([code, n]) => ({ code, days: n })),
     })).sort((a, b) => b.days - a.days || a.name.localeCompare(b.name)),
-    rows: rows.slice().reverse().slice(0, MAX_ROWS),
-    truncated: rows.length > MAX_ROWS,
+    rows: opts.allRows ? rows.slice().reverse() : rows.slice().reverse().slice(0, MAX_ROWS),
+    truncated: !opts.allRows && rows.length > MAX_ROWS,
     options: {
       operations: ops.filter((o) => o.active).map((o) => ({ code: o.code, name: o.name, driverSource: o.driverSource })),
       people: people.map((p) => ({ id: p.id, name: p.fullName, active: p.active })),

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as HistoryExportRouteImport } from './routes/history-export'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppDriversRouteImport } from './routes/_app/drivers'
@@ -57,6 +58,11 @@ const AppRoute = AppRouteImport.update({
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryExportRoute = HistoryExportRouteImport.update({
+  id: '/history-export',
+  path: '/history-export',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -260,6 +266,7 @@ const AppTforceWeekWeekIdRoute = AppTforceWeekWeekIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/forgot-password': typeof ForgotPasswordRoute
+  '/history-export': typeof HistoryExportRoute
   '/login': typeof LoginRoute
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
+  '/history-export': typeof HistoryExportRoute
   '/login': typeof LoginRoute
   '/drivers': typeof AppDriversRoute
   '/exceptions': typeof AppExceptionsRoute
@@ -343,6 +351,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
+  '/history-export': typeof HistoryExportRoute
   '/login': typeof LoginRoute
   '/_app/drivers': typeof AppDriversRoute
   '/_app/exceptions': typeof AppExceptionsRoute
@@ -387,6 +396,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/forgot-password'
+    | '/history-export'
     | '/login'
     | '/drivers'
     | '/exceptions'
@@ -427,6 +437,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
+    | '/history-export'
     | '/login'
     | '/drivers'
     | '/exceptions'
@@ -469,6 +480,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/forgot-password'
+    | '/history-export'
     | '/login'
     | '/_app/drivers'
     | '/_app/exceptions'
@@ -512,6 +524,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
+  HistoryExportRoute: typeof HistoryExportRoute
   LoginRoute: typeof LoginRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthContinueRoute: typeof AuthContinueRoute
@@ -544,6 +557,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history-export': {
+      id: '/history-export'
+      path: '/history-export'
+      fullPath: '/history-export'
+      preLoaderRoute: typeof HistoryExportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -870,6 +890,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
+  HistoryExportRoute: HistoryExportRoute,
   LoginRoute: LoginRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthContinueRoute: AuthContinueRoute,
