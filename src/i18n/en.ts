@@ -1110,6 +1110,8 @@ export const en = {
   "sc.usualPeopleLead": "Suggested every day in Today's drivers → Hovership (dashed) until the day is confirmed or someone changes them. Someone with none gets the first routes picked for them.",
   "sc.usualForPerson": "Usual routes of {name}",
   "pa.file": "Notes and loans",
+  "pa.fileWho": "Whose notes or loan?",
+  "pa.fileSearch": "Type the driver’s name",
   "pa.fileFor": "Notes and loans of {name}",
   "pa.extra": "Extra job",
   "pa.extraFor": "Log an extra job for {name}",

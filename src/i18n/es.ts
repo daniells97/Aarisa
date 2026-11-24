@@ -1112,6 +1112,8 @@ export const es: Record<MessageKey, string> = {
   "sc.usualPeopleLead": "Se sugieren cada día en Conductores de hoy → Hovership (con borde punteado) hasta que se confirma el día o alguien las cambia. A quien no tenga, las primeras rutas que le elijan le quedan como habituales.",
   "sc.usualForPerson": "Rutas habituales de {name}",
   "pa.file": "Notas y préstamos",
+  "pa.fileWho": "¿De quién son las notas o el préstamo?",
+  "pa.fileSearch": "Escribe el nombre del conductor",
   "pa.fileFor": "Notas y préstamos de {name}",
   "pa.extra": "Trabajo extra",
   "pa.extraFor": "Registrar un trabajo extra de {name}",

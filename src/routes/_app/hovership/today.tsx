@@ -8,6 +8,7 @@ import { Button, Icon, PageHead, Panel, PersonPicker, Pill, buttonClass, useForm
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { NewRecord } from '~/ui/NewRecord';
+import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 
@@ -142,6 +143,7 @@ function HovershipTodayPage() {
             <div className="today-buttons">
               {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
               {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, op: day.operation.code, from: 'today' }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+              <NotesLoansButton drivers={day.options.drivers} />
             </div>
           </div>
         } />
