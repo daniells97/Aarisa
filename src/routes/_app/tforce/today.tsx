@@ -159,8 +159,10 @@ function TodayPage() {
               <span className="num">{dateLabel}</span>
               <Link to="/tforce/today" search={{ date: addDays(day.date, 1), op: day.operation.isDefault ? undefined : day.operation.code }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
-            {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
-            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, from: 'today' }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+            <div className="today-buttons">
+              {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
+              {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, from: 'today' }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+            </div>
           </div>
         } />
       {day.operation.isDefault && <DayTabs current="tforce" date={day.date} />}
@@ -173,8 +175,8 @@ function TodayPage() {
         {s.waiting > 0 && <span role="listitem"><Pill tone="waiting">{t('td.sumWaiting', { count: s.waiting })}</Pill></span>}
         {s.noDriver > 0 && <span role="listitem"><Pill tone="warn">{t('td.sumNoDriver', { count: s.noDriver })}</Pill></span>}
         <span className="muted" role="listitem">{t('td.sumRoutes', { count: s.routes })}</span>
-        {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} style={{ marginLeft: 'auto' }}>{t('td.confirmAll', { count: s.proposed })}</Button>}
-        {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
+        {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.confirmAll', { count: s.proposed })}</Button>}
+        {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
       </div>
 
       <div className="today-layout">
@@ -196,7 +198,7 @@ function TodayPage() {
                         </tr>
                       );
                     })}
-                    {draftOpen && <TforceRecord day={day} dateLabel={dateLabel} layout="row" onCancel={() => setAdding(false)} />}
+                    {draftOpen && <TforceRecord day={day} dateLabel={dateLabel} layout="row" focus={adding} onCancel={() => setAdding(false)} />}
                   </tbody>
                 </table>
               </div>
@@ -207,16 +209,16 @@ function TodayPage() {
                     <li key={r.routeId}>
                       <div className="row" style={{ justifyContent: 'space-between' }}>
                         <RoutePlate code={r.code} size="lg" needsDriver={r.status === 'no_driver'} />
-                        {r.status !== 'proposed' && r.status !== 'confirmed' && <Pill tone={st.tone}>{t(st.key)}</Pill>}
+                        <Pill tone={st.tone}>{t(st.key)}</Pill>
                       </div>
                       {select(r)}
-                      {routesOf(r)}
                       <span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>
+                      {routesOf(r)}
                       {actions(r)}
                     </li>
                   );
                 })}
-                {draftOpen && <TforceRecord day={day} dateLabel={dateLabel} layout="card" onCancel={() => setAdding(false)} />}
+                {draftOpen && <TforceRecord day={day} dateLabel={dateLabel} layout="card" focus={adding} onCancel={() => setAdding(false)} />}
               </ul>
             </>
           )}
@@ -308,7 +310,7 @@ function UnknownName({ row, day }: { row: Row; day: Day }) {
  * A new line on the list: the driver code (new, or one taken off earlier), who drives it today and the routes.
  * Saving adds the driver code with that person as its usual driver, confirmed for the day, then its routes.
  */
-function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabel: string; layout: 'row' | 'card'; onCancel: () => void }) {
+function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; dateLabel: string; layout: 'row' | 'card'; onCancel: () => void; focus?: boolean }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
@@ -371,5 +373,5 @@ function TforceRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabe
         return res.value.id;
       }} />,
   ];
-  return <NewRecord cells={cells} layout={layout} busy={busy} error={error} onCancel={onCancel} />;
+  return <NewRecord cells={cells} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} />;
 }

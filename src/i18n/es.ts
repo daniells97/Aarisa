@@ -1158,4 +1158,6 @@ export const es: Record<MessageKey, string> = {
   "td.driverCodeHint": "Escribe para buscar un driver o crear uno nuevo",
   "td.savingRecord": "Guardando…",
   "td.closeRecord": "Cerrar la línea nueva",
+  "td.newRecord": "Registro nuevo",
+  "hd.whoHint": "Escribe el nombre para buscarlo o crear una persona nueva.",
 };

@@ -237,8 +237,8 @@ tr.total-row td { font-weight: 600; border-top: 1px solid var(--line); }
 .route-select[data-state='missing'] { border-color: var(--amber); background: var(--amber-wash); }
 .phone-only { display: none; }
 .route-cards { list-style: none; margin: 0; padding: 0; }
-.route-cards li { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--line-soft); }
-.route-cards li:first-child { border-top: 0; }
+.route-cards > li { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--line-soft); }
+.route-cards > li:first-child { border-top: 0; }
 .route-cards .route-select { width: 100%; }
 @media (max-width: 899px) { .desktop-only { display: none; } .phone-only { display: block; } }
 .change-log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
@@ -405,3 +405,20 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 /* "← Today's drivers" above a form opened from the daily list */
 .back-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; color: var(--brand); text-decoration: none; align-self: flex-start; }
 .back-link:hover { text-decoration: underline; }
+
+/* Phone review (Nov 24 2026) */
+.new-record-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.new-record-head strong { font: 600 17px var(--font-cond); color: var(--brand); }
+.route-cards > li .person-actions { margin-top: 0; }
+@media (max-width: 899px) {
+  .confirm-all { width: 100%; margin-left: 0 !important; min-height: 44px; }
+  .route-cards > li .sub { margin-top: -2px; }
+}
+/* Today's drivers: "Add record" and "Log extra job" always side by side; on a phone the date sits alone above them. */
+.today-buttons { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 899px) {
+  .page-head .week-nav { width: 100%; justify-content: space-between; }
+  .today-buttons { display: flex; flex-wrap: nowrap; width: 100%; }
+  .today-buttons > * { flex: 1 1 0; min-width: 0; justify-content: center; white-space: nowrap; padding-left: 10px; padding-right: 10px; }
+}
+@media (max-width: 899px) { .today-list .sort-add:has(.picker) { width: 100%; } }

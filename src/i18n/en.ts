@@ -1156,6 +1156,8 @@ export const en = {
   "td.driverCodeHint": "Type to find a driver code, or a new one",
   "td.savingRecord": "Saving…",
   "td.closeRecord": "Close the new line",
+  "td.newRecord": "New record",
+  "hd.whoHint": "Type the name to find someone or add a new person.",
 } as const;
 
 export type MessageKey = keyof typeof en;

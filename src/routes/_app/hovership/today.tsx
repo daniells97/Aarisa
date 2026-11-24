@@ -139,8 +139,10 @@ function HovershipTodayPage() {
               <span className="num">{dateLabel}</span>
               <Link to="/hovership/today" search={{ date: addDays(day.date, 1) }} aria-label={t('td.nextDay')}><Icon name="chevronRight" width={18} height={18} /></Link>
             </div>
-            {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
-            {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, op: day.operation.code, from: 'today' }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+            <div className="today-buttons">
+              {day.canEdit && <Button onClick={() => setAdding(true)}><Icon name="plus" width={18} height={18} />{t('td.addRecord')}</Button>}
+              {day.canLogExtra && <Link to="/extra-jobs/new" search={{ date: day.date, op: day.operation.code, from: 'today' }} className={buttonClass()}>{t('td.logExtra')}</Link>}
+            </div>
           </div>
         } />
       <DayTabs current="hovership" date={day.date} />
@@ -152,8 +154,8 @@ function HovershipTodayPage() {
         {s.none > 0 && <span role="listitem"><Pill tone="waiting">{t('hd.sumNone', { count: s.none })}</Pill></span>}
         {s.off > 0 && <span role="listitem"><Pill tone="muted">{t('hd.sumOff', { count: s.off })}</Pill></span>}
         <span role="listitem" className="muted">{t('hd.people', { count: s.drivers })}</span>
-        {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} style={{ marginLeft: 'auto' }}>{t('hd.confirmAll', { count: s.proposed })}</Button>}
-        {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
+        {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('hd.confirmAll', { count: s.proposed })}</Button>}
+        {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
       </div>
       {(s.unassigned.length > 0 || s.shared.length > 0) && (
         <div className="notice" role="status" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
@@ -178,7 +180,7 @@ function HovershipTodayPage() {
                         <td><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill></td>
                       </tr>
                     ))}
-                    {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="row" onCancel={() => setAdding(false)} />}
+                    {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="row" focus={adding} onCancel={() => setAdding(false)} />}
                   </tbody>
                 </table>
               </div>
@@ -187,15 +189,15 @@ function HovershipTodayPage() {
                   <li key={r.driverId}>
                     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>{who(r)}</div>
-                      {r.status !== 'proposed' && r.status !== 'confirmed' && <Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>}
+                      <Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>
                     </div>
                     {picker(r)}
-                    {routesOf(r)}
                     <span className="sub">{about(r)}</span>
+                    {routesOf(r)}
                     {actions(r)}
                   </li>
                 ))}
-                {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="card" onCancel={() => setAdding(false)} />}
+                {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="card" focus={adding} onCancel={() => setAdding(false)} />}
               </ul>
             </>
           )}
@@ -233,7 +235,7 @@ function HovershipTodayPage() {
  * A new line on the list: who (someone in the portal, or a new name created on the spot) and their routes
  * today. Saving puts them on the Hovership list, then sets the routes (the first ones become their usual).
  */
-function HovershipRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateLabel: string; layout: 'row' | 'card'; onCancel: () => void }) {
+function HovershipRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; dateLabel: string; layout: 'row' | 'card'; onCancel: () => void; focus?: boolean }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
@@ -267,7 +269,7 @@ function HovershipRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateL
   const cells = [
     <span key="code" className="muted">{'newName' in (who ?? {}) ? t('hd.newPerson') : '—'}</span>,
     <PersonPicker key="who" value={who && 'driverId' in who ? `d:${who.driverId}` : ''} options={{ drivers: day.options.others, contractors: [] }}
-      label={t('hd.whoNew', { date: dateLabel })} placeholder={who && 'newName' in who ? who.newName : t('td.whoDrives')} allowNone={false}
+      label={t('hd.whoNew', { date: dateLabel })} placeholder={who && 'newName' in who ? who.newName : t('td.whoDrives')} allowNone={false} emptyHint={t('hd.whoHint')}
       onPick={(v) => v.startsWith('d:') && setWho({ driverId: v.slice(2) })} onCreate={(n) => setWho({ newName: n })} />,
     <SortCodes key="routes" value={routes} options={allCodes} label={t('hd.routesOf', { name: name || '…', date: dateLabel })}
       onChange={(ids) => setRoutes(ids.map((id) => allCodes.find((c) => c.id === id)!).filter(Boolean))}
@@ -278,5 +280,5 @@ function HovershipRecord({ day, dateLabel, layout, onCancel }: { day: Day; dateL
         return res.value.id;
       }} />,
   ];
-  return <NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} busy={busy} error={error} onCancel={onCancel} />;
+  return <NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} />;
 }

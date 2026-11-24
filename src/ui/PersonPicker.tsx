@@ -128,7 +128,7 @@ export function PersonPicker({ value, options, label, placeholder, disabled, all
       {open && (
         <ul className="picker-list" role="listbox" id={listId} aria-label={label} style={place}>
           {emptyHint && !query && <li className="picker-empty" role="presentation">{emptyHint}</li>}
-          {items.length === 0 && <li className="picker-empty" role="presentation">{t('picker.noMatch')}</li>}
+          {items.length === 0 && !(emptyHint && !query) && <li className="picker-empty" role="presentation">{t('picker.noMatch')}</li>}
           {items.map((item, i) => (
             <li
               key={item.key}
