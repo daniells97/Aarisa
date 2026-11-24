@@ -91,7 +91,7 @@ export const invite = createServerFn({ method: 'POST' })
     if (!cfg) return { invited: false, emailed: false, link: null };
     const { link } = await inviteUser(cfg, data);
     // From Aarisa's mailbox; without mail set up (or if Resend refuses) the owner gets the link to share.
-    const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName, translate(data.locale, `role.${data.role}`)));
+    const emailed = await sendMail(inviteEmail(data.locale, data.email, link, data.givenName));
     return { invited: true, emailed, link: emailed ? null : link };
   }));
 

@@ -37,8 +37,9 @@ function signIn(locale: Locale, to: string, p: { subject: MessageKey; lead: Mess
   ]) };
 }
 
-export const inviteEmail = (locale: Locale, to: string, link: string, name: string, role: string) =>
-  signIn(locale, to, { subject: 'mail.invite.subject', lead: 'mail.invite.lead', button: 'mail.invite.button', vars: { name, role } }, link);
+/** The invite says who is invited, not their role (client request, Nov 24 2026). */
+export const inviteEmail = (locale: Locale, to: string, link: string, name: string) =>
+  signIn(locale, to, { subject: 'mail.invite.subject', lead: 'mail.invite.lead', button: 'mail.invite.button', vars: { name } }, link);
 
 export const resetEmail = (locale: Locale, to: string, link: string) =>
   signIn(locale, to, { subject: 'mail.reset.subject', lead: 'mail.reset.lead', button: 'mail.reset.button', vars: {} }, link);

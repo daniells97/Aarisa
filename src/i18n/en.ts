@@ -947,7 +947,7 @@ export const en = {
   "team.copyLink": "Copy link",
   "team.linkCopied": "Link copied.",
   "mail.invite.subject": "Your access to the Aarisa portal",
-  "mail.invite.lead": "Hi {name}, you have been invited to the Aarisa portal as {role}. Set your password to start.",
+  "mail.invite.lead": "Hi {name}, you have been invited to the Aarisa portal. Set your password to start.",
   "mail.invite.button": "Set my password",
   "mail.reset.subject": "Set a new password for the Aarisa portal",
   "mail.reset.lead": "Someone asked to reset the password of your Aarisa portal account. If it was you, set a new one. If not, ignore this email: nothing changes.",

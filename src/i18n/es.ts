@@ -949,7 +949,7 @@ export const es: Record<MessageKey, string> = {
   "team.copyLink": "Copiar enlace",
   "team.linkCopied": "Enlace copiado.",
   "mail.invite.subject": "Tu acceso al portal de Aarisa",
-  "mail.invite.lead": "Hola {name}, te invitaron al portal de Aarisa como {role}. Pon tu contraseña para empezar.",
+  "mail.invite.lead": "Hola {name}, te invitaron al portal de Aarisa. Pon tu contraseña para empezar.",
   "mail.invite.button": "Poner mi contraseña",
   "mail.reset.subject": "Pon una contraseña nueva para el portal de Aarisa",
   "mail.reset.lead": "Alguien pidió restablecer la contraseña de tu cuenta del portal de Aarisa. Si fuiste tú, pon una nueva. Si no, ignora este correo: no cambia nada.",
