@@ -81,6 +81,12 @@ function UsualRoutes({ op, canEdit }: { op: Op; canEdit: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const options = op.sortCodes.filter((c) => c.active);
+  const create = async (code: string) => {
+    const res = await createSortCode({ data: { operation: op.code, code } });
+    if (!res.ok) { toast(t(`error.${res.code}` as MessageKey)); return null; }
+    toast(t('sc.added', { code: code.trim() }));
+    return res.value;
+  };
   return (
     <Panel title={t('sc.usualTitle', { client: op.name })}>
       <p className="panel-body muted" style={{ margin: 0 }}>{t('sc.usualLead')}</p>
@@ -92,7 +98,7 @@ function UsualRoutes({ op, canEdit }: { op: Op; canEdit: boolean }) {
               <tr key={d.routeId}>
                 <td><RoutePlate code={d.code} /></td>
                 <td>
-                  <SortCodes value={d.usual} options={options} disabled={!canEdit} label={t('sc.usualFor', { route: d.code })}
+                  <SortCodes onCreate={create} value={d.usual} options={options} disabled={!canEdit} label={t('sc.usualFor', { route: d.code })}
                     onChange={async (ids) => {
                       const res = await saveUsualSortCodes({ data: { routeId: d.routeId, sortCodeIds: ids } });
                       if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
@@ -114,6 +120,12 @@ function PeopleUsualRoutes({ op, canEdit }: { op: Op; canEdit: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const options = op.sortCodes.filter((c) => c.active);
+  const create = async (code: string) => {
+    const res = await createSortCode({ data: { operation: op.code, code } });
+    if (!res.ok) { toast(t(`error.${res.code}` as MessageKey)); return null; }
+    toast(t('sc.added', { code: code.trim() }));
+    return res.value;
+  };
   return (
     <Panel title={t('sc.usualPeopleTitle', { client: op.name })}>
       <p className="panel-body muted" style={{ margin: 0 }}>{t('sc.usualPeopleLead')}</p>
@@ -125,7 +137,7 @@ function PeopleUsualRoutes({ op, canEdit }: { op: Op; canEdit: boolean }) {
               <tr key={p.driverId}>
                 <td><strong>{p.name}</strong>{p.code && <span className="sub">{p.code}</span>}</td>
                 <td>
-                  <SortCodes value={p.usual} options={options} disabled={!canEdit} label={t('sc.usualForPerson', { name: p.name })}
+                  <SortCodes onCreate={create} value={p.usual} options={options} disabled={!canEdit} label={t('sc.usualForPerson', { name: p.name })}
                     onChange={async (ids) => {
                       const res = await saveHovershipUsual({ data: { driverId: p.driverId, sortCodeIds: ids, operation: op.code } });
                       if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));

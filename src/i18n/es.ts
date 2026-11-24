@@ -1138,4 +1138,9 @@ export const es: Record<MessageKey, string> = {
   "hd.coveredToast": "{by} hace hoy las rutas de {name}.",
   "hd.backToUsual": "{name} volvió a sus rutas habituales.",
   "error.no_routes_to_cover": "Esta persona no tiene rutas hoy para pasar. Ponle rutas primero, o agrégale rutas al otro conductor.",
+  "td.createSortCode": "+ Crear ruta nueva…",
+  "td.newSortCode": "Ruta nueva",
+  "td.newSortCodePlaceholder": "Ej. 216 o Truck Route3",
+  "td.saveSortCode": "Agregar ruta",
+  "td.sortCodeCreated": "Ruta {code} creada y agregada.",
 };

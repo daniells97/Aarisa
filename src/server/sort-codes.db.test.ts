@@ -40,4 +40,13 @@ describe('routes (sort codes) kept by the owner', () => {
       expect(after.rows.find((r) => r.code === '9000B')).toMatchObject({ sortCodesSuggested: false, sortCodes: [] });
       expect(after.changes.filter((c) => c.sortCodes).map((c) => c.route)).toEqual(['9000B']); // saving the usual ones isn't listed as a change
     }));
+
+  it('dispatchers can add a route from the daily list; elsewhere only the owner can', () =>
+    withRollback(async (tx) => {
+      await expect(addSortCode(tx, actorAs('dispatcher'), { operation: 'hovership', code: '999' })).rejects.toBeInstanceOf(ForbiddenError);
+      const row = await addSortCode(tx, actorAs('dispatcher'), { operation: 'hovership', code: ' 999 ' }, true);
+      expect(row.code).toBe('999');
+      await expect(addSortCode(tx, actorAs('dispatcher'), { operation: 'hovership', code: '999' }, true)).rejects.toMatchObject({ code: 'sort_code_exists' });
+      await expect(addSortCode(tx, actorAs('viewer'), { operation: 'hovership', code: '998' }, true)).rejects.toBeInstanceOf(ForbiddenError);
+    }));
 });

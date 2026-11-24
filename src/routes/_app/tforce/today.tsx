@@ -5,6 +5,7 @@ import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
 import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
+import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
@@ -95,8 +96,16 @@ function TodayPage() {
     />
   );
 
+  // "+ Create a new route…" in the route picker: added to the contract's routes, then to this row.
+  const createSortCode = async (code: string) => {
+    const res = await createSortCodeFromDay({ data: { operation: day.operation.code, code } });
+    if (!res.ok) { toast(t(`error.${res.code}` as MessageKey)); return null; }
+    toast(t('td.sortCodeCreated', { code: res.value.code }));
+    return res.value.id;
+  };
+
   const routesOf = (r: Row) => (
-    <SortCodes value={r.sortCodes} suggested={r.sortCodesSuggested} options={day.options.sortCodes} disabled={!day.canEdit} label={t('td.sortCodesFor', { route: r.code, date: dateLabel })}
+    <SortCodes onCreate={createSortCode} value={r.sortCodes} suggested={r.sortCodesSuggested} options={day.options.sortCodes} disabled={!day.canEdit} label={t('td.sortCodesFor', { route: r.code, date: dateLabel })}
       onChange={async (ids) => {
         const res = await saveSortCodes({ data: { date: day.date, routeId: r.routeId, sortCodeIds: ids } });
         if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));

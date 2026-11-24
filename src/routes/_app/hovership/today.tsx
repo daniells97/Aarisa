@@ -8,6 +8,7 @@ import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, b
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { SortCodes } from '~/ui/SortCodes';
+import { createSortCodeFromDay } from '~/server/setup-fns';
 
 export const Route = createFileRoute('/_app/hovership/today')({
   validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }),
@@ -87,10 +88,18 @@ function HovershipTodayPage() {
       onCreate={(name) => cover(r, { newName: name })} />
   );
 
+  // "+ Create a new route…" in the route picker: added to the contract's routes, then to this row.
+  const createSortCode = async (code: string) => {
+    const res = await createSortCodeFromDay({ data: { operation: day.operation.code, code } });
+    if (!res.ok) { toast(t(`error.${res.code}` as MessageKey)); return null; }
+    toast(t('td.sortCodeCreated', { code: res.value.code }));
+    return res.value.id;
+  };
+
   const routesOf = (r: Row) => r.status === 'covered' ? (
     <span className="sort-codes">{r.usual.map((u) => <span key={u.id} className="sort-chip">{u.code}</span>)}<span className="sort-hint">{t('hd.runBy', { name: r.today.name })}</span></span>
   ) : (
-    <SortCodes value={r.sortCodes} suggested={r.suggested} options={day.options.sortCodes} disabled={!day.canEdit} label={t('hd.routesOf', { name: r.name, date: dateLabel })}
+    <SortCodes onCreate={createSortCode} value={r.sortCodes} suggested={r.suggested} options={day.options.sortCodes} disabled={!day.canEdit} label={t('hd.routesOf', { name: r.name, date: dateLabel })}
       onChange={async (ids) => {
         const res = await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: ids } });
         if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
@@ -107,7 +116,7 @@ function HovershipTodayPage() {
   ].filter(Boolean).join(' · ');
 
   const who = (r: Row) => (
-    <><strong style={{ whiteSpace: 'nowrap' }}>{r.name}</strong>{r.code && <span className="sub">{r.code}</span>}</>
+    <><strong>{r.name}</strong>{r.code && <span className="sub">{r.code}</span>}</>
   );
 
   const actions = (r: Row) => (

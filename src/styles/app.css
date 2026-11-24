@@ -369,3 +369,6 @@ tr.row-selected td { background: var(--brand-tint); }
 .person-actions .link-btn { min-height: 28px; display: inline-flex; align-items: center; }
 .person-flags { color: var(--amber-ink); }
 @media (max-width: 899px) { .person-actions .link-btn { min-height: 44px; } }
+
+/* Creating a route from the route picker. */
+.sort-new { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }

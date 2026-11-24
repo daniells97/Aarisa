@@ -99,6 +99,14 @@ export const invite = createServerFn({ method: 'POST' })
 
 export const getSortCodesSetup = createServerFn({ method: 'GET' }).handler(() => read('payroll.view', (tx, actor) => loadSortCodes(tx, actor)));
 
+/** "Create a new route" from the route picker on Today's drivers. */
+export const createSortCodeFromDay = createServerFn({ method: 'POST' })
+  .validator(z.object({ operation: z.string().max(40), code: z.string().max(30) }))
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
+    const row = await addSortCode(tx, actor, data, true);
+    return { id: row.id, code: row.code };
+  }));
+
 export const createSortCode = createServerFn({ method: 'POST' })
   .validator(z.object({ operation: z.string().max(40), code: z.string().max(30) }))
   .handler(({ data }) => run('setup.edit', async (tx, actor) => (await addSortCode(tx, actor, data)).id));

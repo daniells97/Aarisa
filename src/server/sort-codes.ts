@@ -49,8 +49,12 @@ async function assertFree(tx: Tx, operationId: string, code: string, except?: st
   if (clash && clash.id !== except) throw new RuleError('sort_code_exists');
 }
 
-export async function addSortCode(tx: Tx, actor: Actor, input: { operation: string; code: string }) {
-  assertCan(actor, 'setup.edit');
+/**
+ * A new route for a contract. The owner adds them in Drivers and rates → Routes; whoever runs the daily list
+ * can also add one right where they pick routes (`fromDay`), so a new zone never waits for the owner.
+ */
+export async function addSortCode(tx: Tx, actor: Actor, input: { operation: string; code: string }, fromDay = false) {
+  assertCan(actor, fromDay ? 'drivers.confirm_today' : 'setup.edit');
   const code = clean(input.code);
   if (!code || code.length > 30) throw new RuleError('sort_code_invalid');
   const [op] = await tx.select().from(operations).where(eq(operations.code, input.operation));

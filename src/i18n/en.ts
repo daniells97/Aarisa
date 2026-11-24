@@ -1136,6 +1136,11 @@ export const en = {
   "hd.coveredToast": "{by} runs {name}'s routes today.",
   "hd.backToUsual": "{name} is back on their usual routes.",
   "error.no_routes_to_cover": "This person has no routes today to hand over. Give them routes first, or add routes to the other driver.",
+  "td.createSortCode": "+ Create a new route…",
+  "td.newSortCode": "New route",
+  "td.newSortCodePlaceholder": "e.g. 216 or Truck Route3",
+  "td.saveSortCode": "Add route",
+  "td.sortCodeCreated": "Route {code} created and added.",
 } as const;
 
 export type MessageKey = keyof typeof en;
