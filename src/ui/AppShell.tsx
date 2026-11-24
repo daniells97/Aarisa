@@ -24,8 +24,9 @@ function operationGroups(ops: ShellOperation[]): NavGroup[] {
     return {
       title: o.name,
       items: o.driverSource === 'daily_list'
-        ? [{ to: '/tforce/today', label: 'nav.todayDrivers' as const, icon: 'calendar' as const, op }, { to: '/tforce/week', label: 'nav.weeklyCheck' as const, icon: 'swap' as const, op }]
-        : [...(op ? [] : [{ to: '/hovership/today', label: 'nav.todayDrivers' as const, icon: 'calendar' as const, op }]), { to: '/hovership', label: 'nav.weeklyReport' as const, icon: 'file' as const, op }],
+        // Today's drivers is one item at the top (tabs T-Force | Hovership inside); another daily-list contract keeps its own.
+        ? [...(op ? [{ to: '/tforce/today', label: 'nav.todayDrivers' as const, icon: 'calendar' as const, op }] : []), { to: '/tforce/week', label: 'nav.weeklyCheck' as const, icon: 'swap' as const, op }]
+        : [{ to: '/hovership', label: 'nav.weeklyReport' as const, icon: 'file' as const, op }],
     };
   });
 }
@@ -55,8 +56,9 @@ function initials(name: string) {
 
 function isActive(path: string, to: string) {
   if (to === '/') return path === '/';
-  // /hovership/today has its own item, so the weekly report (/hovership) isn't lit there too.
+  // Today's drivers is one item for both tabs; the weekly report (/hovership) isn't lit on its Hovership tab.
   if (to === '/hovership' && path.startsWith('/hovership/today')) return false;
+  if (to === '/tforce/today' && path.startsWith('/hovership/today')) return true;
   return path === to || path.startsWith(`${to}/`);
 }
 
@@ -64,7 +66,7 @@ export function AppShell({ user, children, badges = {}, operations = [] }: { use
   const t = useT();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const currentOp = useRouterState({ select: (s) => (s.location.search as { op?: string }).op });
-  const groups: NavGroup[] = [{ items: [{ to: '/', label: 'nav.overview', icon: 'home' }, { to: '/history', label: 'nav.history', icon: 'chart' }] }, ...operationGroups(operations), ...fixedGroups];
+  const groups: NavGroup[] = [{ items: [{ to: '/', label: 'nav.overview', icon: 'home' }, { to: '/tforce/today', label: 'nav.todayDrivers', icon: 'calendar' }, { to: '/history', label: 'nav.history', icon: 'chart' }] }, ...operationGroups(operations), ...fixedGroups];
   const active = (i: NavItem) => isActive(path, i.to) && (i.op ?? undefined) === (currentOp ?? undefined);
   return (
     <div className="shell">
