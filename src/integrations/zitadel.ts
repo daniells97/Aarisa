@@ -54,8 +54,10 @@ export async function inviteUser(cfg: ZitadelAdminConfig, p: { email: string; gi
     })).userId;
   } catch (e) {
     // Invited before and never finished: send a new invite instead of failing.
-    const existing = e instanceof RuleError && e.code === 'email_taken' ? await userByEmail(cfg, p.email) : null;
-    if (!existing) throw e;
+    const taken = e instanceof RuleError && e.code === 'email_taken';
+    const existing = taken ? await userByEmail(cfg, p.email) : null;
+    // The login service is shared: the email can belong to an account outside Aarisa, which the portal can't take over.
+    if (!existing) throw taken ? new RuleError('email_other_account') : e;
     userId = existing.userId;
   }
   await setUserRole(cfg, userId, p.role);

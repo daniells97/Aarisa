@@ -57,6 +57,13 @@ describe('Zitadel codes instead of Zitadel emails', () => {
     expect(paths).toContain('POST /management/v1/users/u1/grants');
   });
 
+  it('an email that belongs to an account outside Aarisa gets its own error, without naming the login service', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      url.endsWith('/v2/users/human') ? json({}, 409) : url.endsWith('/v2/users') ? json({ result: [] }) : json({})));
+    await expect(inviteUser(zitadel, { email: 'someone@other.com', givenName: 'A', familyName: 'B', role: 'viewer', locale: 'es' }))
+      .rejects.toMatchObject({ code: 'email_other_account' });
+  });
+
   it('a reset link only for a known email', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) =>
       url.endsWith('/v2/users') ? json({ result: [] }) : json({ verificationCode: 'R' })));

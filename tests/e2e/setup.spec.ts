@@ -50,7 +50,7 @@ test.describe('team access', () => {
     await expect(page.getByRole('heading', { name: 'What each role can do' })).toBeVisible();
     const invite = page.getByRole('button', { name: 'Invite someone' });
     await expect(invite).toBeDisabled();
-    await expect(invite).toHaveAccessibleDescription(/Zitadel/);
+    await expect(invite).toHaveAccessibleDescription(/aún no están activados|aren't turned on/);
   });
 
   test('finance gets a no-access page from the server', async ({ page }) => {
