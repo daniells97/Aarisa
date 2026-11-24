@@ -87,3 +87,16 @@ Setup:
    `docker compose up -d aarisa`.
 4. In the Zitadel console, organization Aarisa → Settings → Login behavior: hide "Forgot password", which
    would try Zitadel's own mail. The portal's sign-in page has its own link.
+
+## Sign-in address (auth.aarisaconsulting.com) — Nov 24, 2026
+
+- The sign-in pages are the shared Zitadel login (`dmx-zitadel-login`). Aarisa shows them under
+  `auth.aarisaconsulting.com` through its own pass-through, `aarisa-auth-proxy` (nginx, in `/docker/aarisa`,
+  config in `/docker/aarisa/auth-proxy/nginx.conf`). Only `/ui/v2/login` is passed; the proxy presents itself
+  with the shared service's own host name and rewrites its redirects back to Aarisa's address.
+- The shared service always redirects to its own address (instance-wide login URL), so `/auth/login` asks for
+  the login request on the server and sends the browser to the same page under `ZITADEL_LOGIN_BASE`.
+  Invite and reset links use the same base. Unset `ZITADEL_LOGIN_BASE` to go back to the shared address.
+- DNS: `auth` A record → 2.25.229.44 (Namecheap). Certificate from Traefik's `letsencrypt` resolver.
+- The sign-in scope names Aarisa's organization, so the pages use its branding (label policy, set Nov 24)
+  and accept only its users.
