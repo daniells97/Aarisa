@@ -2,7 +2,7 @@ import { expect, signInAs, test } from './fixtures';
 
 test("June 18 shows the sample list and the unknown name on 9000Z", async ({ page }) => {
   await signInAs(page, 'dispatcher', '/tforce/today?date=2026-06-18');
-  await expect(page.getByRole('heading', { name: "Today's drivers" })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Daily operations' })).toBeVisible();
   await expect(page.getByText('Who drove 9000Z?')).toBeVisible();
   await expect(page.getByText('the new guy from Puma').locator('visible=true').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Add under Puma' })).toBeVisible();

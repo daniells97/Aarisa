@@ -27,7 +27,7 @@ test.describe('new client', () => {
     await expect(page.getByRole('status')).toContainText('Layout saved');
 
     await page.reload();
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: "Today's drivers" }).last().click();
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Daily operations' }).last().click();
     await expect(page).toHaveURL(/op=e2e_parcel/);
     await expect(page.getByText("E2E Parcel's report next Monday")).toBeVisible();
   });
