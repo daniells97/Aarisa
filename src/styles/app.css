@@ -372,3 +372,8 @@ tr.row-selected td { background: var(--brand-tint); }
 
 /* Creating a route from the route picker. */
 .sort-new { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* The route search field sits next to the chips: narrower than a person picker. */
+.sort-add:has(.picker) { display: inline-block; width: 170px; max-width: 100%; color: inherit; }
+.sort-add .picker { min-width: 0; }
+.sort-add .picker-input { min-height: 36px; font-size: 14px; }
+@media (max-width: 899px) { .sort-add:has(.picker) { width: 100%; } .sort-add .picker-input { min-height: 44px; } }

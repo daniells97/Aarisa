@@ -1,15 +1,14 @@
-import { useState } from 'react';
 import { useT } from '~/i18n';
 import { Icon } from './icons';
+import { PersonPicker } from './PersonPicker';
 
 type SortCode = { id: string; code: string };
-const NEW = '__new__';
 
 /**
- * The routes (sort codes) a driver ran on a day: one chip per route, × takes it off, and a select adds
- * one ("Add a route", then "Add another"). Read-only shows the chips alone. `suggested` chips are the
- * driver's usual routes, not saved yet: dashed, until the day is confirmed or someone edits them.
- * With `onCreate`, the select's first option creates a route that isn't on the list yet, right there.
+ * The routes (sort codes) a driver ran on a day: one chip per route, × takes it off, and a search field adds
+ * one ("Add a route", then "Add another"): type to filter. Read-only shows the chips alone. `suggested` chips
+ * are the driver's usual routes, not saved yet: dashed, until the day is confirmed or someone edits them.
+ * With `onCreate`, a typed route that isn't on the list can be created right there (first option).
  */
 export function SortCodes({ value, options, label, disabled, suggested = false, onChange, onCreate }: {
   value: SortCode[]; options: SortCode[]; label: string; disabled?: boolean; suggested?: boolean; onChange: (ids: string[]) => void;
@@ -17,29 +16,19 @@ export function SortCodes({ value, options, label, disabled, suggested = false, 
   onCreate?: (code: string) => Promise<string | null>;
 }) {
   const t = useT();
-  const [creating, setCreating] = useState(false);
-  const [code, setCode] = useState('');
-  const [busy, setBusy] = useState(false);
   const ids = value.map((v) => v.id);
   const left = options.filter((o) => !ids.includes(o.id));
   const chip = ['sort-chip', suggested && 'suggested'].filter(Boolean).join(' ');
   const hint = suggested ? <span className="sort-hint">{t('td.usualRoutes')}</span> : null;
   if (disabled) return value.length ? <span className="sort-codes">{value.map((v) => <span key={v.id} className={chip}>{v.code}</span>)}{hint}</span> : <span className="muted">—</span>;
-  const save = async () => {
-    const typed = code.trim();
-    if (!typed || !onCreate) return;
-    // Typed a route that already exists: just add it.
+  const create = async (typed: string) => {
+    if (!onCreate) return;
+    // A route that already exists (maybe already on this row) is just added.
     const known = options.find((o) => o.code.toLowerCase() === typed.toLowerCase());
-    setBusy(true);
-    try {
-      const id = known?.id ?? (await onCreate(typed));
-      if (!id) return;
-      setCreating(false); setCode('');
-      if (!ids.includes(id)) onChange([...ids, id]);
-    } finally {
-      setBusy(false);
-    }
+    const id = known?.id ?? (await onCreate(typed));
+    if (id && !ids.includes(id)) onChange([...ids, id]);
   };
+  const addLabel = t(value.length ? 'td.addAnotherSortCode' : 'td.addSortCode');
   return (
     <span className="sort-codes" role="group" aria-label={label}>
       {value.map((v) => (
@@ -51,21 +40,13 @@ export function SortCodes({ value, options, label, disabled, suggested = false, 
         </span>
       ))}
       {hint}
-      {creating ? (
-        <span className="sort-new">
-          <input className="input sort-add" autoFocus maxLength={30} placeholder={t('td.newSortCodePlaceholder')} aria-label={t('td.newSortCode')} value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void save(); } if (e.key === 'Escape') { setCreating(false); setCode(''); } }} />
-          <button type="button" className="btn btn-sm btn-primary" disabled={busy || !code.trim()} onClick={() => void save()}>{t('td.saveSortCode')}</button>
-          <button type="button" className="btn btn-sm" onClick={() => { setCreating(false); setCode(''); }}>{t('common.cancel')}</button>
+      {(left.length > 0 || onCreate) && (
+        <span className="sort-add">
+          <PersonPicker value="" options={{ drivers: left.map((o) => ({ id: o.id, name: o.code })), contractors: [] }} label={addLabel} placeholder={addLabel}
+            allowNone={false} onPick={(v) => v.startsWith('d:') && onChange([...ids, v.slice(2)])}
+            onCreate={onCreate ? (typed) => void create(typed) : undefined} createFirst
+            createLabel={(typed) => t('td.createSortCodeNamed', { code: typed })} emptyHint={t(onCreate ? 'td.sortCodeSearchOrCreate' : 'td.sortCodeSearch')} />
         </span>
-      ) : (left.length > 0 || onCreate) && (
-        <select className="input sort-add" aria-label={t(value.length ? 'td.addAnotherSortCode' : 'td.addSortCode')} value=""
-          onChange={(e) => { if (e.target.value === NEW) setCreating(true); else if (e.target.value) onChange([...ids, e.target.value]); }}>
-          <option value="">{t(value.length ? 'td.addAnotherSortCode' : 'td.addSortCode')}</option>
-          {onCreate && <option value={NEW}>{t('td.createSortCode')}</option>}
-          {left.map((o) => <option key={o.id} value={o.id}>{o.code}</option>)}
-        </select>
       )}
     </span>
   );

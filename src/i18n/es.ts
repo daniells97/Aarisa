@@ -1143,4 +1143,7 @@ export const es: Record<MessageKey, string> = {
   "td.newSortCodePlaceholder": "Ej. 216 o Truck Route3",
   "td.saveSortCode": "Agregar ruta",
   "td.sortCodeCreated": "Ruta {code} creada y agregada.",
+  "td.createSortCodeNamed": "+ Crear ruta “{code}”",
+  "td.sortCodeSearchOrCreate": "Escribe para buscar una ruta o crear una nueva",
+  "td.sortCodeSearch": "Escribe para buscar una ruta",
 };

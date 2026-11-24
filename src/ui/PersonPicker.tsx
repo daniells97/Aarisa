@@ -18,6 +18,11 @@ interface Props {
   onPick: (value: string) => void;
   /** Called with the typed name when the person isn't on the list. */
   onCreate?: (name: string) => void;
+  /** Text of the "create" option (default: add as a new driver), and whether it goes first in the list. */
+  createLabel?: (name: string) => string;
+  createFirst?: boolean;
+  /** A line at the top of the list before anything is typed (e.g. "Type to search or create"). */
+  emptyHint?: string;
 }
 
 type Item = { key: string; value: string; label: string; hint?: string; kind: 'none' | 'contractor' | 'driver' | 'create' };
@@ -28,7 +33,7 @@ const norm = (s: string) => s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerC
  * Type to find a driver or contractor (ARIA 1.2 combobox with a listbox). When nobody matches,
  * the last option adds the typed name as a new driver, so the whole change happens in the list.
  */
-export function PersonPicker({ value, options, label, placeholder, disabled, allowNone = true, state, onPick, onCreate }: Props) {
+export function PersonPicker({ value, options, label, placeholder, disabled, allowNone = true, state, onPick, onCreate, createLabel, createFirst, emptyHint }: Props) {
   const t = useT();
   const id = useId();
   const listId = `${id}-list`;
@@ -48,9 +53,12 @@ export function PersonPicker({ value, options, label, placeholder, disabled, all
     for (const c of options.contractors) if (match(c.name)) list.push({ key: `c:${c.id}`, value: `c:${c.id}`, label: c.name, hint: t('pill.contractor'), kind: 'contractor' });
     for (const d of options.drivers) if (match(d.name)) list.push({ key: `d:${d.id}`, value: `d:${d.id}`, label: d.name, hint: d.contractor ?? undefined, kind: 'driver' });
     const exact = [...options.drivers, ...options.contractors].some((p) => norm(p.name) === q);
-    if (onCreate && q && !exact) list.push({ key: 'create', value: '', label: t('picker.create', { name: query.trim() }), kind: 'create' });
+    if (onCreate && q && !exact) {
+      const create: Item = { key: 'create', value: '', label: createLabel ? createLabel(query.trim()) : t('picker.create', { name: query.trim() }), kind: 'create' };
+      if (createFirst) list.unshift(create); else list.push(create);
+    }
     return list.slice(0, 60);
-  }, [query, options, allowNone, onCreate, t]);
+  }, [query, options, allowNone, onCreate, createLabel, createFirst, t]);
 
   useEffect(() => { setActive(0); }, [query]);
 
@@ -119,6 +127,7 @@ export function PersonPicker({ value, options, label, placeholder, disabled, all
       />
       {open && (
         <ul className="picker-list" role="listbox" id={listId} aria-label={label} style={place}>
+          {emptyHint && !query && <li className="picker-empty" role="presentation">{emptyHint}</li>}
           {items.length === 0 && <li className="picker-empty" role="presentation">{t('picker.noMatch')}</li>}
           {items.map((item, i) => (
             <li

@@ -1141,6 +1141,9 @@ export const en = {
   "td.newSortCodePlaceholder": "e.g. 216 or Truck Route3",
   "td.saveSortCode": "Add route",
   "td.sortCodeCreated": "Route {code} created and added.",
+  "td.createSortCodeNamed": "+ Create route “{code}”",
+  "td.sortCodeSearchOrCreate": "Type to find a route, or to create a new one",
+  "td.sortCodeSearch": "Type to find a route",
 } as const;
 
 export type MessageKey = keyof typeof en;
