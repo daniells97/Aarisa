@@ -126,7 +126,7 @@ export async function whatsappMenu(tx: Tx, input: z.infer<typeof menuInput>, bas
         if (!can(actor.role, 'extra_jobs.log')) return { messages: [text(t('wa.notAllowed'))] };
         return { messages: [link(t('wa.extra.body'), t('wa.extra.button'), `/extra-jobs/new?date=${date}`)] };
       case 'list': {
-        const icon: Record<DayStatus, string> = { confirmed: '✓', changed: '✓', proposed: '?', waiting: '…', no_driver: '—' };
+        const icon: Record<DayStatus, string> = { confirmed: '✓', changed: '✓', proposed: '?', waiting: '…', no_driver: '—', off: '×' };
         const lines = day.rows.map((r) => `${icon[r.status]} ${r.code} ${r.today.name ?? t('wa.noDriver')}`);
         return { messages: [link([t('wa.list.title', { date: longDate(date, locale) }), ...lines, '', t('wa.list.legend')].join('\n'), t('wa.list.button'), `/tforce/today?date=${date}`)] };
       }

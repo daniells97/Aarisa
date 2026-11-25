@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { addDays } from '~/domain/dates';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
-import { confirmUsual, loadDay, setAssignment, setSortCodes } from './daily';
+import { confirmUsual, loadDay, markOffToday, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { confirmUsualHovership, loadHovershipDay } from './hovership-day';
 import { createExtraJob } from './extra-jobs';
 import { addDriverNote, addLoan, deductLoan, loansForRun } from './driver-ledger';
 import { importReport } from './imports';
-import { loadTforceWeek, resolveTforceException, runWeeklyCheck } from './tforce';
+import { loadTforceWeek, resolveNoPiecesWeek, resolveTforceException, runWeeklyCheck } from './tforce';
 import { addRate } from './setup';
 import { serviceTypes } from '~/db/schema';
 import { loadHovershipWeek } from './hovership';
@@ -76,8 +76,9 @@ describe('a whole week, end to end', () => {
       await runWeeklyCheck(tx, owner, 'tforce', WEEK);
       out.exceptionsBefore = (await loadTforceWeek(tx, owner, WEEK)).exceptions.filter((e: { status: string }) => e.status === 'open').length;
       // Monday's review: the days with no pieces were days off (not ours); low days are paid as reported.
+      out.closedNoPieces = await resolveNoPiecesWeek(tx, owner, WEEK); // "None of these ran"
       for (const e of (await loadTforceWeek(tx, owner, WEEK)).exceptions.filter((x: { status: string }) => x.status === 'open')) {
-        await resolveTforceException(tx, owner, e.id, e.type === 'low_pieces' ? { action: 'pay_as_reported' } : { action: 'not_ours' });
+        await resolveTforceException(tx, owner, e.id, { action: 'pay_as_reported' });
       }
       out.exceptionsAfter = (await loadTforceWeek(tx, owner, WEEK)).exceptions.filter((e: { status: string }) => e.status === 'open').length;
 
@@ -116,6 +117,7 @@ describe('a whole week, end to end', () => {
       expect(hv).toMatchObject({ status: 'done', weeks: ['2027-03-29', '2027-04-05'], unknownCodes: [] });
       // Confirming every usual driver every day flags the days a driver code didn't run (no pieces).
       expect(out.exceptionsBefore).toBe(42);
+      expect(out.closedNoPieces).toBe(40);
       expect(out.exceptionsAfter).toBe(0);
       // Robert: 243 pieces × $1.50 + the $50 extra job; then $50 of the $100 advance is taken back.
       expect(out.robertBefore).toMatchObject({ packages: 243, extraJobs: 1, payCents: 243 * 150 + 5000 });
@@ -129,5 +131,23 @@ describe('a whole week, end to end', () => {
       expect(out.history).toMatchObject({ tforcePieces: 4910, extraJobs: 1, loans: 1 });
       const runs = (out.runs as { runs: { runId: string; status: string; payCents: number }[] }).runs;
       expect(runs.find((r) => r.runId === `hovership-${WEEK}`)).toMatchObject({ status: 'ready', payCents: 1338900 });
+    }), 120_000);
+  it('"didn\'t run today" keeps a driver code off that day: no exception, and confirming the usual drivers leaves it', () =>
+    withRollback(async (tx) => {
+      const owner = actorAs('owner');
+      const day = await loadDay(tx, owner, WEEK);
+      const g = day.rows.find((r) => r.code === '9000G')!;
+      const { previous } = await markOffToday(tx, owner, { date: WEEK, routeId: g.routeId });
+      await confirmUsual(tx, owner, WEEK);
+      const after = await loadDay(tx, owner, WEEK);
+      expect(after.rows.find((r) => r.code === '9000G')).toMatchObject({ status: 'off', today: { driverId: null, contractorId: null } });
+      expect(after.summary.off).toBe(1);
+      // The report has nothing for 9000G that Monday: no "no pieces" exception for it.
+      await importReport(tx, owner, { operation: 'tforce', fileName: 'tforce.csv', text: shift('tforce_pieces_jun2026.csv', '2026-06-15', daysBetween('2026-06-15', WEEK), (d) => d >= '2026-06-15' && d <= '2026-06-21') });
+      const week = await loadTforceWeek(tx, owner, WEEK);
+      expect(week.exceptions.filter((e: { route: string; date: string }) => e.route === '9000G' && e.date === WEEK)).toEqual([]);
+      // Undo brings the day back as it was (proposed, not confirmed).
+      await undoAssignment(tx, owner, { date: WEEK, routeId: g.routeId, previous });
+      expect((await loadDay(tx, owner, WEEK)).rows.find((r) => r.code === '9000G')!.status).toBe('proposed');
     }), 120_000);
 });

@@ -14,7 +14,8 @@ import { usualSortCodes } from './sort-codes';
 // Today's drivers (spec 6.3): who drove each T-Force route each day. No money here.
 
 export type PayeeInput = { driverId: string } | { contractorId: string } | null;
-export type DayStatus = 'proposed' | 'confirmed' | 'changed' | 'waiting' | 'no_driver';
+// 'off': the driver code didn't run that day (no one is paid, no exception if T-Force reports nothing).
+export type DayStatus = 'proposed' | 'confirmed' | 'changed' | 'waiting' | 'no_driver' | 'off';
 
 const samePayee = (a: { driverId: string | null; contractorId: string | null }, b: { driverId: string | null; contractorId: string | null }) =>
   a.driverId === b.driverId && a.contractorId === b.contractorId;
@@ -97,8 +98,8 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     const af = (l.after ?? {}) as Logged & { sortCodeIds?: string[] };
     const base = { id: l.id, at: l.at.toISOString(), route: routeOf.get(l.recordId) ?? '', action: l.action, source: l.source, user: user ?? null };
     // A change of the routes (sort codes) a driver ran, not of who drove.
-    if (l.tableName === 'execution_sort_codes') return { ...base, from: null, to: null, sortCodes: (af.sortCodeIds ?? []).map((x) => sortCodeName.get(x) ?? '?') };
-    return { ...base, from: l.before ? nameOf(l.before as Logged) : null, to: nameOf(af) ?? af.rawName ?? null, sortCodes: null };
+    if (l.tableName === 'execution_sort_codes') return { ...base, from: null, to: null, sortCodes: (af.sortCodeIds ?? []).map((x) => sortCodeName.get(x) ?? '?'), off: false };
+    return { ...base, from: l.before ? nameOf(l.before as Logged) : null, to: nameOf(af) ?? af.rawName ?? null, sortCodes: null, off: (af as { status?: string }).status === 'off' };
   });
 
   const count = (s: DayStatus | 'contractor') => rows.filter((r) => (s === 'contractor' ? r.contractorRoute && r.status !== 'no_driver' : !r.contractorRoute && r.status === s)).length;
@@ -122,6 +123,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       contractor: count('contractor'),
       waiting: count('waiting'),
       noDriver: rows.filter((r) => r.status === 'no_driver').length,
+      off: rows.filter((r) => r.status === 'off').length,
     },
     options: {
       // People on T-Force first (Drivers and rates → Platform); the rest can still be picked, labelled with their
@@ -164,6 +166,21 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
   // Callers undo to the previous driver or contractor, so hand back that shape.
   const previous = view ? { driverId: view.payeeDriverId, contractorId: view.payeeContractorId, rawName: view.rawName, status: view.status } : null;
   return { before: previous, after };
+}
+
+/**
+ * "Didn't run today": the driver code stays on the list, but this day nobody drove it, so T-Force reporting
+ * nothing for it is expected (no exception). Its routes that day are cleared. Undo with undoAssignment.
+ */
+export async function markOffToday(tx: Tx, actor: Actor, input: { date: string; routeId: string }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const { before, after } = await writeAssignment(tx, actor, input.date, input.routeId, { driverId: null, contractorId: null, rawName: null, status: 'off' });
+  const had = await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, after.id));
+  if (had.length) {
+    await tx.delete(executionSortCodes).where(eq(executionSortCodes.executionId, after.id));
+    await audit(tx, had.map((h) => ({ table: 'execution_sort_codes', recordId: after.id, action: 'delete' as const, before: h, userId: actor.userId, source: actor.source })));
+  }
+  return { assignmentId: after.id, previous: before };
 }
 
 /** Sets who drove a route on a day. Same as the usual payee → confirmed; different → changed; nobody → no driver. */

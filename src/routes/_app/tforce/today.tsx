@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -26,6 +26,7 @@ const encode = (p: { driverId: string | null; contractorId: string | null }) => 
 const decode = (v: string) => (v.startsWith('d:') ? { driverId: v.slice(2) } : v.startsWith('c:') ? { contractorId: v.slice(2) } : null);
 
 function statusOf(r: Row): { key: MessageKey; tone: PillTone } {
+  if (r.status === 'off') return { key: 'td.status.off', tone: 'muted' };
   if (r.status === 'no_driver') return { key: 'td.status.no_driver', tone: 'warn' };
   if (r.contractorRoute && r.today.contractorId) return { key: 'td.status.contractor', tone: 'contractor' };
   if (r.status === 'waiting') return { key: 'td.status.waiting', tone: 'waiting' };
@@ -139,14 +140,47 @@ function TodayPage() {
     });
   };
 
-  // Shortcuts on today's person (not a contractor): notes and loans, extra job; and taking the row off.
-  const actions = (r: Row) => r.today.driverId && r.today.name ? (
-    <PersonActions driverId={r.today.driverId} name={r.today.name} date={day.date} openNotes={day.ledger[r.today.driverId]?.openNotes}
-      owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra}
-      onRemove={day.canEdit ? () => removeRoute(r) : undefined} removeLabel={t('td.removeRoute', { route: r.code })} />
-  ) : day.canEdit ? (
-    <span className="person-actions"><button type="button" className="link-btn" onClick={() => removeRoute(r)} aria-label={t('td.removeRoute', { route: r.code })}>{t('pa.remove')}</button></span>
-  ) : null;
+  // "Didn't run today": only this day, one tap, with Undo (the code is back tomorrow with its usual driver).
+  const offToday = async (r: Row) => {
+    const res = await markOff({ data: { date: day.date, routeId: r.routeId } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.offDone', { route: r.code }), async () => {
+      const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
+  // Back on the road after "didn't run": the usual driver again (or pick someone in the field).
+  const backOn = async (r: Row) => {
+    const payee = r.usual.driverId ? { driverId: r.usual.driverId } : r.usual.contractorId ? { contractorId: r.usual.contractorId } : null;
+    if (!payee) return;
+    await change(r, payee.driverId ? `d:${payee.driverId}` : `c:${payee.contractorId}`);
+  };
+
+  // Shortcuts on today's person (not a contractor): notes and loans, extra job; "didn't run today" and
+  // "no longer used" (off the list from now on).
+  const actions = (r: Row) => {
+    if (!day.canEdit && !r.today.driverId) return null;
+    if (r.status === 'off') return day.canEdit ? (
+      <span className="person-actions">
+        {(r.usual.driverId || r.usual.contractorId) && <button type="button" className="link-btn" onClick={() => backOn(r)}>{t('td.backOn', { name: r.usual.name ?? '' })}</button>}
+        <button type="button" className="link-btn" onClick={() => removeRoute(r)} aria-label={t('td.removeRoute', { route: r.code })}>{t('td.noLongerUsed')}</button>
+      </span>
+    ) : null;
+    return r.today.driverId && r.today.name ? (
+      <PersonActions driverId={r.today.driverId} name={r.today.name} date={day.date} openNotes={day.ledger[r.today.driverId]?.openNotes}
+        owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra}
+        onOff={day.canEdit ? () => offToday(r) : undefined} offText={t('td.offToday')} offLabel={t('td.offTodayFor', { route: r.code })}
+        onRemove={day.canEdit ? () => removeRoute(r) : undefined} removeLabel={t('td.removeRoute', { route: r.code })} removeText={t('td.noLongerUsed')} />
+    ) : day.canEdit ? (
+      <span className="person-actions">
+        <button type="button" className="link-btn" onClick={() => offToday(r)} aria-label={t('td.offTodayFor', { route: r.code })}>{t('td.offToday')}</button>
+        <button type="button" className="link-btn" onClick={() => removeRoute(r)} aria-label={t('td.removeRoute', { route: r.code })}>{t('td.noLongerUsed')}</button>
+      </span>
+    ) : null;
+  };
 
   const s = day.summary;
   const unknown = day.rows.filter((r) => r.rawName && r.status === 'no_driver');
@@ -176,6 +210,7 @@ function TodayPage() {
         {s.contractor > 0 && <span role="listitem"><Pill tone="contractor">{t('td.sumContractor', { count: s.contractor })}</Pill></span>}
         {s.waiting > 0 && <span role="listitem"><Pill tone="waiting">{t('td.sumWaiting', { count: s.waiting })}</Pill></span>}
         {s.noDriver > 0 && <span role="listitem"><Pill tone="warn">{t('td.sumNoDriver', { count: s.noDriver })}</Pill></span>}
+        {s.off > 0 && <span role="listitem"><Pill tone="muted">{t(s.off === 1 ? 'td.sumOffOne' : 'td.sumOff', { count: s.off })}</Pill></span>}
         <span className="muted" role="listitem">{t('td.sumRoutes', { count: s.routes })}</span>
         {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.confirmAll', { count: s.proposed })}</Button>}
         {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
@@ -251,7 +286,7 @@ function TodayPage() {
                       <span>
                         <RoutePlate code={c.route} size="sm" />{' '}
                         {c.sortCodes ? t('td.routesSet', { routes: c.sortCodes.join(', ') || t('td.noSortCodes') })
-                          : c.from && c.from !== c.to ? t('td.fromTo', { from: c.from, to: c.to ?? t('td.noDriver') }) : (c.to ?? t('td.noDriver'))}
+                          : c.off ? t('td.status.off') : c.from && c.from !== c.to ? t('td.fromTo', { from: c.from, to: c.to ?? t('td.noDriver') }) : (c.to ?? t('td.noDriver'))}
                         <span className="sub">{c.user ? t('td.by', { who: c.user, source: t(`audit.source.${c.source}` as MessageKey) }) : t('td.src.daily_list')}{c.action === 'undo' ? ` · ${t('audit.action.undo')}` : ''}</span>
                       </span>
                     </li>

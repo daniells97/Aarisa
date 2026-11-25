@@ -6,7 +6,7 @@ import { addDays, weekStart } from '~/domain/dates';
 import { getTforceWeek, uploadTforceReport } from '~/server/tforce-fns';
 import type { ImportOutcome } from '~/server/imports';
 import { Button, Figures, Icon, ImportNotice, PageHead, Panel, ReadingSteps, RoutePlate, WarningDiamond, buttonClass, useFormat, useToast } from '~/ui';
-import { ExceptionCard, ResolvedList } from '~/ui/TforceExceptions';
+import { ExceptionCard, ResolvedList, NoPiecesBulk } from '~/ui/TforceExceptions';
 
 type Week = Awaited<ReturnType<typeof getTforceWeek>>;
 
@@ -124,7 +124,7 @@ function WeeklyCheck() {
           <Grid week={week} />
           <Panel title={t('wk.exceptions')} id="exceptions" aside={open.length > 0 && <span className="muted">{t('wk.openCount', { count: open.length })}</span>}>
             {open.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('wk.noExceptions')}</p> : (
-              <ul className="ex-list">{open.map((e) => <ExceptionCard key={e.id} ex={e} week={week} />)}</ul>
+              <><NoPiecesBulk week={week} /><ul className="ex-list">{open.map((e) => <ExceptionCard key={e.id} ex={e} week={week} />)}</ul></>
             )}
             {open.some((e) => e.type === 'low_pieces' || e.type === 'no_pieces') && <p className="panel-body muted" style={{ margin: 0, paddingTop: 12, fontSize: 13.5 }}>{t('wk.askHint')}</p>}
             <ResolvedList items={week.exceptions.filter((e) => e.status === 'resolved')} />

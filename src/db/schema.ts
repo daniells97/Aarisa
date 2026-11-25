@@ -34,7 +34,7 @@ export const importStatusEnum = core.enum('import_status', [
 ]);
 export const executionKindEnum = core.enum('execution_kind', ['route', 'extra']);
 export const executionStatusEnum = core.enum('execution_status', [
-  'proposed', 'confirmed', 'changed', 'waiting', 'no_driver',
+  'proposed', 'confirmed', 'changed', 'waiting', 'no_driver', 'off',
 ]);
 export const exceptionTypeEnum = core.enum('exception_type', [
   'no_driver', 'unknown_name', 'no_pieces', 'low_pieces', 'unknown_driver_code', 'missing_rate',
@@ -404,7 +404,7 @@ export const routeExecutions = core.table('route_executions', {
   uniqueIndex('route_executions_payee_day').on(t.operationId, t.date, t.payeeId).where(sql`${t.kind} = 'route' and ${t.routeId} is null`),
   uniqueIndex('route_executions_extra_day').on(t.operationId, t.date, t.payeeId).where(sql`${t.kind} = 'extra'`),
   index('route_executions_payee').on(t.payeeId, t.date),
-  check('route_executions_status_payee', sql`(${t.status} in ('confirmed', 'changed') and ${t.payeeId} is not null) or (${t.status} = 'no_driver' and ${t.payeeId} is null) or ${t.status} in ('proposed', 'waiting')`),
+  check('route_executions_status_payee', sql`(${t.status} in ('confirmed', 'changed') and ${t.payeeId} is not null) or (${t.status}::text in ('no_driver', 'off') and ${t.payeeId} is null) or ${t.status} in ('proposed', 'waiting')`),
   check('route_executions_confirmed_at', sql`${t.confirmedAt} is null or ${t.status} in ('confirmed', 'changed')`),
   check('route_executions_extra_payee', sql`${t.kind} = 'route' or ${t.payeeId} is not null`),
 ]);

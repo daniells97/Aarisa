@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import { useT, type MessageKey } from '~/i18n';
 import type { getTforceWeek } from '~/server/tforce-fns';
-import { resolveException } from '~/server/tforce-fns';
+import { resolveException, resolveNoPieces } from '~/server/tforce-fns';
 import { Button } from './Button';
 import { RoutePlate } from './RoutePlate';
 import { WarningDiamond } from './WarningDiamond';
@@ -200,5 +200,35 @@ export function ResolvedList({ items }: { items: Ex[] }) {
         ))}
       </ul>
     </details>
+  );
+}
+
+/**
+ * Above the cards: the days a driver code was on the list but T-Force reported nothing. Usually it just
+ * didn't run, so one tap closes them all ("none of these ran"); one that did run is opened on its own.
+ */
+export function NoPiecesBulk({ week }: { week: Week }) {
+  const t = useT();
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const n = week.exceptions.filter((e) => e.status === 'open' && e.type === 'no_pieces').length;
+  if (!week.canResolve || n < 2) return null;
+  const go = async () => {
+    setBusy(true);
+    try {
+      const res = await resolveNoPieces({ data: { start: week.week.start, operation: week.operation.code } });
+      if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+      toast(t('wk.noPiecesClosed', { count: res.value }));
+      await router.invalidate();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="notice notice-info" style={{ margin: '0 16px 12px', flexWrap: 'wrap', gap: 10 }}>
+      <span style={{ flex: '1 1 260px' }}>{t('wk.noPiecesLead', { count: n })}</span>
+      <Button onClick={go} disabled={busy}>{t('wk.noPiecesAll', { count: n })}</Button>
+    </div>
   );
 }

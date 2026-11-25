@@ -250,3 +250,16 @@ export async function latestTforceWeek(tx: Tx, today: string, operation?: string
   const [row] = await tx.select({ date: workView.date }).from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'client_report'))).orderBy(desc(workView.date)).limit(1);
   return weekStart(row?.date ?? today);
 }
+
+/**
+ * "None of these ran": closes every open "no pieces" exception of the week as not ours in one go (the driver
+ * code was on the list but didn't go out). Returns how many were closed.
+ */
+export async function resolveNoPiecesWeek(tx: Tx, actor: Actor, start: string, operation?: string) {
+  assertCan(actor, 'exceptions.clear');
+  const op = await operationFor(tx, operation, 'daily_list');
+  const open = await tx.select({ id: exceptions.id }).from(exceptions)
+    .where(and(eq(exceptions.operationId, op.id), eq(exceptions.periodStart, start), eq(exceptions.status, 'open'), eq(exceptions.type, 'no_pieces')));
+  for (const e of open) await resolveTforceException(tx, actor, e.id, { action: 'not_ours' });
+  return open.length;
+}

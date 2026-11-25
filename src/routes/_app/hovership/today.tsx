@@ -71,6 +71,20 @@ function HovershipTodayPage() {
     });
   };
 
+  // "Didn't work today": only this day (no routes), one tap, with Undo back to how the day was.
+  const offToday = async (r: Row) => {
+    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id) }];
+    const res = await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: [] } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('hd.offDone', { name: r.name }), async () => {
+      const u = await restoreHovershipDrivers({ data: { date: day.date, previous } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
+
   // "Driver today", as on T-Force: someone else runs this person's routes today (Undo puts everyone back).
   const cover = async (r: Row, by: { driverId: string } | { newName: string }) => {
     const res = await coverHovershipDriver({ data: { date: day.date, driverId: r.driverId, by } });
@@ -126,7 +140,8 @@ function HovershipTodayPage() {
   const actions = (r: Row) => (
     <>
       <PersonActions driverId={r.driverId} name={r.name} date={day.date} op={day.operation.code} openNotes={r.openNotes} owedCents={r.owedCents} canLogExtra={day.canLogExtra}
-        onRemove={day.canEdit ? () => remove(r) : undefined} />
+        onOff={day.canEdit && r.status !== 'off' && r.status !== 'covered' ? () => offToday(r) : undefined} offText={t('hd.offToday')} offLabel={t('hd.offTodayFor', { name: r.name })}
+        onRemove={day.canEdit ? () => remove(r) : undefined} removeText={t('hd.noLongerHere')} />
     </>
   );
 

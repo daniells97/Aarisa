@@ -7,7 +7,7 @@ import type { Tx } from '~/db/client';
 import { operations, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { addDriverForRoute, addRoute, assignNewDriver, confirmUsual, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
+import { addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -42,9 +42,18 @@ export const assign = createServerFn({ method: 'POST' })
 export const undoAssign = createServerFn({ method: 'POST' })
   .validator(z.object({
     date: isoDate, routeId: uuid,
-    previous: z.object({ driverId: uuid.nullable(), contractorId: uuid.nullable(), rawName: z.string().nullable(), status: z.enum(['proposed', 'confirmed', 'changed', 'waiting', 'no_driver']) }).nullable(),
+    previous: z.object({ driverId: uuid.nullable(), contractorId: uuid.nullable(), rawName: z.string().nullable(), status: z.enum(['proposed', 'confirmed', 'changed', 'waiting', 'no_driver', 'off']) }).nullable(),
   }))
   .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => { await undoAssignment(tx, actor, data); await recheckRoute(tx, actor, data.date, data.routeId); return true; }));
+
+/** "Didn't run today" on a driver code (one tap, with Undo on the page). */
+export const markOff = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, routeId: uuid }))
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
+    const res = await markOffToday(tx, actor, data);
+    await recheckRoute(tx, actor, data.date, data.routeId);
+    return res;
+  }));
 
 export const confirmAll = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, operation }))

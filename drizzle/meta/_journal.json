@@ -134,6 +134,20 @@
       "when": 1795554346153,
       "tag": "0018_user_first_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795565166153,
+      "tag": "0019_execution_off_today",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795565379193,
+      "tag": "0020_execution_off_payee_check",
+      "breakpoints": true
     }
   ]
 }

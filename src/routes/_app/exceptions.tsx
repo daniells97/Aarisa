@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useT } from '~/i18n';
 import { getDefaultTforceWeek, getTforceWeek } from '~/server/tforce-fns';
 import { PageHead, Panel, useFormat } from '~/ui';
-import { ExceptionCard, ResolvedList } from '~/ui/TforceExceptions';
+import { ExceptionCard, ResolvedList, NoPiecesBulk } from '~/ui/TforceExceptions';
 
 // Phone Exceptions tab (Mobile-Exceptions design): the open weekly-check exceptions, one card each.
 export const Route = createFileRoute('/_app/exceptions')({
@@ -25,7 +25,7 @@ function ExceptionsPage() {
         actions={<Link to="/tforce/week/$weekId" params={{ weekId: week.week.start }}>{t('wk.title')}</Link>} />
       <Panel>
         {open.length === 0 ? <p className="panel-body muted" style={{ paddingTop: 20, margin: 0 }}>{t('wk.noExceptions')}</p>
-          : <ul className="ex-list">{open.map((e) => <ExceptionCard key={e.id} ex={e} week={week} />)}</ul>}
+          : <><NoPiecesBulk week={week} /><ul className="ex-list">{open.map((e) => <ExceptionCard key={e.id} ex={e} week={week} />)}</ul></>}
         <ResolvedList items={week.exceptions.filter((e) => e.status === 'resolved')} />
       </Panel>
     </>

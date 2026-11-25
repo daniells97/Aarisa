@@ -4,7 +4,7 @@ import { todayLA } from '~/domain/dates';
 import { db } from '~/db/client';
 import { requireSignedIn } from './auth';
 import { read, run } from './fn';
-import { importTforce, latestTforceWeek, loadTforceWeek, resolveTforceException } from './tforce';
+import { importTforce, latestTforceWeek, loadTforceWeek, resolveNoPiecesWeek, resolveTforceException } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const uuid = z.string().uuid();
@@ -41,3 +41,7 @@ export const resolveException = createServerFn({ method: 'POST' })
     ]),
   }))
   .handler(({ data }) => run('exceptions.clear', async (tx, actor) => (await resolveTforceException(tx, actor, data.exceptionId, data.resolution)).id));
+
+export const resolveNoPieces = createServerFn({ method: 'POST' })
+  .validator(z.object({ start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), operation }))
+  .handler(({ data }) => run('exceptions.clear', (tx, actor) => resolveNoPiecesWeek(tx, actor, data.start, data.operation)));

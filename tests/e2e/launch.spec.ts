@@ -52,3 +52,14 @@ test('the signed-in person and Sign out are at the top', async ({ page }) => {
   await expect(page.locator('.top-user .avatar')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Sign out' })).toBeVisible();
 });
+
+test("“Didn't run today” is one tap on the row, shows as didn't run, and Undo puts it back", async ({ page, isMobile }) => {
+  test.skip(isMobile, 'one device is enough; it writes data');
+  await signInAs(page, 'dispatcher', '/tforce/today?date=2027-05-10');
+  await page.getByRole('button', { name: "9000A didn't run this day" }).locator('visible=true').first().click();
+  await expect(page.locator('.toasts')).toContainText("9000A: didn't run this day.");
+  await expect(page.getByText("1 didn't run")).toBeVisible();
+  await page.locator('.toasts').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.toasts')).toContainText('Change undone.');
+  await expect(page.getByText("1 didn't run")).toHaveCount(0);
+});

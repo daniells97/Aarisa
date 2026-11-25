@@ -1,0 +1,4 @@
+-- A "didn't run" day has no payee, like a day with no driver. 'off' is compared as text so this works in the
+-- same transaction that adds the enum value (0019).
+ALTER TABLE "core"."route_executions" DROP CONSTRAINT "route_executions_status_payee";--> statement-breakpoint
+ALTER TABLE "core"."route_executions" ADD CONSTRAINT "route_executions_status_payee" CHECK (("core"."route_executions"."execution_status" in ('confirmed', 'changed') and "core"."route_executions"."payee_id" is not null) or ("core"."route_executions"."execution_status"::text in ('no_driver', 'off') and "core"."route_executions"."payee_id" is null) or "core"."route_executions"."execution_status" in ('proposed', 'waiting'));
