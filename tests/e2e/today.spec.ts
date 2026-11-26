@@ -21,7 +21,7 @@ test('a dispatcher types a name to change a route, sees the toast and undoes it'
   await expect(picker).toHaveAttribute('placeholder', before!);
 });
 
-test('a name that is not on the list can be added right from the picker', async ({ page, isMobile }) => {
+test('a name that is not on the list opens the driver form (same as Drivers and rates), then is assigned', async ({ page, isMobile }) => {
   test.skip(isMobile, 'one device is enough; it writes data');
   const name = `E2E Driver ${Date.now()}`;
   await signInAs(page, 'dispatcher', '/tforce/today?date=2027-01-05');
@@ -29,7 +29,16 @@ test('a name that is not on the list can be added right from the picker', async 
   await picker.click();
   await picker.fill(name);
   await page.getByRole('option', { name: `Add “${name}” as a new driver` }).click();
-  await expect(page.getByRole('status')).toContainText(`${name} added as a new driver and assigned to 9000B.`);
+  // The same driver form as Drivers and rates, with the typed name already in it.
+  const form = page.getByRole('dialog', { name: 'Add driver' });
+  await expect(form.getByLabel('Name', { exact: true }).first()).toHaveValue(name);
+  await form.getByLabel('Email').fill('e2e.driver@example.com');
+  await form.getByLabel("Driver's license number").fill('d7654321');
+  await form.getByLabel('Home address').fill('1 Test St, Oakland CA');
+  await form.getByRole('group', { name: 'Emergency contact' }).getByLabel('Name').fill('E2E Contact');
+  await form.getByRole('group', { name: 'Emergency contact' }).getByLabel('Phone').fill('+14155550199');
+  await form.getByRole('button', { name: 'Save driver' }).click();
+  await expect(page.getByRole('status')).toContainText(`9000B is now ${name}.`);
   await expect(picker).toHaveAttribute('placeholder', name);
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.getByRole('status')).toContainText('Change undone.');

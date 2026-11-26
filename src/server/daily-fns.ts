@@ -2,12 +2,13 @@ import { can } from '~/domain/permissions';
 import { ledgerByDriver } from './driver-ledger';
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
+import { driverInput } from './driver-input';
 import { eq } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { operations, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
+import { addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -96,3 +97,11 @@ export const saveSortCodes = createServerFn({ method: 'POST' })
 export const setRouteListed = createServerFn({ method: 'POST' })
   .validator(z.object({ routeId: uuid, active: z.boolean() }))
   .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => (await setRouteOnList(tx, actor, data)).code));
+
+/** "+ New person…" in Daily operations: the same driver form as Drivers and rates. Returns who was created. */
+export const createDriverToday = createServerFn({ method: 'POST' })
+  .validator(driverInput)
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
+    const d = await addDriverFromToday(tx, actor, data);
+    return { id: d.id, name: d.fullName };
+  }));

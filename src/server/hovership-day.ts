@@ -11,7 +11,7 @@ import { ledgerByDriver } from './driver-ledger';
 import { RuleError } from './errors';
 import { payeeIdOf } from './executions';
 import { assertNotLocked, operationFor } from './ops';
-import { createDriver, driverProfiles } from './people';
+import { contractorProfiles, createDriver, driverProfiles } from './people';
 
 // Today's drivers for Hovership: which routes (sort codes) each Hovership driver runs on a day. Hovership's
 // report already names the driver, so there is no driver code; Aarisa assigns the routes by hand. It works
@@ -101,6 +101,8 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
     // People not on the list yet, for "Add driver".
     options: {
       sortCodes: options,
+      // Companies for the "New person" form.
+      contractors: (await contractorProfiles(tx)).filter((c) => c.active).map((c) => ({ id: c.id, name: c.name })),
       others: everyone.filter((d) => d.active && !d.worksHovership).map((d) => ({ id: d.id, name: d.fullName })),
       // For "Driver today": people on Hovership first, then everyone else (labelled), so nobody is created twice.
       drivers: [...everyone.filter((d) => d.active && d.worksHovership).map((d) => ({ id: d.id, name: d.fullName, contractor: null as string | null })),

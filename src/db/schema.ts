@@ -180,6 +180,10 @@ export const drivers = core.table('drivers', {
   // Which platforms the person works on: T-Force, Hovership or both. Decides which daily lists show them.
   worksTforce: boolean('works_tforce').notNull().default(true),
   worksHovership: boolean('works_hovership').notNull().default(false),
+  // Driver's license number and who to call in an emergency. Email and home address live in `payees`.
+  licenseNumber: text('license_number'),
+  emergencyContactName: text('emergency_contact_name'),
+  emergencyContactPhone: text('emergency_contact_phone'),
   createdAt: createdAt(), updatedAt: updatedAt(),
 });
 

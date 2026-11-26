@@ -9,6 +9,7 @@ import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
+import { useNewPerson } from '~/ui/DriverForm';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 
@@ -86,6 +87,9 @@ function HovershipTodayPage() {
   };
 
   // "Driver today", as on T-Force: someone else runs this person's routes today (Undo puts everyone back).
+  // "+ New person…": the same form as Drivers and rates (on Hovership), then it covers the row.
+  const [newPerson, newPersonDialog] = useNewPerson(day.options.contractors, { worksTforce: false, worksHovership: true });
+
   const cover = async (r: Row, by: { driverId: string } | { newName: string }) => {
     const res = await coverHovershipDriver({ data: { date: day.date, driverId: r.driverId, by } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
@@ -103,7 +107,7 @@ function HovershipTodayPage() {
     <PersonPicker value={`d:${r.today.driverId}`} options={{ drivers: day.options.drivers, contractors: [] }} disabled={!day.canEdit} allowNone={false}
       label={t('td.driverFor', { route: r.name, date: dateLabel })} state={r.status === 'covered' ? 'changed' : undefined}
       onPick={(v) => v.startsWith('d:') && v.slice(2) !== r.today.driverId && cover(r, { driverId: v.slice(2) })}
-      onCreate={(name) => cover(r, { newName: name })} />
+      onCreate={(name) => newPerson(name, (d) => cover(r, { driverId: d.id }))} />
   );
 
   // "+ Create a new route…" in the route picker: added to the contract's routes, then to this row.
@@ -147,6 +151,7 @@ function HovershipTodayPage() {
 
   return (
     <>
+      {newPersonDialog}
       <PageHead title={t('td.title')} lead={t('hd.lead', { client: day.operation.name })}
         actions={
           <div className="row">
@@ -257,6 +262,8 @@ function HovershipRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day
   const router = useRouter();
   const toast = useToast();
   const [who, setWho] = useState<{ driverId: string } | { newName: string } | null>(null);
+  const [newPerson, newPersonDialog] = useNewPerson(day.options.contractors, { worksTforce: false, worksHovership: true });
+  const [newName, setNewName] = useState('');
   const [routes, setRoutes] = useState<{ id: string; code: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -282,12 +289,12 @@ function HovershipRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day
     }
   };
   const allCodes = [...day.options.sortCodes, ...routes.filter((r) => !day.options.sortCodes.some((o) => o.id === r.id))];
-  const name = !who ? '' : 'newName' in who ? who.newName : day.options.others.find((o) => o.id === who.driverId)?.name ?? '';
+  const name = !who ? '' : 'newName' in who ? who.newName : day.options.others.find((o) => o.id === who.driverId)?.name ?? newName;
   const cells = [
     <span key="code" className="muted">{'newName' in (who ?? {}) ? t('hd.newPerson') : '—'}</span>,
     <PersonPicker key="who" value={who && 'driverId' in who ? `d:${who.driverId}` : ''} options={{ drivers: day.options.others, contractors: [] }}
       label={t('hd.whoNew', { date: dateLabel })} placeholder={who && 'newName' in who ? who.newName : t('td.whoDrives')} allowNone={false} emptyHint={t('hd.whoHint')}
-      onPick={(v) => v.startsWith('d:') && setWho({ driverId: v.slice(2) })} onCreate={(n) => setWho({ newName: n })} />,
+      onPick={(v) => v.startsWith('d:') && setWho({ driverId: v.slice(2) })} onCreate={(n) => newPerson(n, (d) => { setNewName(d.name); setWho({ driverId: d.id }); })} />,
     <SortCodes key="routes" value={routes} options={allCodes} label={t('hd.routesOf', { name: name || '…', date: dateLabel })}
       onChange={(ids) => setRoutes(ids.map((id) => allCodes.find((c) => c.id === id)!).filter(Boolean))}
       onCreate={async (typed) => {
@@ -297,5 +304,5 @@ function HovershipRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day
         return res.value.id;
       }} />,
   ];
-  return <NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} />;
+  return <>{newPersonDialog}<NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} /></>;
 }

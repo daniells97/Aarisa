@@ -7,6 +7,7 @@ import { todayLA } from '~/domain/dates';
 import { createContractor, createRate, createService, getSetup, getSortCodesSetup, saveDriver, saveService } from '~/server/setup-fns';
 import { SortCodesTab } from '~/ui/SortCodesTab';
 import { DriverFile } from '~/ui/DriverFile';
+import { DriverDialog } from '~/ui/DriverForm';
 import { useClientName } from '~/ui/ClientNames';
 import { ClientsTab } from '~/ui/ClientsTab';
 import {
@@ -30,7 +31,7 @@ function SetupPage() {
   return (
     <>
       <PageHead title={t('setup.title')} lead={t('setup.lead')} />
-      <nav className="tabs" aria-label={t('setup.sections')}>
+      <nav className="tabs tabs-wrap" aria-label={t('setup.sections')}>
         {(['rates', 'drivers', 'routes', 'services', 'clients'] as const).map((k) => (
           <Link key={k} to="/settings/rates" search={{ tab: k }} aria-current={tab === k ? 'page' : undefined}>{t(`setup.tab.${k}`)}</Link>
         ))}
@@ -111,7 +112,38 @@ function RatesTab({ data }: { data: Setup }) {
         <p className="muted" style={{ margin: 0 }}>{t('rates.lead')}</p>
         {!data.showMoney && <p className="notice notice-info" style={{ margin: 0 }}>{t('rates.hiddenMoney')}</p>}
       </div>
-      <div className="table-wrap">
+      <ul className="hist-cards setup-cards phone-only">
+        {rows.flatMap(({ service, tier, current, upcoming, older }) => {
+          const name = label(service, tier);
+          const card = (r: RateRow | undefined, st: React.ReactNode, action: React.ReactNode, key: string, muted = false) => (
+            <li key={key} className={muted ? 'muted' : undefined}>
+              <div className="hist-card-top">
+                <span><strong>{name}</strong><span className="sub">{opName(service.operation)} · {t(`unit.${service.unit}` as MessageKey)}</span></span>
+                {st}
+              </div>
+              <dl className="card-figures">
+                {data.showMoney && <div><dt>{t('rates.clientPays')}</dt><dd className="num">{r?.clientRateCents != null ? f.money(r.clientRateCents) : '–'}</dd></div>}
+                <div><dt>{t('rates.driverGets')}</dt><dd className="num">{r?.driverRateCents != null ? f.money(r.driverRateCents) : '–'}</dd></div>
+                {data.showMoney && <div><dt>{t('rates.aarisaKeeps')}</dt><dd className="num">{r?.clientRateCents != null && r.driverRateCents != null ? f.money(r.clientRateCents - r.driverRateCents) : '–'}</dd></div>}
+                <div><dt>{t('rates.starts')}</dt><dd className="num">{r ? f.date(r.effectiveFrom) : '–'}</dd></div>
+              </dl>
+              {action && <span className="card-actions">{action}</span>}
+            </li>
+          );
+          const change = data.canEdit && (
+            <Button aria-label={t(current ? 'rates.changeNamed' : 'rates.setNamed', { name })}
+              onClick={() => setEditing({ serviceTypeId: service.id, tierId: tier?.id ?? null, current })}>
+              {t(current ? 'rates.change' : service.unit === 'job' ? 'rates.setDefault' : 'rates.add')}
+            </Button>
+          );
+          return [
+            ...upcoming.map((r) => card(r, <Pill tone="waiting">{t('rates.upcoming')}</Pill>, null, r.id)),
+            card(current, statusOf(service, current), change, `${service.id}-${tier?.id ?? ''}`),
+            ...(history ? older.map((r) => card(r, <Pill tone="muted">{t('rates.replaced')}</Pill>, null, r.id, true)) : []),
+          ];
+        })}
+      </ul>
+      <div className="table-wrap desktop-only">
         <table>
           <thead>
             <tr>
@@ -243,11 +275,42 @@ function DriversTab({ data }: { data: Setup }) {
   const [file, setFile] = useState<Driver | null>(null);
   const f = useFormat();
   const contractorName = (id: string | null) => (id ? data.contractors.find((c) => c.id === id)?.name ?? '' : t('drivers.aarisa'));
+  const platform = (d: Driver) => (d.worksTforce && d.worksHovership ? t('drivers.both')
+    : [d.worksTforce && clientName('tforce'), d.worksHovership && clientName('hovership')].filter(Boolean).join(', ') || t('drivers.noPlatform'));
+  const status = (d: Driver) => (!d.setupComplete ? <Pill tone="warn">{t('drivers.finishSetup')}</Pill> : d.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>);
   return (
     <>
       <Panel title={t('setup.tab.drivers')} id="drivers"
         aside={data.canEdit && <Button variant="primary" onClick={() => setEditing('new')}>{t('drivers.add')}</Button>}>
-        <div className="table-wrap">
+        <ul className="hist-cards setup-cards phone-only">
+          {data.drivers.map((d) => (
+            <li key={d.id}>
+              <div className="hist-card-top">
+                <strong>{d.fullName}</strong>
+                {status(d)}
+              </div>
+              <span className="muted">{[d.hovershipCode, platform(d), d.contractorId ? contractorName(d.contractorId) : t('drivers.aarisa')].filter(Boolean).join(' · ')}</span>
+              {d.usualRoutes.length > 0 && <span className="row" style={{ gap: 6 }}>{d.usualRoutes.map((r) => <RoutePlate key={r} code={r} size="sm" />)}</span>}
+              {(d.phone || d.email) && (
+                <span className="row" style={{ gap: 12 }}>
+                  {d.phone && <a href={`tel:${d.phone}`}>{d.phone}</a>}
+                  {d.email && <a href={`mailto:${d.email}`} style={{ overflowWrap: 'anywhere' }}>{d.email}</a>}
+                </span>
+              )}
+              {(d.openNotes > 0 || d.owedCents > 0) && (
+                <span className="row" style={{ gap: 6 }}>
+                  {d.openNotes > 0 && <Pill tone="muted">{t('df.notesCount', { count: d.openNotes })}</Pill>}
+                  {d.owedCents > 0 && <Pill tone="waiting">{t('df.owes', { amount: f.money(d.owedCents) })}</Pill>}
+                </span>
+              )}
+              <span className="card-actions">
+                <Button aria-label={t('df.openNamed', { name: d.fullName })} onClick={() => setFile(d)}>{t('df.open')}</Button>
+                {data.canEdit && <Button aria-label={t('drivers.editNamed', { name: d.fullName })} onClick={() => setEditing(d)}>{t('drivers.edit')}</Button>}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="table-wrap desktop-only">
           <table>
             <thead>
               <tr>
@@ -268,11 +331,10 @@ function DriversTab({ data }: { data: Setup }) {
                       </span>
                     )}
                   </td>
-                  <td>{d.worksTforce && d.worksHovership ? <Pill tone="ok">{t('drivers.both')}</Pill>
-                    : [d.worksTforce && clientName('tforce'), d.worksHovership && clientName('hovership')].filter(Boolean).join(', ') || <span className="muted">{t('drivers.noPlatform')}</span>}</td>
+                  <td>{d.worksTforce && d.worksHovership ? <Pill tone="ok">{t('drivers.both')}</Pill> : platform(d)}</td>
                   <td>{d.contractorId ? <Pill tone="contractor">{contractorName(d.contractorId)}</Pill> : t('drivers.aarisa')}</td>
                   <td>{d.usualRoutes.length ? <span className="row" style={{ gap: 6 }}>{d.usualRoutes.map((r) => <RoutePlate key={r} code={r} size="sm" />)}</span> : <span className="muted">{t('drivers.none')}</span>}</td>
-                  <td>{!d.setupComplete ? <Pill tone="warn">{t('drivers.finishSetup')}</Pill> : d.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>}</td>
+                  <td>{status(d)}</td>
                   <td className="r">
                     <span className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                       <Button size="sm" aria-label={t('df.openNamed', { name: d.fullName })} onClick={() => setFile(d)}>{t('df.open')}</Button>
@@ -287,7 +349,18 @@ function DriversTab({ data }: { data: Setup }) {
       </Panel>
       <Panel title={t('drivers.contractorsTitle')} id="contractors"
         aside={data.canEdit && <Button onClick={() => setAddingContractor(true)}>{t('drivers.addContractor')}</Button>}>
-        <div className="table-wrap">
+        <ul className="hist-cards setup-cards phone-only">
+          {data.contractors.map((c) => (
+            <li key={c.id}>
+              <div className="hist-card-top">
+                <strong>{c.name}</strong>
+                {c.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>}
+              </div>
+              {c.routes.length > 0 ? <span className="row" style={{ gap: 6 }}>{c.routes.map((r) => <RoutePlate key={r} code={r} size="sm" />)}</span> : <span className="muted">{t('drivers.none')}</span>}
+            </li>
+          ))}
+        </ul>
+        <div className="table-wrap desktop-only">
           <table>
             <thead><tr><th scope="col">{t('drivers.name')}</th><th scope="col">{t('drivers.contractorRoutes')}</th><th scope="col">{t('rates.status')}</th></tr></thead>
             <tbody>
@@ -302,71 +375,24 @@ function DriversTab({ data }: { data: Setup }) {
           </table>
         </div>
       </Panel>
-      {editing && <DriverDialog data={data} driver={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && <SetupDriverDialog data={data} driver={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
       {addingContractor && <ContractorDialog onClose={() => setAddingContractor(false)} />}
       {file && <DriverFile driverId={file.id} name={file.fullName} onClose={() => setFile(null)} />}
     </>
   );
 }
 
-function DriverDialog({ data, driver, onClose }: { data: Setup; driver: Driver | null; onClose: () => void }) {
-  const clientName = useClientName();
+function SetupDriverDialog({ data, driver, onClose }: { data: Setup; driver: Driver | null; onClose: () => void }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
-  const [form, setForm] = useState({
-    fullName: driver?.fullName ?? '', hovershipCode: driver?.hovershipCode ?? '', contractorId: driver?.contractorId ?? '',
-    phone: driver?.phone ?? '', aliases: driver?.aliases.join(', ') ?? '', active: driver?.active ?? true,
-    worksTforce: driver?.worksTforce ?? true, worksHovership: driver?.worksHovership ?? false,
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((s) => ({ ...s, [k]: v }));
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const res = await saveDriver({ data: { id: driver?.id ?? null, driver: {
-        fullName: form.fullName, hovershipCode: form.hovershipCode || null, contractorId: form.contractorId || null,
-        phone: form.phone || null, aliases: form.aliases.split(','), active: form.active,
-        worksTforce: form.worksTforce, worksHovership: form.worksHovership,
-      } } });
-      if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
-      toast(t('drivers.saved'));
-      await router.invalidate();
-      onClose();
-    } catch {
-      setError(t('error.generic'));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
-    <Dialog open onClose={onClose} title={driver ? t('drivers.editNamed', { name: driver.fullName }) : t('drivers.add')}>
-      <form onSubmit={submit} className="stack">
-        <TextField label={t('drivers.name')} required autoComplete="off" value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
-        <div className="grid-2">
-          <TextField label={t('drivers.code')} autoComplete="off" value={form.hovershipCode} onChange={(e) => set('hovershipCode', e.target.value)} />
-          <SelectField label={t('drivers.worksFor')} value={form.contractorId} onChange={(e) => set('contractorId', e.target.value)}>
-            <option value="">{t('drivers.aarisa')}</option>
-            {data.contractors.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </SelectField>
-        </div>
-        <TextField label={t('drivers.phone')} type="tel" autoComplete="off" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
-        <TextField label={t('drivers.aliases')} hint={t('drivers.aliasesHint')} value={form.aliases} onChange={(e) => set('aliases', e.target.value)} />
-        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0, gap: 0 }}>
-          <legend style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink-2)', padding: 0 }}>{t('drivers.drivesFor')}</legend>
-          <CheckField label={clientName('tforce')} checked={form.worksTforce} onChange={(e) => set('worksTforce', e.target.checked)} />
-          <CheckField label={clientName('hovership')} checked={form.worksHovership} onChange={(e) => set('worksHovership', e.target.checked)} />
-        </fieldset>
-        <CheckField label={t('drivers.activeLabel')} checked={form.active} onChange={(e) => set('active', e.target.checked)} />
-        <FormError>{error}</FormError>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>{t('drivers.save')}</Button>
-        </div>
-      </form>
-    </Dialog>
+    <DriverDialog driver={driver} contractors={data.contractors} onClose={onClose}
+      save={async (input) => {
+        const res = await saveDriver({ data: { id: driver?.id ?? null, driver: input } });
+        return res.ok ? { ok: true, value: { id: res.value, name: input.fullName } } : res;
+      }}
+      onSaved={async () => { toast(t('drivers.saved')); await router.invalidate(); }} />
   );
 }
 
@@ -414,7 +440,23 @@ function ServicesTab({ data }: { data: Setup }) {
     <Panel title={t('setup.tab.services')} id="services"
       aside={data.canEdit && <Button variant="primary" onClick={() => setEditing('new')}>{t('services.add')}</Button>}>
       <p className="panel-body muted" style={{ margin: 0 }}>{t('services.lead')}</p>
-      <div className="table-wrap">
+      <ul className="hist-cards setup-cards phone-only">
+        {list.map((x) => (
+          <li key={x.id} className={x.active ? undefined : 'muted'}>
+            <div className="hist-card-top">
+              <span><strong>{serviceLabel(x, locale)}</strong><span className="sub">{opName(x.operation)} · {t(`unit.${x.unit}` as MessageKey)}</span></span>
+              {data.canEdit && <Button size="sm" aria-label={t('drivers.editNamed', { name: serviceLabel(x, locale) })} onClick={() => setEditing(x)}>{t('drivers.edit')}</Button>}
+            </div>
+            <span className="row" style={{ gap: 6 }}>
+              {!x.active && <Pill tone="muted">{t('pill.inactive')}</Pill>}
+              <Pill tone={x.fromReport ? 'ok' : 'muted'}>{t(x.fromReport ? 'services.fromReport' : 'services.logged')}</Pill>
+              {x.requiresOrderNumber && <Pill tone="warn">{t('services.needsOrder')}</Pill>}
+              {x.requiresNote && <Pill tone="muted">{t('services.needsNote')}</Pill>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="table-wrap desktop-only">
         <table>
           <thead>
             <tr>

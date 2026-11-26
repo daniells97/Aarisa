@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { throughPortal } from './invite-link';
+import { driverInput } from './driver-input';
 import { todayLA } from '~/domain/dates';
 import { zitadelAdminConfig } from '~/integrations/zitadel';
 import { read, run } from './fn';
@@ -22,16 +23,7 @@ export const createRate = createServerFn({ method: 'POST' })
   .validator(z.object({ serviceTypeId: uuid, tierId: uuid.nullable(), clientRateCents: cents, driverRateCents: cents, effectiveFrom: isoDate, reason: z.string().max(200).nullable().optional() }))
   .handler(({ data }) => run('setup.edit', async (tx, actor) => (await addRate(tx, actor, data)).id));
 
-const driverInput = z.object({
-  fullName: z.string().max(120),
-  hovershipCode: z.string().max(20).nullable(),
-  contractorId: uuid.nullable(),
-  phone: z.string().max(30).nullable(),
-  aliases: z.array(z.string().max(80)).max(20),
-  active: z.boolean(),
-  worksTforce: z.boolean().optional(),
-  worksHovership: z.boolean().optional(),
-});
+
 
 export const saveDriver = createServerFn({ method: 'POST' })
   .validator(z.object({ id: uuid.nullable(), driver: driverInput }))

@@ -6,6 +6,7 @@ import {
   contractorProfiles, createDriver, createRoute, driverProfile, ownCompanyId, routeOwners, updateDriverProfile,
 } from './people';
 import { getOperation } from './ops';
+import { addDriverFromToday } from './daily';
 
 const owner = actorAs('owner');
 const base = { hovershipCode: null, contractorId: null, phone: null, aliases: [], active: true, setupComplete: true };
@@ -33,6 +34,25 @@ describe('payees, companies and route owners (stage 2 of the redesign)', () => {
     await expect(createDriver(tx, owner, { ...base, fullName: 'test  twin' }, '2026-10-01')).rejects.toMatchObject({ code: 'driver_exists' });
     await expect(createDriver(tx, owner, { ...base, fullName: 'Other', hovershipCode: 'tst001' }, '2026-10-01')).rejects.toMatchObject({ code: 'code_taken' });
     await expect(createDriver(tx, owner, { ...base, fullName: 'Other', aliases: ['TWINNY '] }, '2026-10-01')).rejects.toMatchObject({ code: 'alias_taken' });
+  }));
+
+  it('keeps email, home address, license and emergency contact; an edit without them leaves them as they were', () => withRollback(async (tx) => {
+    const d = await createDriver(tx, owner, {
+      ...base, fullName: 'Test Contact', email: ' Pedro@Example.com ', address: '1 Main St,  Oakland', licenseNumber: 'd123',
+      emergencyName: 'Ana', emergencyPhone: '+14155550100',
+    }, '2026-11-26');
+    expect(d).toMatchObject({ email: 'pedro@example.com', address: '1 Main St, Oakland', licenseNumber: 'D123', emergencyName: 'Ana', emergencyPhone: '+14155550100' });
+    const after = await updateDriverProfile(tx, owner, d.id, { ...base, fullName: 'Test Contact' }, '2026-11-26');
+    expect(after).toMatchObject({ email: 'pedro@example.com', licenseNumber: 'D123', emergencyName: 'Ana' });
+    const cleared = await updateDriverProfile(tx, owner, d.id, { ...base, fullName: 'Test Contact', email: '', licenseNumber: null }, '2026-11-26');
+    expect(cleared).toMatchObject({ email: null, licenseNumber: null, emergencyName: 'Ana' });
+    await expect(createDriver(tx, owner, { ...base, fullName: 'Bad Mail', email: 'not-an-email' }, '2026-11-26')).rejects.toMatchObject({ code: 'email_invalid' });
+  }));
+
+  it('lets an operator create a person from Daily operations, fully set up; read-only users cannot', () => withRollback(async (tx) => {
+    const d = await addDriverFromToday(tx, actorAs('dispatcher'), { ...base, fullName: 'Test From Today', worksTforce: true, worksHovership: false, licenseNumber: 'X1' });
+    expect(d).toMatchObject({ setupComplete: true, worksTforce: true, licenseNumber: 'X1' });
+    await expect(addDriverFromToday(tx, actorAs('viewer'), { ...base, fullName: 'Nope' })).rejects.toThrow();
   }));
 
   it('answers who owns a route on a date from its ownership history', () => withRollback(async (tx) => {

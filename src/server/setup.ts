@@ -59,6 +59,7 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
   const routeRows = await tx.select().from(routes);
   const owner = await routeOwners(tx, today);
   const ledger = await ledgerByDriver(tx);
+  const canEditDrivers = can(actor.role, 'setup.edit');
   return {
     showMoney,
     canEdit: can(actor.role, 'setup.edit'),
@@ -75,6 +76,10 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
     drivers: driverRows.map((d) => ({
       id: d.id, fullName: d.fullName, hovershipCode: d.hovershipCode, contractorId: d.contractorId, phone: d.phone,
       aliases: d.aliases, active: d.active, setupComplete: d.setupComplete, worksTforce: d.worksTforce, worksHovership: d.worksHovership,
+      email: d.email,
+      // Home address, license and emergency contact only for those who can edit drivers.
+      address: canEditDrivers ? d.address : null, licenseNumber: canEditDrivers ? d.licenseNumber : null,
+      emergencyName: canEditDrivers ? d.emergencyName : null, emergencyPhone: canEditDrivers ? d.emergencyPhone : null,
       usualRoutes: routeRows.filter((r) => r.usualDriverId === d.id).map((r) => r.code),
       openNotes: ledger.get(d.id)?.openNotes ?? 0,
       owedCents: ledger.get(d.id)?.owedCents ?? 0,

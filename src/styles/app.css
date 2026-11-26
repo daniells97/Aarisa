@@ -448,3 +448,29 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .hist-cards > li:first-child { border-top: 0; }
 .hist-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .hist-card-top .num:last-child { font-weight: 600; }
+
+/* Drivers and rates on a phone: cards with the numbers in a small grid and full-width actions. */
+.setup-cards > li { gap: 8px; }
+.setup-cards .hist-card-top { align-items: flex-start; }
+.setup-cards a { color: var(--brand); }
+.card-figures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin: 0; }
+.card-figures dt { font-size: 13px; color: var(--ink-4); }
+.card-figures dd { margin: 0; font-weight: 600; }
+.card-actions { display: flex; gap: 8px; }
+.card-actions .btn { flex: 1; min-height: 44px; }
+/* Setup sections on a phone: chips that wrap, so every section is visible without scrolling sideways. */
+@media (max-width: 899px) {
+  .tabs.tabs-wrap { flex-wrap: wrap; gap: 8px; border-bottom: 0; overflow: visible; }
+  .tabs.tabs-wrap a { padding: 0 16px; margin: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+  .tabs.tabs-wrap a[aria-current='page'] { background: var(--brand); border-color: var(--brand); color: #fff; }
+}
+/* The driver form: groups with a small heading; on a phone the buttons fill the bottom of the sheet. */
+.form-group { border: 0; padding: 0; margin: 0; gap: 12px; }
+.form-group legend { font: 600 18px var(--font-cond); color: var(--ink); padding: 0; margin-bottom: 4px; }
+.form-sub { font-size: 14px; font-weight: 500; color: var(--ink-2); flex-basis: 100%; }
+@media (max-width: 899px) {
+  .sheet .dialog-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  .sheet .dialog-foot .btn { flex: 1; min-height: 48px; }
+  .sheet .dialog-body { padding: 8px 16px 20px; }
+  .driver-form .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+}

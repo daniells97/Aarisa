@@ -8,7 +8,7 @@ import { audit } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperationById, operationFor } from './ops';
 import { payeeNamesById, routeDay, writeRouteDay } from './executions';
-import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners } from './people';
+import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners, type DriverInput } from './people';
 import { usualSortCodes } from './sort-codes';
 
 // Today's drivers (spec 6.3): who drove each T-Force route each day. No money here.
@@ -242,6 +242,15 @@ export async function unconfirmUsual(tx: Tx, actor: Actor, date: string, operati
     n++;
   }
   return n;
+}
+
+/**
+ * A new person from Daily operations, with the same form as Drivers and rates (name, phone, email, address,
+ * license, emergency contact…). Fully set up, so it isn't marked "Finish setup".
+ */
+export async function addDriverFromToday(tx: Tx, actor: Actor, input: DriverInput) {
+  assertCan(actor, 'drivers.confirm_today');
+  return createDriver(tx, actor, { ...input, setupComplete: true }, todayLA());
 }
 
 /** A name nobody recognised ("the new guy from Puma"): add the person under a contractor and assign them. */

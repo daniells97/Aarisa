@@ -3,13 +3,14 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addForRoute, assign, assignNew, confirmAll, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { assign, confirmAll, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
+import { useNewPerson } from '~/ui/DriverForm';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -46,11 +47,14 @@ function TodayPage() {
   const [adding, setAdding] = useState(false);
   const draftOpen = day.canEdit && (adding || day.rows.length === 0);
 
-  const change = async (r: Row, value: string) => {
+  // "+ New person…": the same form as Drivers and rates, then assigned to the row.
+  const [newPerson, newPersonDialog] = useNewPerson(day.options.contractors, { worksTforce: true, worksHovership: false });
+
+  const change = async (r: Row, value: string, knownName?: string) => {
     const payee = decode(value);
     const res = await assign({ data: { date: day.date, routeId: r.routeId, payee } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
-    const name = payee ? (value.startsWith('d:') ? day.options.drivers.find((d) => d.id === value.slice(2))?.name : day.options.contractors.find((c) => c.id === value.slice(2))?.name) : null;
+    const name = knownName ?? (payee ? (value.startsWith('d:') ? day.options.drivers.find((d) => d.id === value.slice(2))?.name : day.options.contractors.find((c) => c.id === value.slice(2))?.name) : null);
     await router.invalidate();
     toast(name ? t('td.changedToast', { route: r.code, name }) : t('td.noDriverToast', { route: r.code }), async () => {
       const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
@@ -75,19 +79,6 @@ function TodayPage() {
     toast(t('td.unconfirmedAll', { count: res.value }));
   };
 
-  // Typed name that isn't on the list: add the person and assign them in one step, with Undo.
-  const createAndAssign = async (r: Row, fullName: string) => {
-    const res = await assignNew({ data: { date: day.date, routeId: r.routeId, fullName } });
-    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
-    await router.invalidate();
-    toast(t('td.newDriverAssigned', { name: res.value.name, route: r.code }), async () => {
-      const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
-      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
-      await router.invalidate();
-      toast(t('td.undone'));
-    });
-  };
-
   const select = (r: Row) => (
     <PersonPicker
       value={encode(r.today)}
@@ -97,7 +88,7 @@ function TodayPage() {
       placeholder={r.status === 'no_driver' ? t('td.chooseDriver') : undefined}
       state={r.status === 'no_driver' ? 'missing' : r.status === 'changed' ? 'changed' : undefined}
       onPick={(v) => change(r, v)}
-      onCreate={(name) => createAndAssign(r, name)}
+      onCreate={(name) => newPerson(name, (d) => change(r, `d:${d.id}`, d.name))}
     />
   );
 
@@ -186,6 +177,7 @@ function TodayPage() {
   const unknown = day.rows.filter((r) => r.rawName && r.status === 'no_driver');
   return (
     <>
+      {newPersonDialog}
       <PageHead title={t('td.title')} lead={t('td.lead', { client: day.operation.name })}
         actions={
           <div className="row">
@@ -305,39 +297,28 @@ function UnknownName({ row, day }: { row: Row; day: Day }) {
   const t = useT();
   const router = useRouter();
   const toast = useToast();
-  const [contractorId, setContractorId] = useState<string | null | undefined>(undefined);
-  const [name, setName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // A name nobody recognised: add the person with the full driver form (under the contractor it mentions), then assign.
+  const [newPerson, dialog] = useNewPerson(day.options.contractors, { worksTforce: true, worksHovership: false });
   const hint = day.options.contractors.find((c) => row.rawName!.toLowerCase().includes(c.name.toLowerCase()));
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const res = await addForRoute({ data: { date: day.date, routeId: row.routeId, fullName: name, contractorId: contractorId ?? null } });
-    if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
-    toast(t('td.added', { name, route: row.code }));
+  const add = (contractorId: string | null) => newPerson('', async (d) => {
+    const res = await assign({ data: { date: day.date, routeId: row.routeId, payee: { driverId: d.id } } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    toast(t('td.added', { name: d.name, route: row.code }));
     await router.invalidate();
-  };
+  }, { contractorId });
   return (
     <div className="stack" style={{ gap: 10 }}>
+      {dialog}
       <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
         <WarningDiamond size={22} />
         <div><strong>{t('td.unknownTitle', { route: row.code })}</strong><span className="sub" style={{ fontSize: 14 }}>{t('td.unknownBody', { name: row.rawName! })}</span></div>
       </div>
-      {day.canEdit && contractorId === undefined && (
+      {day.canEdit && (
         <div className="row">
-          {hint && <Button variant="primary" onClick={() => setContractorId(hint.id)}>{t('td.addUnder', { contractor: hint.name })}</Button>}
-          {!hint && <Button onClick={() => setContractorId(null)}>{t('td.addOwn')}</Button>}
+          {hint && <Button variant="primary" onClick={() => add(hint.id)}>{t('td.addUnder', { contractor: hint.name })}</Button>}
+          {!hint && <Button onClick={() => add(null)}>{t('td.addOwn')}</Button>}
           <span className="muted" style={{ fontSize: 13.5 }}>{t('td.orPick')}</span>
         </div>
-      )}
-      {contractorId !== undefined && (
-        <form onSubmit={submit} className="stack" style={{ gap: 10 }}>
-          <TextField label={t('td.newName')} required value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          {error && <p role="alert" className="field-error" style={{ margin: 0 }}>{error}</p>}
-          <div className="row">
-            <Button type="submit" variant="primary">{t('td.addAndAssign', { route: row.code })}</Button>
-            <Button onClick={() => setContractorId(undefined)}>{t('common.cancel')}</Button>
-          </div>
-        </form>
       )}
     </div>
   );
@@ -352,7 +333,8 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
   const router = useRouter();
   const toast = useToast();
   const [code, setCode] = useState('');
-  const [who, setWho] = useState<{ value: string } | { newName: string } | null>(null);
+  const [who, setWho] = useState<{ value: string; name?: string } | null>(null);
+  const [newPerson, newPersonDialog] = useNewPerson(day.options.contractors, { worksTforce: true, worksHovership: false });
   const [routes, setRoutes] = useState<{ id: string; code: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -363,15 +345,13 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
     if (off?.usualDriverId && !who) setWho({ value: `d:${off.usualDriverId}` });
     if (off?.usual.length && !routes.length) setRoutes(off.usual);
   };
-  const whoName = !who ? null : 'newName' in who ? who.newName
-    : who.value.startsWith('d:') ? day.options.drivers.find((d) => d.id === who.value.slice(2))?.name
-      : day.options.contractors.find((c) => c.id === who.value.slice(2))?.name;
+  const whoName = !who ? null : who.name ?? (who.value.startsWith('d:') ? day.options.drivers.find((d) => d.id === who.value.slice(2))?.name
+      : day.options.contractors.find((c) => c.id === who.value.slice(2))?.name);
   // Saves by itself once the driver code and who drives it are filled in.
   useEffect(() => { if (code.trim() && who && !busy) void save(); }, [code, who]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     if (!code.trim() || !who) return;
-    const payee = 'newName' in who ? { newDriverName: who.newName }
-      : who.value.startsWith('d:') ? { driverId: who.value.slice(2) } : { contractorId: who.value.slice(2) };
+    const payee = who.value.startsWith('d:') ? { driverId: who.value.slice(2) } : { contractorId: who.value.slice(2) };
     setBusy(true);
     try {
       const res = await createRoute({ data: { date: day.date, code, payee, operation: day.operation.code } });
@@ -398,9 +378,9 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
       createLabel={(typed) => t('td.newDriverCode', { code: typed.toUpperCase().replace(/\s+/g, '') })}
       emptyHint={t('td.driverCodeHint')}
       onPick={(v) => pickCode(v.slice(2))} onCreate={(typed) => setCode(typed.toUpperCase().replace(/\s+/g, ''))} />,
-    <PersonPicker key="who" value={who && 'value' in who ? who.value : ''} options={day.options} label={t('td.driverFor', { route: code || '…', date: dateLabel })}
-      placeholder={who && 'newName' in who ? who.newName : t('td.whoDrives')} allowNone={false}
-      onPick={(v) => setWho({ value: v })} onCreate={(name) => setWho({ newName: name })} />,
+    <PersonPicker key="who" value={who?.value ?? ''} options={day.options} label={t('td.driverFor', { route: code || '…', date: dateLabel })}
+      placeholder={who?.name ?? t('td.whoDrives')} allowNone={false}
+      onPick={(v) => setWho({ value: v })} onCreate={(name) => newPerson(name, (d) => setWho({ value: `d:${d.id}`, name: d.name }))} />,
     <SortCodes key="routes" value={routes} options={allCodes} label={t('td.sortCodesFor', { route: code || '…', date: dateLabel })}
       onChange={(ids) => setRoutes(ids.map((id) => allCodes.find((c) => c.id === id)!).filter(Boolean))}
       onCreate={async (typed) => {
@@ -410,5 +390,5 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
         return res.value.id;
       }} />,
   ];
-  return <NewRecord cells={cells} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} />;
+  return <>{newPersonDialog}<NewRecord cells={cells} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} /></>;
 }

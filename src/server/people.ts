@@ -29,6 +29,11 @@ export interface DriverProfile {
   setupComplete: boolean;
   worksTforce: boolean;
   worksHovership: boolean;
+  email: string | null;
+  address: string | null;
+  licenseNumber: string | null;
+  emergencyName: string | null;
+  emergencyPhone: string | null;
 }
 
 export interface ContractorProfile {
@@ -78,6 +83,8 @@ export async function driverProfiles(tx: Tx, on: string, ids?: string[]): Promis
       hovershipCode: code.get(d.id) ?? null, phone: p.phone,
       aliases: aliases.filter((a) => a.driverId === d.id).map((a) => a.aliasText),
       active: p.active, setupComplete: d.setupComplete, worksTforce: d.worksTforce, worksHovership: d.worksHovership,
+      email: p.email, address: p.postalAddress, licenseNumber: d.licenseNumber,
+      emergencyName: d.emergencyContactName, emergencyPhone: d.emergencyContactPhone,
     };
   });
 }
@@ -125,10 +132,24 @@ export interface DriverInput {
   /** Platforms the person works on. Left out: kept on edit; on create, Hovership when there is a Hovership code, else T-Force. */
   worksTforce?: boolean;
   worksHovership?: boolean;
+  /** Contact details. Left out on edit: kept as they were. */
+  email?: string | null;
+  address?: string | null;
+  licenseNumber?: string | null;
+  emergencyName?: string | null;
+  emergencyPhone?: string | null;
 }
 
+const opt = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim().replace(/\s+/g, ' ') || null);
+
 function clean(input: DriverInput) {
+  // undefined = not sent (keep), null = cleared.
+  const email = opt(input.email) && opt(input.email)!.toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new RuleError('email_invalid');
+  const license = opt(input.licenseNumber);
   return {
+    email, address: opt(input.address), licenseNumber: license && license.toUpperCase(),
+    emergencyName: opt(input.emergencyName), emergencyPhone: opt(input.emergencyPhone),
     fullName: input.fullName.trim().replace(/\s+/g, ' '),
     hovershipCode: input.hovershipCode?.trim().toUpperCase() || null,
     contractorId: input.contractorId || null,
@@ -179,9 +200,12 @@ export async function createDriver(tx: Tx, actor: Actor, input: DriverInput & { 
   if (hov) await assertCodeFree(tx, hov, v.hovershipCode);
   await assertAliasesFree(tx, v.aliases);
   await assertPhoneFree(tx, v.phone);
-  const [payee] = await tx.insert(payees).values({ payeeType: 'driver', displayName: v.fullName, phone: v.phone, active: v.active }).returning();
+  const [payee] = await tx.insert(payees).values({
+    payeeType: 'driver', displayName: v.fullName, phone: v.phone, active: v.active, email: v.email ?? null, postalAddress: v.address ?? null,
+  }).returning();
   const [driver] = await tx.insert(drivers).values({
     payeeId: payee!.id, setupComplete: input.setupComplete,
+    licenseNumber: v.licenseNumber ?? null, emergencyContactName: v.emergencyName ?? null, emergencyContactPhone: v.emergencyPhone ?? null,
     worksTforce: input.worksTforce ?? !v.hovershipCode, worksHovership: input.worksHovership ?? !!v.hovershipCode,
   }).returning();
   const id = driver!.id;
@@ -209,8 +233,11 @@ export async function updateDriverProfile(tx: Tx, actor: Actor, id: string, inpu
   await assertAliasesFree(tx, v.aliases, id);
   await assertPhoneFree(tx, v.phone, before.payeeId);
 
-  await tx.update(payees).set({ displayName: v.fullName, phone: v.phone, active: v.active, updatedAt: new Date() }).where(eq(payees.id, before.payeeId));
+  await tx.update(payees).set({
+    displayName: v.fullName, phone: v.phone, active: v.active, updatedAt: new Date(), email: v.email, postalAddress: v.address,
+  }).where(eq(payees.id, before.payeeId));
   await tx.update(drivers).set({
+    licenseNumber: v.licenseNumber, emergencyContactName: v.emergencyName, emergencyContactPhone: v.emergencyPhone,
     setupComplete: input.setupComplete ?? before.setupComplete, updatedAt: new Date(),
     worksTforce: input.worksTforce ?? before.worksTforce, worksHovership: input.worksHovership ?? before.worksHovership,
   }).where(eq(drivers.id, id));
