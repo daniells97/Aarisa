@@ -68,9 +68,21 @@ export const users = core.table('users', {
   active: boolean('is_active').notNull().default(true),
   // The owner can let someone else record loans and salary advances (taking them back stays the owner's).
   canRecordLoans: boolean('can_record_loans').notNull().default(false),
+  // Gets the day's confirmed driver list by email when someone taps "Confirm and send list" (T-Force).
+  receivesDayList: boolean('receives_day_list').notNull().default(false),
   // Empty while an invite is pending: the person shows in Team access as invited until they first sign in.
   firstSignInAt: timestamp('first_sign_in_at', { withTimezone: true }),
   createdAt: createdAt(), updatedAt: updatedAt(),
+});
+
+// Each "Confirm and send list" of a day's drivers: who sent it, when, and to how many people.
+export const dayListSends = core.table('day_list_sends', {
+  id: id('day_list_send_id'),
+  operationId: uuid('operation_id').notNull().references(() => operations.id),
+  date: date('work_date').notNull(),
+  sentBy: uuid('sent_by').references(() => users.id),
+  recipients: integer('recipients').notNull(),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ---------- master data ----------

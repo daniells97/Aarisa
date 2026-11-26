@@ -50,11 +50,12 @@ test('add a record (driver code, who drives it) as a new line in the list; it sa
   await signInAs(page, 'owner', '/tforce/today?date=2027-01-05');
   await page.getByRole('button', { name: 'Add record' }).first().click();
   const line = page.locator('tr.new-record');
-  const codePicker = line.getByRole('combobox').first();
+  // Driver first, then driver code: typing the code before picking the person saves both together.
+  const codePicker = line.getByRole('combobox').nth(1);
   await codePicker.click();
   await codePicker.fill(code);
   await page.getByRole('option', { name: `+ New driver “${code}”` }).click();
-  const who = line.getByRole('combobox').nth(1);
+  const who = line.getByRole('combobox').first();
   await who.click();
   await who.fill('Diana');
   await page.getByRole('option', { name: 'Diana Arvelo' }).click();

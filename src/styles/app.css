@@ -474,3 +474,11 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
   .sheet .dialog-body { padding: 8px 16px 20px; }
   .driver-form .grid-2 { grid-template-columns: 1fr; gap: 12px; }
 }
+/* Daily operations, person first: "Confirm and send list" at the end of the summary; the driver code under the name on a phone. */
+.send-list { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.code-cell { min-width: 150px; }
+.card-field { display: flex; flex-direction: column; gap: 4px; }
+.card-label { font-size: 13px; color: var(--ink-4); font-weight: 500; }
+@media (max-width: 899px) { .send-list { margin-left: 0; width: 100%; } .send-list .btn { flex: 1; min-height: 48px; } }
+.today-list td .pill { white-space: normal; }
+.today-list .code-cell { min-width: 120px; }

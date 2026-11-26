@@ -5,10 +5,10 @@ import { z } from 'zod';
 import { driverInput } from './driver-input';
 import { eq } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { operations, routes } from '~/db/schema';
+import { operations, routeExecutions, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
+import { addPersonToday, moveToCode, removePersonToday, sendDayList, setPersonSortCodes, setPersonToday, addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -104,4 +104,48 @@ export const createDriverToday = createServerFn({ method: 'POST' })
   .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
     const d = await addDriverFromToday(tx, actor, data);
     return { id: d.id, name: d.fullName };
+  }));
+
+// ---------- person first: people without a driver code, giving a code, sending the confirmed list ----------
+
+const dayOf = async (tx: Tx, executionId: string) =>
+  (await tx.select({ date: routeExecutions.date, code: operations.code }).from(routeExecutions).innerJoin(operations, eq(operations.id, routeExecutions.operationId)).where(eq(routeExecutions.id, executionId)))[0];
+
+/** Puts someone on the day's list before they have a driver code. */
+export const addPerson = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, driverId: uuid, operation }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => addPersonToday(tx, actor, data)));
+
+export const setPerson = createServerFn({ method: 'POST' })
+  .validator(z.object({ executionId: uuid, driverId: uuid }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => setPersonToday(tx, actor, data)));
+
+/** "Didn't work today" on someone without a driver code. Returns what Undo needs. */
+export const removePerson = createServerFn({ method: 'POST' })
+  .validator(z.object({ executionId: uuid }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => removePersonToday(tx, actor, data)));
+
+export const savePersonSortCodes = createServerFn({ method: 'POST' })
+  .validator(z.object({ executionId: uuid, sortCodeIds: z.array(uuid).max(20) }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => setPersonSortCodes(tx, actor, data)));
+
+/** Gives a person a driver code (or changes it); a typed code that doesn't exist yet is created. */
+export const giveCode = createServerFn({ method: 'POST' })
+  .validator(z.object({
+    date: isoDate, from: z.union([z.object({ routeId: uuid }), z.object({ executionId: uuid })]),
+    to: z.union([z.object({ routeId: uuid }), z.object({ newCode: z.string().min(1).max(20) })]), operation,
+  }))
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
+    const res = await moveToCode(tx, actor, data);
+    await recheckForDate(tx, actor, data.date, data.operation);
+    return res;
+  }));
+
+/** "Confirm and send list": confirms the usual drivers and emails the list to the people marked for it. */
+export const sendList = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, operation }))
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
+    const res = await sendDayList(tx, actor, data.date, data.operation);
+    await recheckForDate(tx, actor, data.date, data.operation);
+    return res;
   }));

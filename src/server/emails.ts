@@ -94,3 +94,40 @@ ${rows}</table></td></tr>`,
     ]),
   };
 }
+
+export interface DayListPerson { name: string; code: string | null; routes: string[]; contractor: boolean }
+
+/**
+ * "Confirm and send list": who works today, confirmed by the operator, for the people who set driver codes
+ * and routes. People without a driver code go first; then everyone with their code and routes. No money.
+ */
+export function dayListEmail(locale: Locale, to: string, date: string, sender: string, people: DayListPerson[], codesNoDriver: string[], operation: string): Mail {
+  const t = (k: MessageKey, v?: Record<string, string | number>) => translate(locale, k, v);
+  const day = new Intl.DateTimeFormat(locale === 'es' ? 'es-US' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
+  const noCode = people.filter((p) => !p.code).map((p) => p.name);
+  const look = [
+    noCode.length ? t('mail.dayList.noCode', { names: noCode.join(', ') }) : null,
+    codesNoDriver.length ? t('mail.dayList.codesNoDriver', { codes: codesNoDriver.join(', ') }) : null,
+  ].filter((x): x is string => !!x);
+  const lookBox = look.length
+    ? `<tr><td style="padding-bottom:20px"><div style="background:#FFF7E6;border-left:4px solid #E0A100;border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.5">${look.map(esc).join('<br>')}</div></td></tr>`
+    : '';
+  const cell = 'padding:7px 8px;border-bottom:1px solid #E2E8F0;font-size:14px;line-height:1.4;vertical-align:top';
+  const sorted = [...people.filter((p) => !p.code), ...people.filter((p) => p.code)];
+  const rows = sorted.map((p) => `<tr><td style="${cell};font-weight:bold">${esc(p.name)}${p.contractor ? ` <span style="color:${MUTED};font-size:12px">· ${esc(t('mail.morning.contractor'))}</span>` : ''}</td>`
+    + `<td style="${cell};white-space:nowrap">${p.code ? esc(p.code) : `<span style="color:#C02430;font-weight:bold">${esc(t('mail.dayList.missing'))}</span>`}</td>`
+    + `<td style="${cell}">${esc(p.routes.join(', ')) || `<span style="color:${MUTED}">–</span>`}</td></tr>`).join('');
+  const link = `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}/tforce/today?date=${date}`;
+  return {
+    to,
+    subject: t('mail.dayList.subject', { date: day, n: people.length, client: operation }),
+    html: frame(locale, [
+      `<tr><td style="font-size:16px;line-height:1.5;padding-bottom:16px">${esc(t('mail.dayList.lead', { name: sender, date: day, n: people.length, client: operation }))}</td></tr>`,
+      lookBox,
+      `<tr><td style="padding-bottom:20px">${button(link, t('mail.dayList.button'))}</td></tr>`,
+      `<tr><td style="padding-bottom:24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+<tr><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.morning.driver'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.dayList.code'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.dayList.routes'))}</th></tr>
+${rows}</table></td></tr>`,
+    ]),
+  };
+}

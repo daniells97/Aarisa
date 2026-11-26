@@ -155,6 +155,13 @@
       "when": 1795661953032,
       "tag": "0021_driver_contact_details",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795663383596,
+      "tag": "0022_day_list_send",
+      "breakpoints": true
     }
   ]
 }

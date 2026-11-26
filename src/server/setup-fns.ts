@@ -58,7 +58,7 @@ export const getTeam = createServerFn({ method: 'GET' }).handler(() =>
 export const saveTeamMember = createServerFn({ method: 'POST' })
   .validator(z.object({
     id: uuid, phone: z.string().max(30).nullable(), morningChannel: z.enum(['whatsapp', 'email', 'none']),
-    locale: z.enum(['en', 'es']), active: z.boolean(), canRecordLoans: z.boolean().optional(),
+    locale: z.enum(['en', 'es']), active: z.boolean(), canRecordLoans: z.boolean().optional(), receivesDayList: z.boolean().optional(),
   }))
   .handler(({ data }) => run('team.manage', async (tx, actor) => {
     const { id, ...input } = data;

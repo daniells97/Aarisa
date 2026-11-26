@@ -15,7 +15,7 @@ export async function listTeam(tx: Tx, actor: Actor) {
   const rows = await tx.select().from(users).orderBy(asc(users.name));
   return rows.map((u) => ({
     id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role as Role,
-    morningChannel: u.morningChannel, locale: u.locale, active: u.active, zitadelSub: u.zitadelSub, canRecordLoans: u.canRecordLoans,
+    morningChannel: u.morningChannel, locale: u.locale, active: u.active, zitadelSub: u.zitadelSub, canRecordLoans: u.canRecordLoans, receivesDayList: u.receivesDayList,
     invited: !u.firstSignInAt,
     isSelf: u.id === actor.userId,
   }));
@@ -28,6 +28,7 @@ export interface TeamMemberInput {
   active: boolean;
   /** Lets this person record loans and salary advances. Ignored for the owner (always can). */
   canRecordLoans?: boolean;
+  receivesDayList?: boolean;
 }
 
 export async function updateTeamMember(tx: Tx, actor: Actor, id: string, input: TeamMemberInput) {

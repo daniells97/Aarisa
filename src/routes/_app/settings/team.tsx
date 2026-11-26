@@ -41,7 +41,7 @@ function TeamPage() {
               {members.map((m) => (
                 <tr key={m.id}>
                   <td><strong>{m.name}</strong>{m.isSelf && <> <Pill tone="muted">{t('team.you')}</Pill></>}<span className="sub">{m.email}</span></td>
-                  <td>{t(`role.${m.role}`)}{m.role !== 'owner' && m.role !== 'viewer' && m.canRecordLoans && <span className="sub">{t('team.loansShort')}</span>}</td>
+                  <td>{t(`role.${m.role}`)}{m.role !== 'owner' && m.role !== 'viewer' && m.canRecordLoans && <span className="sub">{t('team.loansShort')}</span>}{m.receivesDayList && <span className="sub">{t('team.dayListShort')}</span>}</td>
                   <td>{t(m.morningChannel === 'whatsapp' && !whatsapp ? 'channel.whatsappSoon' : `channel.${m.morningChannel}` as MessageKey)}</td>
                   <td>{!m.active ? <Pill tone="muted">{t('team.paused')}</Pill> : m.invited ? <Pill tone="waiting">{t('team.invitedPending')}</Pill> : <Pill tone="ok">{t('team.active')}</Pill>}</td>
                   <td className="r"><Button size="sm" aria-label={t('team.editTitle', { name: m.name })} onClick={() => setEditing(m)}>{t('drivers.edit')}</Button></td>
@@ -85,14 +85,14 @@ function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; z
   const toast = useToast();
   const [form, setForm] = useState({
     phone: member.phone ?? '', morningChannel: member.morningChannel, locale: member.locale === 'es' ? 'es' as const : 'en' as const,
-    active: member.active, role: member.role, canRecordLoans: member.canRecordLoans,
+    active: member.active, role: member.role, canRecordLoans: member.canRecordLoans, receivesDayList: member.receivesDayList,
   });
   const [error, setError] = useState<string | null>(null);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((s) => ({ ...s, [k]: v }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await saveTeamMember({ data: { id: member.id, phone: form.phone || null, morningChannel: form.morningChannel, locale: form.locale, active: form.active, canRecordLoans: form.canRecordLoans } });
+      const res = await saveTeamMember({ data: { id: member.id, phone: form.phone || null, morningChannel: form.morningChannel, locale: form.locale, active: form.active, canRecordLoans: form.canRecordLoans, receivesDayList: form.receivesDayList } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       if (form.role !== member.role) {
         const r = await changeRole({ data: { id: member.id, role: form.role } });
@@ -128,6 +128,8 @@ function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; z
         </div>
         {form.role !== 'owner' && (
           <>
+            <CheckField label={t('team.receivesDayList')} checked={form.receivesDayList} onChange={(e) => set('receivesDayList', e.target.checked)} />
+            <p className="muted" style={{ margin: '-8px 0 0', fontSize: 14 }}>{t('team.receivesDayListHint')}</p>
             <CheckField label={t('team.canRecordLoans')} checked={form.canRecordLoans && form.role !== 'viewer'} disabled={form.role === 'viewer'}
               onChange={(e) => set('canRecordLoans', e.target.checked)} />
             <p className="muted" style={{ margin: '-8px 0 0', fontSize: 14 }}>{t(form.role === 'viewer' ? 'team.canRecordLoansViewer' : 'team.canRecordLoansHint')}</p>

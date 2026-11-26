@@ -63,3 +63,29 @@ test("“Didn't run today” is one tap on the row, shows as didn't run, and Und
   await expect(page.locator('.toasts')).toContainText('Change undone.');
   await expect(page.getByText("1 didn't run")).toHaveCount(0);
 });
+
+test('person first: Driver, Driver code, Route; "Confirm and send list" confirms the day; a person without code gets one', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'one device is enough; it writes data');
+  // A fresh day each run (the list of a day stays sent once it is sent).
+  const n = Date.now();
+  const date = `2029-${String((n % 12) + 1).padStart(2, '0')}-${String((Math.floor(n / 12) % 28) + 1).padStart(2, '0')}`;
+  await signInAs(page, 'dispatcher', `/tforce/today?date=${date}`);
+  await expect(page.locator('thead th').first()).toHaveText('Driver');
+  await expect(page.locator('thead th').nth(1)).toHaveText('Driver code');
+  await page.getByRole('button', { name: 'Confirm and send list' }).click();
+  await expect(page.locator('.toasts')).toContainText('List confirmed');
+  await expect(page.getByRole('button', { name: 'Send list again' })).toBeVisible();
+  await page.getByRole('button', { name: 'Add record' }).first().click();
+  const who = page.locator('tr.new-record').getByRole('combobox').first();
+  await who.click();
+  const name = `E2E Person ${n}`;
+  await who.fill(name);
+  await page.getByRole('option', { name: `Add “${name}” as a new driver` }).click();
+  await page.getByRole('dialog', { name: 'Add driver' }).getByRole('button', { name: 'Save driver' }).click();
+  await expect(page.locator('.toasts')).toContainText(`${name} is on today's list.`);
+  const code = page.getByRole('combobox', { name: new RegExp(`Driver code for ${name}`) }).locator('visible=true');
+  await code.click();
+  await code.fill(`E${String(Date.now()).slice(-5)}`);
+  await page.getByRole('option', { name: /New driver code/ }).click();
+  await expect(page.locator('.toasts')).toContainText(`${name} now drives`);
+});

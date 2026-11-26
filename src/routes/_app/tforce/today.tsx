@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { assign, confirmAll, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { addPerson, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -15,6 +15,9 @@ import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, R
 
 type Day = Awaited<ReturnType<typeof getDay>>;
 type Row = Day['rows'][number];
+type NoCode = Day['noCode'][number];
+/** A line of the list, person first: a driver code with its person, or a person without driver code yet. */
+type Line = { kind: 'code'; r: Row } | { kind: 'person'; p: NoCode };
 
 export const Route = createFileRoute('/_app/tforce/today')({
   validateSearch: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), op: z.string().regex(/^[a-z0-9_]{1,40}$/).optional() }),
@@ -64,11 +67,13 @@ function TodayPage() {
     });
   };
 
-  const confirm = async () => {
-    const res = await confirmAll({ data: { date: day.date, operation: day.operation.code } });
+  // "Confirm and send list" (the operator's step): confirms the usual drivers and emails the list to the people
+  // marked for it in Team access, who then set driver codes and routes.
+  const send = async () => {
+    const res = await sendList({ data: { date: day.date, operation: day.operation.code } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(t('td.confirmedAll', { count: res.value }), unconfirm);
+    toast(res.value.recipients ? t('td.listSentToast', { count: res.value.sent }) : t('td.listNoRecipients'));
   };
 
   // Back to "usual, not confirmed" for routes confirmed on their usual driver; changes stay.
@@ -173,6 +178,78 @@ function TodayPage() {
     ) : null;
   };
 
+  // The driver code of the person on a line: pick another one (they swap with whoever had it) or type a new one.
+  const codeOptions = { drivers: day.rows.map((r) => ({ id: r.routeId, name: r.code, contractor: r.today.name && r.status !== 'off' && r.status !== 'no_driver' ? r.today.name : null })), contractors: [] };
+  const toCode = async (from: { routeId: string } | { executionId: string }, name: string, to: { routeId: string } | { newCode: string }) => {
+    const res = await giveCode({ data: { date: day.date, from, to, operation: day.operation.code } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.codeGiven', { name, code: res.value.code }));
+  };
+  const codePicker = (line: Line) => {
+    const name = line.kind === 'code' ? line.r.today.name ?? '' : line.p.name;
+    const from = line.kind === 'code' ? { routeId: line.r.routeId } : { executionId: line.p.executionId };
+    return (
+      <PersonPicker value={line.kind === 'code' ? `d:${line.r.routeId}` : ''} options={codeOptions} disabled={!day.canEdit} allowNone={false}
+        label={t('td.codeFor', { name, date: dateLabel })} placeholder={t('td.codePlaceholder')} emptyHint={t('td.codeHint')}
+        state={line.kind === 'person' ? 'missing' : undefined}
+        createLabel={(typed) => t('td.newCode', { code: typed.toUpperCase().replace(/\s+/g, '') })}
+        onPick={(v) => { if (line.kind === 'person' || v.slice(2) !== line.r.routeId) void toCode(from, name, { routeId: v.slice(2) }); }}
+        onCreate={(typed) => toCode(from, name, { newCode: typed })} />
+    );
+  };
+
+  // A person without driver code: who (can be changed), their routes, and "didn't work today" with Undo.
+  const personSelect = (p: NoCode) => (
+    <PersonPicker value={`d:${p.driverId}`} options={{ drivers: day.options.drivers, contractors: [] }} disabled={!day.canEdit} allowNone={false}
+      label={t('td.driverFor', { route: p.name, date: dateLabel })} state="changed"
+      onPick={async (v) => {
+        if (!v.startsWith('d:') || v.slice(2) === p.driverId) return;
+        const res = await setPerson({ data: { executionId: p.executionId, driverId: v.slice(2) } });
+        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+        await router.invalidate();
+      }}
+      onCreate={(name) => newPerson(name, async (d) => {
+        const res = await setPerson({ data: { executionId: p.executionId, driverId: d.id } });
+        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+        await router.invalidate();
+      })} />
+  );
+  const personRoutes = (p: NoCode) => (
+    <SortCodes onCreate={createSortCode} value={p.sortCodes} options={day.options.sortCodes} disabled={!day.canEdit} label={t('hd.routesOf', { name: p.name, date: dateLabel })}
+      onChange={async (ids) => {
+        const res = await savePersonSortCodes({ data: { executionId: p.executionId, sortCodeIds: ids } });
+        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+        await router.invalidate();
+      }} />
+  );
+  const removeFromDay = async (p: NoCode) => {
+    const res = await removePerson({ data: { executionId: p.executionId } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.personRemoved', { name: p.name }), async () => {
+      const u = await addPerson({ data: { date: day.date, driverId: res.value.driverId, operation: day.operation.code } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      if (res.value.sortCodeIds.length) await savePersonSortCodes({ data: { executionId: u.value, sortCodeIds: res.value.sortCodeIds } });
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
+  const personActions = (p: NoCode) => (
+    <PersonActions driverId={p.driverId} name={p.name} date={day.date} openNotes={day.ledger[p.driverId]?.openNotes}
+      owedCents={day.ledger[p.driverId]?.owedCents} canLogExtra={day.canLogExtra}
+      onOff={day.canEdit ? () => removeFromDay(p) : undefined} offText={t('td.offToday')} offLabel={t('td.offTodayFor', { route: p.name })} />
+  );
+
+  // Person first: everyone who works today by name (with or without driver code), then the codes nobody drives.
+  const emptyCode = (r: Row) => !r.today.name || r.status === 'off' || r.status === 'no_driver';
+  const lines: Line[] = [
+    ...[...day.rows.filter((r) => !emptyCode(r)).map((r) => ({ kind: 'code' as const, r })), ...day.noCode.map((p) => ({ kind: 'person' as const, p }))]
+      .sort((a, b) => (a.kind === 'code' ? a.r.today.name ?? '' : a.p.name).localeCompare(b.kind === 'code' ? b.r.today.name ?? '' : b.p.name)),
+    ...day.rows.filter(emptyCode).map((r) => ({ kind: 'code' as const, r })),
+  ];
+  const sentTime = day.sent ? new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(day.sent.at)) : '';
+
   const s = day.summary;
   const unknown = day.rows.filter((r) => r.rawName && r.status === 'no_driver');
   return (
@@ -203,10 +280,20 @@ function TodayPage() {
         {s.waiting > 0 && <span role="listitem"><Pill tone="waiting">{t('td.sumWaiting', { count: s.waiting })}</Pill></span>}
         {s.noDriver > 0 && <span role="listitem"><Pill tone="warn">{t('td.sumNoDriver', { count: s.noDriver })}</Pill></span>}
         {s.off > 0 && <span role="listitem"><Pill tone="muted">{t(s.off === 1 ? 'td.sumOffOne' : 'td.sumOff', { count: s.off })}</Pill></span>}
-        <span className="muted" role="listitem">{t('td.sumRoutes', { count: s.routes })}</span>
-        {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.confirmAll', { count: s.proposed })}</Button>}
-        {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
+        {s.noCode > 0 && <span role="listitem"><Pill tone="warn">{t('td.sumNoCode', { count: s.noCode })}</Pill></span>}
+        <span className="muted" role="listitem">{t('td.sumPeople', { count: s.people })} · {t('td.sumRoutes', { count: s.routes })}</span>
+        {day.canEdit && (
+          <span className="send-list">
+            {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
+            <Button variant={day.sent && s.proposed === 0 ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
+              {t(day.sent && s.proposed === 0 ? 'td.resendList' : 'td.sendList')}
+            </Button>
+          </span>
+        )}
       </div>
+      {day.sent
+        ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}</p>
+        : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('td.listHint')}</p>}
 
       <div className="today-layout">
         <div className="today-list"><Panel>
@@ -214,14 +301,26 @@ function TodayPage() {
             <>
               <div className="table-wrap desktop-only">
                 <table>
-                  <thead><tr><th scope="col">{t('td.route')}</th><th scope="col">{t('td.driverToday')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
+                  <thead><tr><th scope="col">{t('td.person')}</th><th scope="col">{t('td.codeDriver')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
                   <tbody>
-                    {day.rows.map((r) => {
+                    {lines.map((line) => {
+                      if (line.kind === 'person') {
+                        const p = line.p;
+                        return (
+                          <tr key={p.executionId}>
+                            <td>{personSelect(p)}<span className="sub">{t('td.noCodeHint')}</span>{personActions(p)}</td>
+                            <td className="code-cell">{codePicker(line)}</td>
+                            <td>{personRoutes(p)}</td>
+                            <td><Pill tone="warn">{t('td.status.noCode')}</Pill></td>
+                          </tr>
+                        );
+                      }
+                      const r = line.r;
                       const st = statusOf(r);
                       return (
                         <tr key={r.routeId}>
-                          <td><RoutePlate code={r.code} needsDriver={r.status === 'no_driver'} /></td>
                           <td>{select(r)}<span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>{actions(r)}</td>
+                          <td className="code-cell">{emptyCode(r) ? <RoutePlate code={r.code} needsDriver={r.status === 'no_driver'} /> : codePicker(line)}</td>
                           <td>{routesOf(r)}</td>
                           <td><Pill tone={st.tone}>{t(st.key)}</Pill></td>
                         </tr>
@@ -232,17 +331,31 @@ function TodayPage() {
                 </table>
               </div>
               <ul className="route-cards phone-only">
-                {day.rows.map((r) => {
+                {lines.map((line) => {
+                  if (line.kind === 'person') {
+                    const p = line.p;
+                    return (
+                      <li key={p.executionId}>
+                        <div className="row" style={{ justifyContent: 'flex-end' }}><Pill tone="warn">{t('td.status.noCode')}</Pill></div>
+                        {personSelect(p)}
+                        <div className="card-field"><span className="card-label">{t('td.codeDriver')}</span>{codePicker(line)}</div>
+                        <div className="card-field"><span className="card-label">{t('td.sortCode')}</span>{personRoutes(p)}</div>
+                        {personActions(p)}
+                      </li>
+                    );
+                  }
+                  const r = line.r;
                   const st = statusOf(r);
                   return (
                     <li key={r.routeId}>
-                      <div className="row" style={{ justifyContent: 'space-between' }}>
-                        <RoutePlate code={r.code} size="lg" needsDriver={r.status === 'no_driver'} />
+                      <div className="row" style={{ justifyContent: emptyCode(r) ? 'space-between' : 'flex-end' }}>
+                        {emptyCode(r) && <RoutePlate code={r.code} size="lg" needsDriver={r.status === 'no_driver'} />}
                         <Pill tone={st.tone}>{t(st.key)}</Pill>
                       </div>
                       {select(r)}
                       <span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>
-                      {routesOf(r)}
+                      {!emptyCode(r) && <div className="card-field"><span className="card-label">{t('td.codeDriver')}</span>{codePicker(line)}</div>}
+                      <div className="card-field"><span className="card-label">{t('td.sortCode')}</span>{routesOf(r)}</div>
                       {actions(r)}
                     </li>
                   );
@@ -347,10 +460,27 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
   };
   const whoName = !who ? null : who.name ?? (who.value.startsWith('d:') ? day.options.drivers.find((d) => d.id === who.value.slice(2))?.name
       : day.options.contractors.find((c) => c.id === who.value.slice(2))?.name);
-  // Saves by itself once the driver code and who drives it are filled in.
-  useEffect(() => { if (code.trim() && who && !busy) void save(); }, [code, who]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Saves by itself once who works is picked: with a driver code if one was typed, else as a person without
+  // code yet (the admin gives it later). A contractor needs a driver code, so it waits for one.
+  useEffect(() => { if (who && !busy && (code.trim() || who.value.startsWith('d:'))) void save(); }, [code, who]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
-    if (!code.trim() || !who) return;
+    if (!who) return;
+    if (!code.trim()) {
+      setBusy(true);
+      try {
+        const res = await addPerson({ data: { date: day.date, driverId: who.value.slice(2), operation: day.operation.code } });
+        if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
+        if (routes.length) await savePersonSortCodes({ data: { executionId: res.value, sortCodeIds: routes.map((x) => x.id) } });
+        toast(t('td.personAdded', { name: whoName ?? '' }));
+        setWho(null); setRoutes([]); setError(null);
+        await router.invalidate();
+      } catch {
+        setError(t('error.generic'));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const payee = who.value.startsWith('d:') ? { driverId: who.value.slice(2) } : { contractorId: who.value.slice(2) };
     setBusy(true);
     try {
@@ -371,6 +501,9 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
   };
   const allCodes = [...day.options.sortCodes, ...routes.filter((r) => !day.options.sortCodes.some((o) => o.id === r.id))];
   const cells = [
+    <PersonPicker key="who" value={who?.value ?? ''} options={day.options} label={t('td.driverFor', { route: code || '…', date: dateLabel })}
+      placeholder={who?.name ?? t('td.whoDrives')} allowNone={false}
+      onPick={(v) => setWho({ value: v })} onCreate={(name) => newPerson(name, (d) => setWho({ value: `d:${d.id}`, name: d.name }))} />,
     // The driver code: pick one taken off earlier (its usual driver and routes fill in), or type a new one.
     <PersonPicker key="code" value={day.options.offList.some((o) => o.code === code) ? `d:${code}` : ''}
       options={{ drivers: day.options.offList.map((o) => ({ id: o.code, name: o.code })), contractors: [] }}
@@ -378,9 +511,7 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
       createLabel={(typed) => t('td.newDriverCode', { code: typed.toUpperCase().replace(/\s+/g, '') })}
       emptyHint={t('td.driverCodeHint')}
       onPick={(v) => pickCode(v.slice(2))} onCreate={(typed) => setCode(typed.toUpperCase().replace(/\s+/g, ''))} />,
-    <PersonPicker key="who" value={who?.value ?? ''} options={day.options} label={t('td.driverFor', { route: code || '…', date: dateLabel })}
-      placeholder={who?.name ?? t('td.whoDrives')} allowNone={false}
-      onPick={(v) => setWho({ value: v })} onCreate={(name) => newPerson(name, (d) => setWho({ value: `d:${d.id}`, name: d.name }))} />,
+
     <SortCodes key="routes" value={routes} options={allCodes} label={t('td.sortCodesFor', { route: code || '…', date: dateLabel })}
       onChange={(ids) => setRoutes(ids.map((id) => allCodes.find((c) => c.id === id)!).filter(Boolean))}
       onCreate={async (typed) => {
