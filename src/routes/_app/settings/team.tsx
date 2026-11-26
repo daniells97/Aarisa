@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useLocale, useT, type MessageKey } from '~/i18n';
 import { ROLES, can, type Permission, type Role } from '~/domain/permissions';
 import { changeRole, getTeam, invite, saveTeamMember } from '~/server/setup-fns';
-import { Button, CheckField, Dialog, FormError, PageHead, Panel, Pill, SelectField, TextField, useToast } from '~/ui';
+import { Button, CheckField, Dialog, FormError, PageHead, Panel, Pill, SelectField, Sheet, TextField, useToast } from '~/ui';
 
 type Team = Awaited<ReturnType<typeof getTeam>>;
 type Member = Team['members'][number];
@@ -24,12 +24,32 @@ function TeamPage() {
   const { whatsapp } = Route.useRouteContext().session;
   const [editing, setEditing] = useState<Member | null>(null);
   const [inviting, setInviting] = useState(false);
+  const channel = (m: Member) => t(m.morningChannel === 'whatsapp' && !whatsapp ? 'channel.whatsappSoon' : `channel.${m.morningChannel}` as MessageKey);
+  const status = (m: Member) => (!m.active ? <Pill tone="muted">{t('team.paused')}</Pill> : m.invited ? <Pill tone="waiting">{t('team.invitedPending')}</Pill> : <Pill tone="ok">{t('team.active')}</Pill>);
   return (
     <>
       <PageHead title={t('team.title')} lead={t('team.lead')}
         actions={<Button variant="primary" id="invite" onClick={() => setInviting(true)} disabledReason={zitadelConnected ? undefined : t('team.zitadelOff')}>{t('team.invite')}</Button>} />
       <Panel title={t('team.people')} id="people">
-        <div className="table-wrap">
+        <ul className="hist-cards setup-cards phone-only">
+          {members.map((m) => (
+            <li key={m.id}>
+              <div className="hist-card-top">
+                <span><strong>{m.name}</strong>{m.isSelf && <> <Pill tone="muted">{t('team.you')}</Pill></>}<span className="sub" style={{ overflowWrap: 'anywhere' }}>{m.email}</span></span>
+                {status(m)}
+              </div>
+              <span className="muted">{t(`role.${m.role}`)} · {t('team.morning')}: {channel(m)}</span>
+              {(m.receivesDayList || (m.role !== 'owner' && m.role !== 'viewer' && m.canRecordLoans)) && (
+                <span className="row" style={{ gap: 6 }}>
+                  {m.receivesDayList && <Pill tone="ok">{t('team.dayListShort')}</Pill>}
+                  {m.role !== 'owner' && m.role !== 'viewer' && m.canRecordLoans && <Pill tone="muted">{t('team.loansShort')}</Pill>}
+                </span>
+              )}
+              <span className="card-actions"><Button aria-label={t('team.editTitle', { name: m.name })} onClick={() => setEditing(m)}>{t('drivers.edit')}</Button></span>
+            </li>
+          ))}
+        </ul>
+        <div className="table-wrap desktop-only">
           <table>
             <thead>
               <tr>
@@ -42,8 +62,8 @@ function TeamPage() {
                 <tr key={m.id}>
                   <td><strong>{m.name}</strong>{m.isSelf && <> <Pill tone="muted">{t('team.you')}</Pill></>}<span className="sub">{m.email}</span></td>
                   <td>{t(`role.${m.role}`)}{m.role !== 'owner' && m.role !== 'viewer' && m.canRecordLoans && <span className="sub">{t('team.loansShort')}</span>}{m.receivesDayList && <span className="sub">{t('team.dayListShort')}</span>}</td>
-                  <td>{t(m.morningChannel === 'whatsapp' && !whatsapp ? 'channel.whatsappSoon' : `channel.${m.morningChannel}` as MessageKey)}</td>
-                  <td>{!m.active ? <Pill tone="muted">{t('team.paused')}</Pill> : m.invited ? <Pill tone="waiting">{t('team.invitedPending')}</Pill> : <Pill tone="ok">{t('team.active')}</Pill>}</td>
+                  <td>{channel(m)}</td>
+                  <td>{status(m)}</td>
                   <td className="r"><Button size="sm" aria-label={t('team.editTitle', { name: m.name })} onClick={() => setEditing(m)}>{t('drivers.edit')}</Button></td>
                 </tr>
               ))}
@@ -53,7 +73,15 @@ function TeamPage() {
       </Panel>
       <Panel title={t('team.matrixTitle')} id="matrix">
         <p className="panel-body muted" style={{ margin: 0 }}>{t('team.matrixLead')}</p>
-        <div className="table-wrap">
+        <ul className="hist-cards phone-only">
+          {MATRIX.map((p) => (
+            <li key={p}>
+              <span>{t(`perm.${p}` as MessageKey)}</span>
+              <span className="row" style={{ gap: 6 }}>{ROLES.filter((r) => can(r, p)).map((r) => <Pill key={r} tone="ok">{t(`role.${r}`)}</Pill>)}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="table-wrap desktop-only">
           <table>
             <thead><tr><th scope="col">{t('team.action')}</th>{ROLES.map((r) => <th key={r} scope="col" style={{ textAlign: 'center' }}>{t(`role.${r}`)}</th>)}</tr></thead>
             <tbody>
@@ -88,6 +116,7 @@ function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; z
     active: member.active, role: member.role, canRecordLoans: member.canRecordLoans, receivesDayList: member.receivesDayList,
   });
   const [error, setError] = useState<string | null>(null);
+  const formId = useId();
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((s) => ({ ...s, [k]: v }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,8 +135,9 @@ function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; z
     }
   };
   return (
-    <Dialog open onClose={onClose} title={t('team.editTitle', { name: member.name })}>
-      <form onSubmit={submit} className="stack">
+    <Sheet open onClose={onClose} title={t('team.editTitle', { name: member.name })}
+      footer={<><Button onClick={onClose}>{t('common.cancel')}</Button><Button type="submit" form={formId} variant="primary">{t('team.save')}</Button></>}>
+      <form id={formId} onSubmit={submit} className="stack driver-form">
         <SelectField label={t('team.role')} value={form.role} disabled={!zitadelConnected || member.isSelf}
           hint={!zitadelConnected ? t('team.zitadelOff') : undefined} onChange={(e) => set('role', e.target.value as Role)}>
           {ROLES.map((r) => <option key={r} value={r}>{t(`role.${r}`)}</option>)}
@@ -126,10 +156,10 @@ function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; z
             <option value="en">English</option><option value="es">Español</option>
           </SelectField>
         </div>
+        <CheckField label={t('team.receivesDayList')} checked={form.receivesDayList} onChange={(e) => set('receivesDayList', e.target.checked)} />
+        <p className="muted" style={{ margin: '-8px 0 0', fontSize: 14 }}>{t('team.receivesDayListHint')}</p>
         {form.role !== 'owner' && (
           <>
-            <CheckField label={t('team.receivesDayList')} checked={form.receivesDayList} onChange={(e) => set('receivesDayList', e.target.checked)} />
-            <p className="muted" style={{ margin: '-8px 0 0', fontSize: 14 }}>{t('team.receivesDayListHint')}</p>
             <CheckField label={t('team.canRecordLoans')} checked={form.canRecordLoans && form.role !== 'viewer'} disabled={form.role === 'viewer'}
               onChange={(e) => set('canRecordLoans', e.target.checked)} />
             <p className="muted" style={{ margin: '-8px 0 0', fontSize: 14 }}>{t(form.role === 'viewer' ? 'team.canRecordLoansViewer' : 'team.canRecordLoansHint')}</p>
@@ -137,12 +167,8 @@ function MemberDialog({ member, zitadelConnected, onClose }: { member: Member; z
         )}
         <CheckField label={t('team.canSignIn')} checked={form.active} disabled={member.isSelf} onChange={(e) => set('active', e.target.checked)} />
         <FormError>{error}</FormError>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" variant="primary">{t('team.save')}</Button>
-        </div>
       </form>
-    </Dialog>
+    </Sheet>
   );
 }
 
@@ -154,6 +180,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({ email: '', givenName: '', familyName: '', role: 'dispatcher' as Role, locale });
   const [error, setError] = useState<string | null>(null);
   const [link, setLink] = useState<string | null>(null);
+  const formId = useId();
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((s) => ({ ...s, [k]: v }));
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,8 +210,9 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
     </Dialog>
   );
   return (
-    <Dialog open onClose={onClose} title={t('team.invite')}>
-      <form onSubmit={submit} className="stack">
+    <Sheet open onClose={onClose} title={t('team.invite')}
+      footer={<><Button onClick={onClose}>{t('common.cancel')}</Button><Button type="submit" form={formId} variant="primary">{t('team.sendInvite')}</Button></>}>
+      <form id={formId} onSubmit={submit} className="stack driver-form">
         <TextField label={t('team.email')} type="email" required value={form.email} onChange={(e) => set('email', e.target.value)} />
         <div className="grid-2">
           <TextField label={t('team.givenName')} required value={form.givenName} onChange={(e) => set('givenName', e.target.value)} />
@@ -199,11 +227,7 @@ function InviteDialog({ onClose }: { onClose: () => void }) {
           </SelectField>
         </div>
         <FormError>{error}</FormError>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" variant="primary">{t('team.sendInvite')}</Button>
-        </div>
       </form>
-    </Dialog>
+    </Sheet>
   );
 }
