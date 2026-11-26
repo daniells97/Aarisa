@@ -7,7 +7,7 @@ import { rateTimeline } from '~/domain/rates';
 import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
-import { contractorProfiles, createContractor, createDriver, driverProfiles, routeOwners, updateDriverProfile, type DriverInput } from './people';
+import { contractorProfiles, createContractor, createDriver, driverProfile, driverProfiles, routeOwners, updateDriverProfile, type DriverInput } from './people';
 import { rateRows } from './ops';
 import { loadClients } from './clients';
 import { refreshWeeklyLines } from './settlements';
@@ -151,6 +151,16 @@ export async function addDriver(tx: Tx, actor: Actor, input: DriverInput) {
 export async function updateDriver(tx: Tx, actor: Actor, id: string, input: DriverInput) {
   assertCan(actor, 'setup.edit');
   return updateDriverProfile(tx, actor, id, { ...input, setupComplete: true }, todayLA());
+}
+
+/** Active / Inactive from the status on the drivers list (one tap, with Undo). Keeps everything else. */
+export async function setDriverActive(tx: Tx, actor: Actor, id: string, active: boolean) {
+  assertCan(actor, 'setup.edit');
+  const today = todayLA();
+  const before = await driverProfile(tx, id, today);
+  if (!before) throw new RuleError('not_found');
+  if (before.active === active) return before;
+  return updateDriverProfile(tx, actor, id, { ...before, active }, today);
 }
 
 export async function addContractor(tx: Tx, actor: Actor, name: string) {

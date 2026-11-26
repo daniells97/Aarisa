@@ -89,3 +89,22 @@ test('person first: Driver, Driver code, Route; "Confirm and send list" confirms
   await page.getByRole('option', { name: /New driver code/ }).click();
   await expect(page.locator('.toasts')).toContainText(`${name} now drives`);
 });
+
+test('tapping a status switches it, with Undo: drivers (Active / Inactive) and Team access (Active / Paused)', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'one device is enough; it writes data');
+  await signInAs(page, 'owner', '/settings/rates?tab=drivers');
+  await page.getByRole('button', { name: 'Adolfo Mora is active. Tap to make inactive' }).locator('visible=true').click();
+  await expect(page.locator('.toasts')).toContainText('Adolfo Mora is inactive');
+  await page.locator('.toasts').getByRole('button', { name: 'Undo' }).last().click();
+  await expect(page.getByRole('button', { name: 'Adolfo Mora is active. Tap to make inactive' }).locator('visible=true')).toBeVisible();
+
+  await page.goto('/settings/team');
+  const pause = page.getByRole('button', { name: /Dev finance (can sign in|is paused)/ }).locator('visible=true');
+  const was = await pause.getAttribute('aria-label');
+  await pause.click();
+  await expect(page.locator('.toasts')).toContainText('Dev finance');
+  await page.locator('.toasts').getByRole('button', { name: 'Undo' }).last().click();
+  await expect(page.getByRole('button', { name: was! }).locator('visible=true')).toBeVisible();
+  // Nobody can pause themselves.
+  await expect(page.getByRole('button', { name: /Aaron Fitzpatrick can sign in/ })).toHaveCount(0);
+});

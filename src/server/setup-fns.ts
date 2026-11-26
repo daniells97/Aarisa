@@ -5,7 +5,7 @@ import { driverInput } from './driver-input';
 import { todayLA } from '~/domain/dates';
 import { zitadelAdminConfig } from '~/integrations/zitadel';
 import { read, run } from './fn';
-import { addContractor, addDriver, addRate, addService, loadSetup, updateDriver, updateService } from './setup';
+import { setDriverActive, addContractor, addDriver, addRate, addService, loadSetup, updateDriver, updateService } from './setup';
 import { listTeam, recordInvite, recordRoleChange, updateTeamMember } from './team';
 import { addSortCode, loadSortCodes, setUsualSortCodes, updateSortCode } from './sort-codes';
 import { inviteUser, setUserRole } from '~/integrations/zitadel';
@@ -29,6 +29,11 @@ export const saveDriver = createServerFn({ method: 'POST' })
   .validator(z.object({ id: uuid.nullable(), driver: driverInput }))
   .handler(({ data }) => run('setup.edit', async (tx, actor) =>
     (data.id ? await updateDriver(tx, actor, data.id, data.driver) : await addDriver(tx, actor, data.driver)).id));
+
+/** Active / Inactive from the status on the drivers list. */
+export const setDriverStatus = createServerFn({ method: 'POST' })
+  .validator(z.object({ id: uuid, active: z.boolean() }))
+  .handler(({ data }) => run('setup.edit', async (tx, actor) => (await setDriverActive(tx, actor, data.id, data.active)).active));
 
 const serviceFields = {
   name: z.string().max(80),

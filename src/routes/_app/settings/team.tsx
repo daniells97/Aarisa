@@ -3,7 +3,7 @@ import { createFileRoute, useRouter } from '@tanstack/react-router';
 import { useLocale, useT, type MessageKey } from '~/i18n';
 import { ROLES, can, type Permission, type Role } from '~/domain/permissions';
 import { changeRole, getTeam, invite, saveTeamMember } from '~/server/setup-fns';
-import { Button, CheckField, Dialog, FormError, PageHead, Panel, Pill, SelectField, Sheet, TextField, useToast } from '~/ui';
+import { Button, CheckField, Dialog, FormError, Icon, PageHead, Panel, Pill, SelectField, Sheet, TextField, useToast } from '~/ui';
 
 type Team = Awaited<ReturnType<typeof getTeam>>;
 type Member = Team['members'][number];
@@ -25,7 +25,28 @@ function TeamPage() {
   const [editing, setEditing] = useState<Member | null>(null);
   const [inviting, setInviting] = useState(false);
   const channel = (m: Member) => t(m.morningChannel === 'whatsapp' && !whatsapp ? 'channel.whatsappSoon' : `channel.${m.morningChannel}` as MessageKey);
-  const status = (m: Member) => (!m.active ? <Pill tone="muted">{t('team.paused')}</Pill> : m.invited ? <Pill tone="waiting">{t('team.invitedPending')}</Pill> : <Pill tone="ok">{t('team.active')}</Pill>);
+  const router = useRouter();
+  const toast = useToast();
+  // Tapping the status pauses or reactivates the person (with Undo); nobody can pause themselves.
+  const setActive = async (m: Member, active: boolean, undo = true) => {
+    const res = await saveTeamMember({ data: {
+      id: m.id, phone: m.phone, morningChannel: m.morningChannel, locale: m.locale === 'es' ? 'es' : 'en', active,
+      canRecordLoans: m.canRecordLoans, receivesDayList: m.receivesDayList,
+    } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t(active ? 'team.nowActive' : 'team.nowPaused', { name: m.name }), undo ? () => setActive(m, !active, false) : undefined);
+  };
+  const status = (m: Member) => {
+    const pill = !m.active ? <Pill tone="muted">{t('team.paused')}</Pill> : m.invited ? <Pill tone="waiting">{t('team.invitedPending')}</Pill> : <Pill tone="ok">{t('team.active')}</Pill>;
+    if (m.isSelf) return pill;
+    return (
+      <button type="button" className="pill-btn" onClick={() => setActive(m, !m.active)}
+        aria-label={t(m.active ? 'team.makePaused' : 'team.makeActive', { name: m.name })}>
+        {pill}<Icon name="chevronDown" width={14} height={14} />
+      </button>
+    );
+  };
   return (
     <>
       <PageHead title={t('team.title')} lead={t('team.lead')}

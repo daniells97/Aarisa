@@ -4,14 +4,14 @@ import { z } from 'zod';
 import { useLocale, useT, type MessageKey } from '~/i18n';
 import { serviceLabel } from '~/ui/service-label';
 import { todayLA } from '~/domain/dates';
-import { createContractor, createRate, createService, getSetup, getSortCodesSetup, saveDriver, saveService } from '~/server/setup-fns';
+import { createContractor, createRate, createService, getSetup, getSortCodesSetup, saveDriver, saveService, setDriverStatus } from '~/server/setup-fns';
 import { SortCodesTab } from '~/ui/SortCodesTab';
 import { DriverFile } from '~/ui/DriverFile';
 import { DriverDialog } from '~/ui/DriverForm';
 import { useClientName } from '~/ui/ClientNames';
 import { ClientsTab } from '~/ui/ClientsTab';
 import {
-  Button, CheckField, Dialog, FormError, PageHead, Panel, Pill, RoutePlate, SelectField, TextField,
+  Button, CheckField, Dialog, FormError, Icon, PageHead, Panel, Pill, RoutePlate, SelectField, TextField,
   centsToInput, parseAmount, useFormat, useToast,
 } from '~/ui';
 
@@ -274,10 +274,31 @@ function DriversTab({ data }: { data: Setup }) {
   const [addingContractor, setAddingContractor] = useState(false);
   const [file, setFile] = useState<Driver | null>(null);
   const f = useFormat();
+  const router = useRouter();
+  const toast = useToast();
   const contractorName = (id: string | null) => (id ? data.contractors.find((c) => c.id === id)?.name ?? '' : t('drivers.aarisa'));
   const platform = (d: Driver) => (d.worksTforce && d.worksHovership ? t('drivers.both')
     : [d.worksTforce && clientName('tforce'), d.worksHovership && clientName('hovership')].filter(Boolean).join(', ') || t('drivers.noPlatform'));
-  const status = (d: Driver) => (!d.setupComplete ? <Pill tone="warn">{t('drivers.finishSetup')}</Pill> : d.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>);
+  // Tapping the status switches Active / Inactive, with Undo. "Finish setup" opens the form instead.
+  const setActive = async (d: Driver, active: boolean, undo = true) => {
+    const res = await setDriverStatus({ data: { id: d.id, active } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t(active ? 'drivers.nowActive' : 'drivers.nowInactive', { name: d.fullName }), undo ? () => setActive(d, !active, false) : undefined);
+  };
+  const status = (d: Driver) => {
+    if (!d.setupComplete) return data.canEdit
+      ? <button type="button" className="pill-btn" onClick={() => setEditing(d)} aria-label={t('drivers.editNamed', { name: d.fullName })}><Pill tone="warn">{t('drivers.finishSetup')}</Pill></button>
+      : <Pill tone="warn">{t('drivers.finishSetup')}</Pill>;
+    const pill = d.active ? <Pill tone="ok">{t('team.active')}</Pill> : <Pill tone="muted">{t('pill.inactive')}</Pill>;
+    if (!data.canEdit) return pill;
+    return (
+      <button type="button" className="pill-btn" onClick={() => setActive(d, !d.active)}
+        aria-label={t(d.active ? 'drivers.makeInactive' : 'drivers.makeActive', { name: d.fullName })}>
+        {pill}<Icon name="chevronDown" width={14} height={14} />
+      </button>
+    );
+  };
   return (
     <>
       <Panel title={t('setup.tab.drivers')} id="drivers"

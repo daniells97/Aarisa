@@ -482,3 +482,7 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 @media (max-width: 899px) { .send-list { margin-left: 0; width: 100%; } .send-list .btn { flex: 1; min-height: 48px; } }
 .today-list td .pill { white-space: normal; }
 .today-list .code-cell { min-width: 120px; }
+
+/* A status you can tap to change (Drivers: Active / Inactive). */
+.pill-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 4px; margin: -9px -4px; border: 0; background: none; cursor: pointer; color: var(--ink-3); border-radius: 15px; }
+.pill-btn:hover .pill { filter: brightness(.96); }
