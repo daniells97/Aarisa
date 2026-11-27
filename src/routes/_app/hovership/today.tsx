@@ -11,6 +11,8 @@ import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
 import { RowRemove } from '~/ui/RowRemove';
+import { SendListDialog } from '~/ui/SendListDialog';
+import { can } from '~/domain/permissions';
 import { useLineOrder } from '~/ui/useLineOrder';
 import { SortSelect, SortTh } from '~/ui/SortControls';
 import { StatusSelect, type RowStatus } from '~/ui/StatusSelect';
@@ -43,6 +45,9 @@ function HovershipTodayPage() {
   const day = Route.useLoaderData();
   const router = useRouter();
   const toast = useToast();
+  const [sending, setSending] = useState(false);
+  const { session } = Route.useRouteContext();
+  const canManageTeam = !!session.user && can(session.user.role, 'team.manage');
   const dateLabel = f.date(day.date, { weekday: 'short', month: 'short', day: 'numeric' });
   const time = (at: string) => new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(at));
   const s = day.summary;
@@ -212,6 +217,11 @@ function HovershipTodayPage() {
   return (
     <>
       {newPersonDialog}
+      {sending && (
+        <SendListDialog recipients={day.recipients} people={day.rows.length} withoutCode={0}
+          sentAt={day.sent?.at ?? null} changed={!!day.sent?.changed} canManageTeam={canManageTeam}
+          onSend={send} onClose={() => setSending(false)} />
+      )}
       <PageHead stacked title={t('td.title')} lead={t('hd.lead', { client: day.operation.name })}
         actions={
           <div className="row">
@@ -240,7 +250,7 @@ function HovershipTodayPage() {
           <span className="send-list">
             {s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all">{t('hd.confirmAll', { count: s.proposed })}</Button>}
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
-            <Button variant={s.proposed === 0 && (!day.sent || day.sent.changed) ? 'primary' : 'secondary'} onClick={send} className="confirm-all">
+            <Button variant={s.proposed === 0 && (!day.sent || day.sent.changed) ? 'primary' : 'secondary'} onClick={() => setSending(true)} className="confirm-all">
               {t(day.sent ? 'td.resendList' : 'td.sendList')}
             </Button>
           </span>

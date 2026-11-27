@@ -12,7 +12,7 @@ import { RuleError } from './errors';
 import { payeeIdOf, sortCodesTaken } from './executions';
 import { assertNotLocked, operationFor } from './ops';
 import { contractorProfiles, createDriver, driverProfiles } from './people';
-import { emailDayList, lastSend } from './daily';
+import { emailDayList, lastSend, listRecipients } from './daily';
 
 // Today's drivers for Hovership: which routes (sort codes) each Hovership driver runs on a day. Hovership's
 // report already names the driver, so there is no driver code; Aarisa assigns the routes by hand. It works
@@ -126,6 +126,7 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
     })),
     // The last "Confirm and send list" of this day: who and when.
     sent: await lastSend(tx, op.id, date, hovershipListPeople(rows)),
+    recipients: can(actor.role, 'drivers.confirm_today') ? await listRecipients(tx) : [],
   };
 }
 
@@ -135,8 +136,10 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
  */
 /** The Hovership list as it would be sent now (by person). */
 function hovershipListPeople(rows: { name: string; code: string | null; status: string; sortCodes: { code: string }[] }[]) {
-  return rows.filter((r) => r.status !== 'off' && r.status !== 'covered')
-    .map((r) => ({ name: r.name, code: r.code ?? '–', routes: r.sortCodes.map((x) => x.code), contractor: false }));
+  return rows.map((r) => ({
+    name: r.name, code: r.code ?? '–', routes: r.sortCodes.map((x) => x.code), contractor: false,
+    status: (r.status === 'off' || r.status === 'covered' ? 'off' : r.status === 'proposed' || r.status === 'none' ? 'proposed' : 'confirmed') as 'confirmed' | 'proposed' | 'off',
+  }));
 }
 
 export async function sendHovershipList(tx: Tx, actor: Actor, date: string, operation?: string) {

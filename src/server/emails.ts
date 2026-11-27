@@ -95,10 +95,11 @@ ${rows}</table></td></tr>`,
   };
 }
 
-export interface DayListPerson { name: string; code: string | null; routes: string[]; contractor: boolean }
+export type DayListStatus = 'confirmed' | 'proposed' | 'off';
+export interface DayListPerson { name: string; code: string | null; routes: string[]; contractor: boolean; status?: DayListStatus }
 
 /** What changed between two sends of the same day's list (by person). */
-export interface DayListChanges { added: string[]; removed: string[]; codes: { name: string; from: string | null; to: string | null }[]; routes: { name: string; routes: string[] }[] }
+export interface DayListChanges { added: string[]; removed: string[]; codes: { name: string; from: string | null; to: string | null }[]; routes: { name: string; routes: string[] }[]; statuses: { name: string; status: DayListStatus }[] }
 
 export function diffDayList(before: DayListPerson[], after: DayListPerson[]): DayListChanges {
   const was = new Map(before.map((p) => [p.name, p]));
@@ -109,19 +110,25 @@ export function diffDayList(before: DayListPerson[], after: DayListPerson[]): Da
     removed: before.filter((p) => !now.has(p.name)).map((p) => p.name),
     codes: after.filter((p) => was.has(p.name) && was.get(p.name)!.code !== p.code).map((p) => ({ name: p.name, from: was.get(p.name)!.code, to: p.code })),
     routes: after.filter((p) => was.has(p.name) && !same(was.get(p.name)!.routes, p.routes)).map((p) => ({ name: p.name, routes: p.routes })),
+    // A list sent before statuses were in it says nothing about them.
+    statuses: after.filter((p) => p.status && was.get(p.name)?.status && was.get(p.name)!.status !== p.status).map((p) => ({ name: p.name, status: p.status! })),
   };
 }
-export const hasChanges = (c: DayListChanges) => c.added.length + c.removed.length + c.codes.length + c.routes.length > 0;
+export const hasChanges = (c: DayListChanges) => c.added.length + c.removed.length + c.codes.length + c.routes.length + c.statuses.length > 0;
 
 /**
  * "Confirm and send list": who works today, confirmed by the operator, for the people who set driver codes
  * and routes. People without a driver code go first; then everyone with their code and routes. No money.
  */
+/** The status of each person in the day's list email, in the portal's colors. */
+const STATUS_KEY = { confirmed: 'td.status.confirmed', proposed: 'td.statusToConfirm', off: 'td.status.off' } as const;
+const STATUS_STYLE = { confirmed: 'background:#E6F4EA;color:#1E7B3C', proposed: 'background:#E8F0FB;color:#1F4E9A', off: 'background:#FDECEA;color:#B42318' } as const;
+
 export function dayListEmail(locale: Locale, to: string, date: string, sender: string, people: DayListPerson[], codesNoDriver: string[], operation: string, path = '/tforce/today',
   update?: { at: string; changes: DayListChanges }): Mail {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(locale, k, v);
   const day = new Intl.DateTimeFormat(locale === 'es' ? 'es-US' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
-  const noCode = people.filter((p) => !p.code).map((p) => p.name);
+  const noCode = people.filter((p) => !p.code && p.status !== 'off').map((p) => p.name);
   const look = [
     noCode.length ? t('mail.dayList.noCode', { names: noCode.join(', ') }) : null,
     codesNoDriver.length ? t('mail.dayList.codesNoDriver', { codes: codesNoDriver.join(', ') }) : null,
@@ -137,6 +144,7 @@ export function dayListEmail(locale: Locale, to: string, date: string, sender: s
     ...c.removed.map((n) => t('mail.dayList.removed', { name: n })),
     ...c.codes.map((x) => t('mail.dayList.codeChanged', { name: x.name, from: x.from ?? t('mail.dayList.missing'), to: x.to ?? t('mail.dayList.missing') })),
     ...c.routes.map((x) => t('mail.dayList.routesChanged', { name: x.name, routes: x.routes.join(', ') || '–' })),
+    ...c.statuses.map((x) => t('mail.dayList.statusChanged', { name: x.name, status: t(STATUS_KEY[x.status]) })),
   ] : [];
   const changesBox = update
     ? `<tr><td style="padding-bottom:20px"><div style="background:#EAF1FB;border-left:4px solid #1F4E9A;border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.6"><strong>${esc(t('mail.dayList.changesSince', { time }))}</strong><br>${changeLines.length ? changeLines.map(esc).join('<br>') : esc(t('mail.dayList.noChanges'))}</div></td></tr>`
@@ -145,7 +153,8 @@ export function dayListEmail(locale: Locale, to: string, date: string, sender: s
   const sorted = [...people.filter((p) => !p.code), ...people.filter((p) => p.code)];
   const rows = sorted.map((p) => `<tr><td style="${cell};font-weight:bold">${esc(p.name)}${p.contractor ? ` <span style="color:${MUTED};font-size:12px">· ${esc(t('mail.morning.contractor'))}</span>` : ''}</td>`
     + `<td style="${cell};white-space:nowrap">${p.code ? esc(p.code) : `<span style="color:#C02430;font-weight:bold">${esc(t('mail.dayList.missing'))}</span>`}</td>`
-    + `<td style="${cell}">${esc(p.routes.join(', ')) || `<span style="color:${MUTED}">–</span>`}</td></tr>`).join('');
+    + `<td style="${cell}">${esc(p.routes.join(', ')) || `<span style="color:${MUTED}">–</span>`}</td>`
+    + `<td style="${cell};white-space:nowrap"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:bold;${STATUS_STYLE[p.status ?? 'confirmed']}">${esc(t(STATUS_KEY[p.status ?? 'confirmed']))}</span></td></tr>`).join('');
   const link = `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}${path}?date=${date}`;
   return {
     to,
@@ -156,7 +165,7 @@ export function dayListEmail(locale: Locale, to: string, date: string, sender: s
       lookBox,
       `<tr><td style="padding-bottom:20px">${button(link, t('mail.dayList.button'))}</td></tr>`,
       `<tr><td style="padding-bottom:24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-<tr><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.morning.driver'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.dayList.code'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.dayList.routes'))}</th></tr>
+<tr><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.morning.driver'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.dayList.code'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.dayList.routes'))}</th><th align="left" style="${cell};font-size:12px;color:${MUTED}">${esc(t('mail.dayList.status'))}</th></tr>
 ${rows}</table></td></tr>`,
     ]),
   };

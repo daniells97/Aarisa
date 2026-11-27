@@ -178,7 +178,14 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       .filter(([, rs]) => rs.length > 1 && rs.some((r) => r.status === 'changed')).map(([, rs]) => ({ name: rs[0]!.today.name ?? '', codes: rs.map((r) => r.code) })),
     // The last "Confirm and send list" of this day: who, when, and whether the list changed since.
     sent: await lastSend(tx, op.id, date, tforceListPeople({ noCode, rows })),
+    // For the Send dialog: who will get it (only for people who can send it).
+    recipients: can(actor.role, 'drivers.confirm_today') ? await listRecipients(tx) : [],
   };
+}
+
+/** Who gets the day's list by email (Team access: "Gets the confirmed list of the day"), for the Send dialog. */
+export async function listRecipients(tx: Tx) {
+  return tx.select({ name: users.name, email: users.email }).from(users).where(and(eq(users.active, true), eq(users.receivesDayList, true))).orderBy(asc(users.name));
 }
 
 export async function lastSend(tx: Tx, operationId: string, date: string, now?: DayListPerson[]) {
@@ -786,10 +793,12 @@ export async function emailDayList(tx: Tx, actor: Actor, op: { id: string; name:
 }
 
 /** The T-Force list as it would be sent now (by person), to compare with what was sent. */
+const listStatus = (s: DayStatus): 'confirmed' | 'proposed' | 'off' => (s === 'off' ? 'off' : s === 'proposed' || s === 'waiting' ? 'proposed' : 'confirmed');
+
 export function tforceListPeople(day: { noCode: { name: string; status: DayStatus; sortCodes: { code: string }[] }[]; rows: { today: { name: string | null; contractorId: string | null }; status: DayStatus; code: string; sortCodes: { code: string }[] }[] }): DayListPerson[] {
   return [
-    ...day.noCode.filter((p) => p.status !== 'off').map((p) => ({ name: p.name, code: null, routes: p.sortCodes.map((x) => x.code), contractor: false })),
-    ...day.rows.filter((r) => r.today.name && r.status !== 'off' && r.status !== 'no_driver')
-      .map((r) => ({ name: r.today.name!, code: r.code, routes: r.sortCodes.map((x) => x.code), contractor: !!r.today.contractorId })),
+    ...day.noCode.map((p) => ({ name: p.name, code: null, routes: p.sortCodes.map((x) => x.code), contractor: false, status: listStatus(p.status) })),
+    ...day.rows.filter((r) => r.today.name && r.status !== 'no_driver')
+      .map((r) => ({ name: r.today.name!, code: r.code, routes: r.sortCodes.map((x) => x.code), contractor: !!r.today.contractorId, status: listStatus(r.status) })),
   ];
 }
