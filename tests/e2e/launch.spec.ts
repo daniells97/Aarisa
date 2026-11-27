@@ -53,20 +53,22 @@ test('the signed-in person and Sign out are at the top', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Sign out' })).toBeVisible();
 });
 
-test("the × on a row takes the person off that day's list (didn't run), and Undo puts them back", async ({ page, isMobile }) => {
+test("the × on a line takes it off the day's list, and Undo puts it back", async ({ page, isMobile }) => {
   test.skip(isMobile, 'one device is enough; it writes data');
   await signInAs(page, 'dispatcher', '/tforce/today?date=2027-05-10');
+  const lines = page.locator('.today-list tbody tr');
+  const before = await lines.count();
   const x = page.getByRole('button', { name: /^Take .+ off today's list$/ }).locator('visible=true').first();
   const who = (await x.getAttribute('aria-label'))!.replace(/^Take | off today's list$/g, '');
   await x.click();
   await expect(page.locator('.toasts')).toContainText(`${who} is off today's list.`);
-  await expect(page.getByText("1 didn't run")).toBeVisible();
+  await expect(lines).toHaveCount(before - 1);
   await page.locator('.toasts').getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.toasts')).toContainText('Change undone.');
-  await expect(page.getByText("1 didn't run")).toHaveCount(0);
+  await expect(lines).toHaveCount(before);
 });
 
-test('person first: Driver, Driver code, Route; "Confirm and send list" confirms the day; a person without code gets one', async ({ page, isMobile }) => {
+test('person first: Driver, Driver code, Route; Confirm and Send list are separate; a person without code gets one', async ({ page, isMobile }) => {
   test.skip(isMobile, 'one device is enough; it writes data');
   // A fresh day each run (the list of a day stays sent once it is sent).
   const n = Date.now();
@@ -74,8 +76,11 @@ test('person first: Driver, Driver code, Route; "Confirm and send list" confirms
   await signInAs(page, 'dispatcher', `/tforce/today?date=${date}`);
   await expect(page.locator('thead th').first()).toHaveText('Driver');
   await expect(page.locator('thead th').nth(1)).toHaveText('Driver code');
-  await page.getByRole('button', { name: 'Confirm and send list' }).click();
-  await expect(page.locator('.toasts')).toContainText('List confirmed');
+  // Confirming and sending are two buttons: confirm the usual drivers, then send the list whenever.
+  await page.getByRole('button', { name: /^Confirm \d+ usual drivers$/ }).click();
+  await expect(page.locator('.toasts')).toContainText('confirmed');
+  await page.getByRole('button', { name: 'Send list' }).click();
+  await expect(page.locator('.toasts')).toContainText('List not sent: nobody is set to get it.');
   await expect(page.getByRole('button', { name: 'Send list again' })).toBeVisible();
   await page.getByRole('button', { name: 'Add record' }).first().click();
   const who = page.locator('tr.new-record').getByRole('combobox').first();

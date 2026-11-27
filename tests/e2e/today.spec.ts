@@ -57,9 +57,10 @@ test('add a record (driver code, who drives it) as a new line in the list; it sa
   await page.getByRole('option', { name: `+ New driver “${code}”` }).click();
   const who = line.getByRole('combobox').first();
   await who.click();
-  await who.fill('Diana');
-  await page.getByRole('option', { name: 'Diana Arvelo' }).click();
-  await expect(page.locator('.toasts')).toContainText(`${code} saved with Diana Arvelo.`);
+  // Someone not on the day's list yet (a person already on a code can't be on a second line).
+  await who.fill('Angel Orlando');
+  await page.getByRole('option', { name: /Angel Orlando/ }).click();
+  await expect(page.locator('.toasts')).toContainText(`${code} saved with Angel Orlando.`);
   await expect(page.getByText(code, { exact: true }).locator('visible=true').first()).toBeVisible();
 });
 

@@ -1,3 +1,5 @@
+import { and, eq } from 'drizzle-orm';
+import { routeExecutions } from '~/db/schema';
 import { readFileSync } from 'node:fs';
 import { createDriver } from './people';
 import { describe, expect, it } from 'vitest';
@@ -142,7 +144,9 @@ describe('a whole week, end to end', () => {
       const { previous } = await markOffToday(tx, owner, { date: WEEK, routeId: g.routeId });
       await confirmUsual(tx, owner, WEEK);
       const after = await loadDay(tx, owner, WEEK);
-      expect(after.rows.find((r) => r.code === '9000G')).toMatchObject({ status: 'off', today: { driverId: null, contractorId: null } });
+      // "Didn't run" keeps who it was on the line (shown in red), but nobody is the payee: not paid.
+      expect(after.rows.find((r) => r.code === '9000G')).toMatchObject({ status: 'off', today: { driverId: g.today.driverId, contractorId: null } });
+      expect((await tx.select().from(routeExecutions).where(and(eq(routeExecutions.routeId, g.routeId), eq(routeExecutions.date, WEEK))))[0]!.payeeId).toBeNull();
       expect(after.summary.off).toBe(1);
       // The report has nothing for 9000G that Monday: no "no pieces" exception for it.
       await importReport(tx, owner, { operation: 'tforce', fileName: 'tforce.csv', text: shift('tforce_pieces_jun2026.csv', '2026-06-15', daysBetween('2026-06-15', WEEK), (d) => d >= '2026-06-15' && d <= '2026-06-21') });

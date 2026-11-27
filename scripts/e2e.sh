@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 scripts/test-db-reset.sh
 set -a; . ./.env.test; set +a
 export DEV_LOGIN=1
-node_modules/.bin/vite dev --host 127.0.0.1 --port 3200 > /tmp/aarisa-e2e-server.log 2>&1 &
+node_modules/.bin/vite dev --mode test --host 127.0.0.1 --port 3200 > /tmp/aarisa-e2e-server.log 2>&1 &
 server=$!
 trap 'kill $server 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:3200/login && break; sleep 2; done
