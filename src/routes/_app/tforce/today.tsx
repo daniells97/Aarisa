@@ -343,7 +343,7 @@ function TodayPage() {
   return (
     <>
       {newPersonDialog}
-      <PageHead title={t('td.title')} lead={t('td.lead', { client: day.operation.name })}
+      <PageHead stacked title={t('td.title')} lead={t('td.lead', { client: day.operation.name })}
         actions={
           <div className="row">
             <div className="week-nav">

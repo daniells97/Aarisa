@@ -540,3 +540,6 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .status-option:hover, .status-option:focus-visible { background: var(--muted-tint); outline: none; }
 .status-option .pill { font-size: 13.5px; }
 @media (max-width: 899px) { .status-btn { min-height: 36px; font-size: 14px; } }
+
+/* Daily operations: date and buttons always under the title, the same on T-Force and Hovership. */
+.page-head-stacked { flex-direction: column; align-items: flex-start; justify-content: flex-start; }

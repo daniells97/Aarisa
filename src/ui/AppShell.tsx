@@ -128,9 +128,10 @@ export function AppShell({ user, children, badges = {}, operations = [] }: { use
   );
 }
 
-export function PageHead({ title, lead, actions }: { title: ReactNode; lead?: ReactNode; actions?: ReactNode }) {
+/** `stacked`: the actions always go under the title and lead (Daily operations: same layout on every client). */
+export function PageHead({ title, lead, actions, stacked = false }: { title: ReactNode; lead?: ReactNode; actions?: ReactNode; stacked?: boolean }) {
   return (
-    <header className="page-head">
+    <header className={stacked ? 'page-head page-head-stacked' : 'page-head'}>
       <div><h1>{title}</h1>{lead && <p>{lead}</p>}</div>
       {actions}
     </header>

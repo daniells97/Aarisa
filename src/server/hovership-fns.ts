@@ -6,7 +6,7 @@ import { read, run } from './fn';
 import { requireSignedIn } from './auth';
 import { importHovership, latestHovershipWeek, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
 import { classifyOtherRevenue } from './revenue';
-import { coverHovership, restoreHovership, addHovershipPerson, setOnHovership, confirmUsualHovership, sendHovershipList as sendHovershipDayList, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
+import { setHovershipStatus, coverHovership, restoreHovership, addHovershipPerson, setOnHovership, confirmUsualHovership, sendHovershipList as sendHovershipDayList, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 // Any contract whose report names the driver; omitted = the first one (Hovership).
@@ -95,5 +95,10 @@ export const coverHovershipDriver = createServerFn({ method: 'POST' })
   .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => coverHovership(tx, actor, data)));
 
 export const restoreHovershipDrivers = createServerFn({ method: 'POST' })
-  .validator(z.object({ date: isoDate, previous: z.array(z.object({ driverId: z.string().uuid(), sortCodeIds: z.array(z.string().uuid()).max(20).nullable() })).max(40), operation }))
+  .validator(z.object({ date: isoDate, previous: z.array(z.object({ driverId: z.string().uuid(), sortCodeIds: z.array(z.string().uuid()).max(20).nullable(), off: z.boolean().optional() })).max(40), operation }))
   .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => restoreHovership(tx, actor, data)));
+
+/** The status chosen on a Hovership line: Confirmed, To confirm, Didn't work (keeps the person and routes). */
+export const setHovershipRowStatus = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, driverId: z.string().uuid(), status: z.enum(['confirmed', 'proposed', 'off']), operation }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => setHovershipStatus(tx, actor, data)));

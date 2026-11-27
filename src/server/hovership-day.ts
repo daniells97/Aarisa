@@ -66,8 +66,10 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
     const day = dayOf.get(p.id);
     const set = day ? lastSet.get(day.id) ?? null : null;
     const mine = usual.get(p.id) ?? [];
-    const routes = day && set ? ran.filter((r) => r.executionId === day.id).map(({ id, code }) => ({ id, code })) : [];
-    const status: HovershipStatus = !set ? (mine.length ? 'proposed' : 'none')
+    const routes = day && (set || day.status === 'off') ? ran.filter((r) => r.executionId === day.id).map(({ id, code }) => ({ id, code })) : [];
+    // "Didn't work" is its own status and keeps the person's routes (shown in red, not paid).
+    const status: HovershipStatus = day?.status === 'off' ? 'off'
+      : !set ? (mine.length ? 'proposed' : 'none')
       : routes.length === 0 ? 'off' : day!.status === 'changed' ? 'changed' : 'confirmed';
     return {
       driverId: p.id, name: p.fullName, code: p.hovershipCode, status, usual: mine, setBy: set,
@@ -88,7 +90,7 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
   });
   // Suggested routes count as taken: a route nobody has is one no one has, even as a suggestion.
   const taken = new Map<string, string[]>();
-  for (const r of rows) for (const s of r.sortCodes) taken.set(s.code, [...(taken.get(s.code) ?? []), r.name]);
+  for (const r of rows) if (r.status !== 'off' && r.status !== 'covered') for (const s of r.sortCodes) taken.set(s.code, [...(taken.get(s.code) ?? []), r.name]);
   const count = (s: HovershipStatus) => rows.filter((r) => r.status === s).length;
 
   const name = new Map([...options, ...ran].map((x) => [x.id, x.code]));
@@ -327,6 +329,7 @@ export async function coverHovership(tx: Tx, actor: Actor, input: { date: string
   // The routes leave whoever runs them now (the person, or someone covering them before), then go to the new person:
   // a route is never on two people at once.
   await setHovershipRoutes(tx, actor, { date: input.date, driverId: row.driverId, sortCodeIds: [], operation: input.operation });
+  await markHovershipOff(tx, actor, (await operationFor(tx, input.operation, 'report_code')).id, input.date, row.driverId);
   for (const o of day.rows) {
     if (o.driverId === row.driverId || o.driverId === byId || o.suggested) continue;
     const mine = o.sortCodes.map((x) => x.id);
@@ -341,11 +344,15 @@ export async function coverHovership(tx: Tx, actor: Actor, input: { date: string
 }
 
 /** Undo for "Driver today": each person back to the routes they had (or to their suggestion). */
-export async function restoreHovership(tx: Tx, actor: Actor, input: { date: string; previous: { driverId: string; sortCodeIds: string[] | null }[]; operation?: string }) {
+export async function restoreHovership(tx: Tx, actor: Actor, input: { date: string; previous: { driverId: string; sortCodeIds: string[] | null; off?: boolean }[]; operation?: string }) {
   assertCan(actor, 'drivers.confirm_today');
   const op = await operationFor(tx, input.operation, 'report_code');
   for (const p of input.previous) {
-    if (p.sortCodeIds) { await setHovershipRoutes(tx, actor, { date: input.date, driverId: p.driverId, sortCodeIds: p.sortCodeIds, operation: op.code }, { skipTaken: true }); continue; }
+    if (p.sortCodeIds) {
+      await setHovershipRoutes(tx, actor, { date: input.date, driverId: p.driverId, sortCodeIds: p.sortCodeIds, operation: op.code }, { skipTaken: true });
+      if (p.off) await markHovershipOff(tx, actor, op.id, input.date, p.driverId);
+      continue;
+    }
     // It was only a suggestion: drop the day made here, if nothing else depends on it.
     const payeeId = (await payeeIdOf(tx, { driverId: p.driverId, contractorId: null }))!;
     const [row] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, input.date),
@@ -357,4 +364,36 @@ export async function restoreHovership(tx: Tx, actor: Actor, input: { date: stri
     await tx.delete(routeExecutions).where(eq(routeExecutions.id, row.id));
     await audit(tx, { table: 'route_executions', recordId: row.id, action: 'undo', before: row, userId: actor.userId, source: actor.source });
   }
+}
+
+export type HovershipRowStatus = 'confirmed' | 'proposed' | 'off';
+
+/**
+ * The status chosen on a Hovership line: Confirmed (their routes, or none yet), To confirm (back to the suggestion),
+ * Didn't work (the person and routes stay on the line in red; the routes are free for whoever covers them).
+ */
+export async function setHovershipStatus(tx: Tx, actor: Actor, input: { date: string; driverId: string; status: HovershipRowStatus; operation?: string }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const op = await operationFor(tx, input.operation, 'report_code');
+  await assertNotLocked(tx, op, input.date);
+  const day = await loadHovershipDay(tx, actor, input.date, op.code);
+  const row = day.rows.find((r) => r.driverId === input.driverId);
+  if (!row) throw new RuleError('not_found');
+  const routes = (row.status === 'covered' ? row.usual : row.sortCodes).map((x) => x.id);
+  if (input.status === 'proposed') {
+    await restoreHovership(tx, actor, { date: input.date, previous: [{ driverId: input.driverId, sortCodeIds: null }], operation: op.code });
+    return;
+  }
+  // Saving the routes makes the day confirmed (or changed); "didn't work" then marks it.
+  await setHovershipRoutes(tx, actor, { date: input.date, driverId: input.driverId, sortCodeIds: routes, operation: op.code }, { skipTaken: true });
+  if (input.status === 'off') await markHovershipOff(tx, actor, op.id, input.date, input.driverId);
+}
+
+async function markHovershipOff(tx: Tx, actor: Actor, operationId: string, date: string, driverId: string) {
+  const payeeId = (await payeeIdOf(tx, { driverId, contractorId: null }))!;
+  const [row] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, operationId), eq(routeExecutions.date, date),
+    eq(routeExecutions.payeeId, payeeId), eq(routeExecutions.kind, 'route'), isNull(routeExecutions.routeId)));
+  if (!row || row.status === 'off') return;
+  const [after] = await tx.update(routeExecutions).set({ status: 'off', confirmedBy: null, confirmedAt: null, updatedAt: new Date() }).where(eq(routeExecutions.id, row.id)).returning();
+  await audit(tx, { table: 'route_executions', recordId: row.id, action: 'update', before: row, after, userId: actor.userId, source: actor.source });
 }

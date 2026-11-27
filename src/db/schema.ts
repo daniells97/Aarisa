@@ -427,7 +427,8 @@ export const routeExecutions = core.table('route_executions', {
   uniqueIndex('route_executions_payee_day').on(t.operationId, t.date, t.payeeId).where(sql`${t.kind} = 'route' and ${t.routeId} is null`),
   uniqueIndex('route_executions_extra_day').on(t.operationId, t.date, t.payeeId).where(sql`${t.kind} = 'extra'`),
   index('route_executions_payee').on(t.payeeId, t.date),
-  check('route_executions_status_payee', sql`(${t.status} in ('confirmed', 'changed') and ${t.payeeId} is not null) or (${t.status}::text in ('no_driver', 'off') and ${t.payeeId} is null) or ${t.status} in ('proposed', 'waiting')`),
+  // "Didn't work" on a person-day (Hovership, no driver code) keeps the person: the client report decides pay there.
+  check('route_executions_status_payee', sql`(${t.status} in ('confirmed', 'changed') and ${t.payeeId} is not null) or (${t.status}::text in ('no_driver', 'off') and ${t.payeeId} is null) or (${t.status}::text = 'off' and ${t.routeId} is null) or ${t.status} in ('proposed', 'waiting')`),
   check('route_executions_confirmed_at', sql`${t.confirmedAt} is null or ${t.status} in ('confirmed', 'changed')`),
   check('route_executions_extra_payee', sql`${t.kind} = 'route' or ${t.payeeId} is not null`),
 ]);

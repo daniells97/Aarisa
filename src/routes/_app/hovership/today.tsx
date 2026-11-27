@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { sendHovershipList, addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
+import { setHovershipRowStatus, sendHovershipList, addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
 import { Button, Icon, PageHead, Panel, PersonPicker, Pill, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
@@ -87,45 +87,32 @@ function HovershipTodayPage() {
   // The status of a row, changeable in place: Confirmed (their routes), To confirm (back to the suggestion),
   // Didn't work today (no routes). With Undo back to how the day was.
   const statusCell = (r: Row) => {
+    const value: RowStatus = r.status === 'off' || r.status === 'covered' ? 'off' : r.status === 'proposed' || r.status === 'none' ? 'proposed' : 'confirmed';
     const st = STATUS[r.status];
-    const routesFor = r.status === 'off' ? r.usual : r.sortCodes;
-    if (!day.canEdit || r.status === 'covered' || r.status === 'none') return <Pill tone={st.tone}>{t(st.key)}</Pill>;
-    const value: RowStatus = r.status === 'off' ? 'off' : r.status === 'proposed' ? 'proposed' : 'confirmed';
+    if (!day.canEdit) return <Pill tone={st.tone}>{t(st.key)}</Pill>;
     const options = [
-      ...(routesFor.length ? [{ value: 'confirmed' as const, label: t('td.status.confirmed') }] : []),
+      { value: 'confirmed' as const, label: t('td.status.confirmed') },
       { value: 'proposed' as const, label: t('td.statusToConfirm') },
       { value: 'off' as const, label: t('hd.status.off') },
     ];
-    return <StatusSelect value={value} tone={st.tone} label={t('td.statusOf', { name: r.name })} options={options}
-      onChange={async (v) => {
-        if (v === 'off') return offToday(r);
-        const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id) }];
-        const res = v === 'confirmed'
-          ? await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: routesFor.map((x) => x.id) } })
-          : await restoreHovershipDrivers({ data: { date: day.date, previous: [{ driverId: r.driverId, sortCodeIds: null }] } });
-        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
-        await router.invalidate();
-        toast(t('td.statusSet', { name: r.name, status: t(v === 'confirmed' ? 'td.status.confirmed' : 'td.statusToConfirm') }), async () => {
-          const u = await restoreHovershipDrivers({ data: { date: day.date, previous } });
-          if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
-          await router.invalidate();
-          toast(t('td.undone'));
-        });
-      }} />;
+    return <StatusSelect value={value} label={t('td.statusOf', { name: r.name })} options={options} onChange={(v) => setRowStatus(r, v)} />;
   };
-
-  const offToday = async (r: Row) => {
-    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id) }];
-    const res = await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: [] } });
+  // Every status change can be undone back to how the line was (routes, and whether they didn't work).
+  const setRowStatus = async (r: Row, v: RowStatus) => {
+    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested || r.status === 'none' ? null : r.sortCodes.map((x) => x.id), off: r.status === 'off' }];
+    const res = await setHovershipRowStatus({ data: { date: day.date, driverId: r.driverId, status: v } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(t('hd.offDone', { name: r.name }), async () => {
+    const label = v === 'off' ? t('hd.status.off') : v === 'proposed' ? t('td.statusToConfirm') : t('td.status.confirmed');
+    toast(t('td.statusSet', { name: r.name, status: label }), async () => {
       const u = await restoreHovershipDrivers({ data: { date: day.date, previous } });
       if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
       await router.invalidate();
       toast(t('td.undone'));
     });
   };
+
+  const offToday = (r: Row) => setRowStatus(r, 'off');
 
   // "Driver today", as on T-Force: someone else runs this person's routes today (Undo puts everyone back).
   // "+ New person…": the same form as Drivers and rates (on Hovership), then it covers the row.
@@ -193,9 +180,9 @@ function HovershipTodayPage() {
   const removeX = (r: Row) => !day.canEdit ? null
     : <RowRemove label={t('td.removeFromDay', { name: r.name })} onClick={() => removeLine(r)} />;
   const removeLine = async (r: Row) => {
-    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id) }];
+    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id), off: r.status === 'off' }];
     if (r.status !== 'off') {
-      const off = await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: [] } });
+      const off = await setHovershipRowStatus({ data: { date: day.date, driverId: r.driverId, status: 'off' } });
       if (!off.ok) return toast(t(`error.${off.code}` as MessageKey));
     }
     const res = await setHovershipDriverOnList({ data: { driverId: r.driverId, on: false } });
@@ -214,7 +201,7 @@ function HovershipTodayPage() {
   return (
     <>
       {newPersonDialog}
-      <PageHead title={t('td.title')} lead={t('hd.lead', { client: day.operation.name })}
+      <PageHead stacked title={t('td.title')} lead={t('hd.lead', { client: day.operation.name })}
         actions={
           <div className="row">
             <div className="week-nav">

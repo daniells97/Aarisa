@@ -190,6 +190,13 @@
       "when": 1795740584252,
       "tag": "0026_drop_driver_legal_name",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1795819893211,
+      "tag": "0027_hovership_off_keeps_person",
+      "breakpoints": true
     }
   ]
 }
