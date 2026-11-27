@@ -4,6 +4,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-r
 import appCss from '~/styles/app.css?url';
 import { I18nProvider, type Locale } from '~/i18n';
 import { getSession } from '~/server/session-fns';
+import { useT } from '~/i18n';
 import { ClientNamesProvider } from '~/ui/ClientNames';
 import { ToastProvider } from '~/ui';
 
@@ -34,10 +35,17 @@ function RootComponent() {
   return (
     <RootDocument locale={session.locale}>
       <ClientNamesProvider names={session.clients}>
+        {session.staging && <StagingBanner />}
         <Outlet />
       </ClientNamesProvider>
     </RootDocument>
   );
+}
+
+/** Always on top in the test copy, so nobody mistakes it for the real portal. */
+function StagingBanner() {
+  const t = useT();
+  return <div className="staging-banner" role="note">{t('app.staging')}</div>;
 }
 
 function RootDocument({ children, locale }: { children: ReactNode; locale: Locale }) {

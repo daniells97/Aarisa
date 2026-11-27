@@ -222,6 +222,7 @@ export const en = {
   "drivers.contractorSaved": "Contractor saved.",
   "drivers.contractorsTitle": "Contractors",
   "drivers.contractorRoutes": "Drivers",
+  "app.staging": "TEST ENVIRONMENT — changes here don't affect the real operation",
   "hd.code": "Code",
   "hd.coversFor": "For {name}",
   "td.leftList": "{name} came off today's list",

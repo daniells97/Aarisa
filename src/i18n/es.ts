@@ -224,6 +224,7 @@ export const es: Record<MessageKey, string> = {
   "drivers.contractorSaved": "Contratista guardado.",
   "drivers.contractorsTitle": "Contratistas",
   "drivers.contractorRoutes": "Drivers",
+  "app.staging": "AMBIENTE DE PRUEBAS — lo que hagas aquí no afecta la operación real",
   "hd.code": "Código",
   "hd.coversFor": "Por {name}",
   "td.leftList": "{name} salió de la lista de hoy",

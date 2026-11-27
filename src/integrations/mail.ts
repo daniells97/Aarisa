@@ -19,7 +19,8 @@ export async function sendMail(mail: Mail, cfg = mailConfig()): Promise<boolean>
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${cfg.apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: `Aarisa Consulting <${cfg.from}>`, to: [mail.to], subject: mail.subject, html: mail.html }),
+      // Mail from the test copy of the portal says so in the subject.
+      body: JSON.stringify({ from: `Aarisa Consulting <${cfg.from}>`, to: [mail.to], subject: (process.env.APP_ENV === 'staging' ? '[PRUEBAS] ' : '') + mail.subject, html: mail.html }),
     });
     if (!res.ok) throw new Error(`Resend refused the email: ${res.status} ${await res.text()}`);
     return true;

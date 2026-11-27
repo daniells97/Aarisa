@@ -515,3 +515,6 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 }
 .change-log .num { white-space: nowrap; }
 .cell-text { display: inline-flex; align-items: center; min-height: 40px; }
+
+/* Test copy of the portal: a band on every screen. */
+.staging-banner { position: sticky; top: 0; z-index: 60; background: #B7791F; color: #fff; text-align: center; font: 600 14px var(--font); padding: 6px 12px; }
