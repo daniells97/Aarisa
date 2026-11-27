@@ -398,9 +398,6 @@ function TodayPage() {
               {unknown.map((r) => <UnknownName key={r.routeId} row={r} day={day} />)}
             </div>
           </Panel>
-          <Panel title={t('td.waTitle')} id="wa">
-            <p className="panel-body muted" style={{ margin: 0 }}>{t('td.waLater')}</p>
-          </Panel>
           <Panel title={t('td.changesTitle')} id="changes">
             <div className="panel-body">
               {day.changes.length === 0 ? <p className="muted" style={{ margin: 0 }}>{t('td.noChanges')}</p> : (

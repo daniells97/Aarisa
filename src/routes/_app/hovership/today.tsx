@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
 import { sendHovershipList, addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
-import { Button, Icon, PageHead, Panel, PersonPicker, Pill, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
+import { Button, Icon, PageHead, Panel, PersonPicker, Pill, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { NewRecord } from '~/ui/NewRecord';
@@ -196,11 +196,6 @@ function HovershipTodayPage() {
             {day.sent.changed && <> <Pill tone="warn">{t('td.changedSinceSent')}</Pill></>}
           </p>
         : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('hd.listHint')}</p>}
-      {s.shared.length > 0 && (
-        <div className="notice" role="status" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-          {s.shared.map((x) => <span key={x.code}>{t('hd.shared', { route: x.code, who: x.who.join(', ') })}</span>)}
-        </div>
-      )}
 
       <div className="today-layout">
         <div className="today-list"><Panel>
@@ -245,7 +240,18 @@ function HovershipTodayPage() {
             </div>
           )}
         </Panel></div>
-        <div className="stack today-aside today-aside-after">
+        <div className="stack today-aside">
+          <Panel title={t('td.needsTitle')} id="needs">
+            <div className="panel-body stack">
+              {s.shared.length === 0 ? <p className="muted" style={{ margin: 0 }}>{t('td.noNeeds')}</p>
+                : s.shared.map((x) => (
+                  <div key={x.code} className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+                    <WarningDiamond size={22} />
+                    <span>{t('hd.shared', { route: x.code, who: x.who.join(', ') })}</span>
+                  </div>
+                ))}
+            </div>
+          </Panel>
           <Panel title={t('td.changesTitle')} id="changes">
             <div className="panel-body">
               {day.changes.length === 0 ? <p className="muted" style={{ margin: 0 }}>{t('td.noChanges')}</p> : (
