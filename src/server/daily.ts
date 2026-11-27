@@ -90,7 +90,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   // People confirmed for the day who don't have a driver code yet (the admin gives them one).
   const noCode = (await peopleWithoutCode(tx, op.id, date)).map((p) => ({
     executionId: p.id, driverId: p.payeeDriverId!, name: label({ driverId: p.payeeDriverId, contractorId: null }) ?? '',
-    sortCodes: p.sortCodes, status: (p.status === 'changed' ? 'changed' : p.status === 'proposed' ? 'proposed' : 'confirmed') as DayStatus, updatedAt: p.updatedAt.toISOString(),
+    sortCodes: p.sortCodes, status: (p.status === 'changed' ? 'changed' : p.status === 'proposed' ? 'proposed' : p.status === 'off' ? 'off' : 'confirmed') as DayStatus, updatedAt: p.updatedAt.toISOString(),
   }));
   // Person first: the list reads by who works, then their driver code. Codes nobody drives go last.
   const empty = (r: typeof codeRows[number]) => !r.today.name || r.status === 'no_driver';
@@ -334,13 +334,13 @@ export async function setRouteStatus(tx: Tx, actor: Actor, input: { date: string
   return { assignmentId: after.id, previous: before };
 }
 
-/** The same for someone without driver code: Confirmed / To confirm; "didn't work" takes them off the day (Undo adds them back). */
-export async function setPersonStatus(tx: Tx, actor: Actor, input: { executionId: string; status: 'confirmed' | 'proposed' }) {
+/** The same for someone without driver code: Confirmed / To confirm / Didn't run (the line stays, in red, with their routes). */
+export async function setPersonStatus(tx: Tx, actor: Actor, input: { executionId: string; status: 'confirmed' | 'proposed' | 'off' }) {
   assertCan(actor, 'drivers.confirm_today');
   const row = await personRow(tx, input.executionId);
   await assertNotLocked(tx, await getOperationById(tx, row.operationId), row.date);
   const confirmed = input.status === 'confirmed';
-  if ((row.status === 'proposed') === !confirmed) return row.status;
+  if (row.status === input.status) return row.status;
   const [after] = await tx.update(routeExecutions).set({
     status: input.status, confirmedBy: confirmed ? actor.userId : null, confirmedAt: confirmed ? new Date() : null, updatedAt: new Date(),
   }).where(eq(routeExecutions.id, row.id)).returning();
@@ -786,9 +786,9 @@ export async function emailDayList(tx: Tx, actor: Actor, op: { id: string; name:
 }
 
 /** The T-Force list as it would be sent now (by person), to compare with what was sent. */
-export function tforceListPeople(day: { noCode: { name: string; sortCodes: { code: string }[] }[]; rows: { today: { name: string | null; contractorId: string | null }; status: DayStatus; code: string; sortCodes: { code: string }[] }[] }): DayListPerson[] {
+export function tforceListPeople(day: { noCode: { name: string; status: DayStatus; sortCodes: { code: string }[] }[]; rows: { today: { name: string | null; contractorId: string | null }; status: DayStatus; code: string; sortCodes: { code: string }[] }[] }): DayListPerson[] {
   return [
-    ...day.noCode.map((p) => ({ name: p.name, code: null, routes: p.sortCodes.map((x) => x.code), contractor: false })),
+    ...day.noCode.filter((p) => p.status !== 'off').map((p) => ({ name: p.name, code: null, routes: p.sortCodes.map((x) => x.code), contractor: false })),
     ...day.rows.filter((r) => r.today.name && r.status !== 'off' && r.status !== 'no_driver')
       .map((r) => ({ name: r.today.name!, code: r.code, routes: r.sortCodes.map((x) => x.code), contractor: !!r.today.contractorId })),
   ];

@@ -177,6 +177,22 @@ describe('Daily operations, T-Force: a code off the list', () => {
   }));
 });
 
+describe("Daily operations, T-Force: didn't run, someone without code", () => {
+  it('stays on the list in red with their routes (not removed), and back to confirmed', () => withRollback(async (tx) => {
+    const { sc } = await tforceReady(tx);
+    const p = await createDriver(tx, d, { ...base, fullName: 'Flow Off No Code' }, DATE);
+    const id = await addPersonToday(tx, d, { date: DATE, driverId: p.id });
+    await setPersonSortCodes(tx, d, { executionId: id, sortCodeIds: [sc[0]!.id] });
+    await setPersonStatus(tx, d, { executionId: id, status: 'off' });
+    let line = (await loadDay(tx, d, DATE)).noCode.find((x) => x.executionId === id)!;
+    expect(line).toMatchObject({ status: 'off', driverId: p.id });
+    expect(line.sortCodes.map((x) => x.id)).toEqual([sc[0]!.id]);
+    await setPersonStatus(tx, d, { executionId: id, status: 'confirmed' });
+    line = (await loadDay(tx, d, DATE)).noCode.find((x) => x.executionId === id)!;
+    expect(line.status).toBe('confirmed');
+  }));
+});
+
 describe('Daily operations, Hovership: routes, cover, status', () => {
   it('one route per person a day; covering moves the routes, Undo puts them back; confirm usual skips taken routes', () => withRollback(async (tx) => {
     const day = await loadHovershipDay(tx, d, DATE);

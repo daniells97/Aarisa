@@ -319,16 +319,16 @@ function TodayPage() {
   const statusCell = (line: Line) => {
     if (line.kind === 'person') {
       const p = line.p;
-      const value: RowStatus = p.status === 'proposed' ? 'proposed' : 'confirmed';
-      if (!day.canEdit) return <Pill tone={STATUS_TONE[value]}>{t(value === 'proposed' ? 'td.statusToConfirm' : 'td.status.confirmed')}</Pill>;
+      const value: RowStatus = p.status === 'proposed' ? 'proposed' : p.status === 'off' ? 'off' : 'confirmed';
+      if (!day.canEdit) return <Pill tone={STATUS_TONE[value]}>{t(value === 'proposed' ? 'td.statusToConfirm' : value === 'off' ? 'td.status.off' : 'td.status.confirmed')}</Pill>;
       return <StatusSelect value={value} tone={value === 'proposed' ? 'muted' : 'ok'} label={t('td.statusOf', { name: p.name })} options={statusOptions(true)}
         onChange={async (v) => {
-          if (v === 'off') return removeFromDay(p);
           const res = await setStatus({ data: { executionId: p.executionId, status: v } });
           if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
           await router.invalidate();
-          toast(t('td.statusSet', { name: p.name, status: t(v === 'proposed' ? 'td.statusToConfirm' : 'td.status.confirmed') }), async () => {
-            const u = await setStatus({ data: { executionId: p.executionId, status: v === 'proposed' ? 'confirmed' : 'proposed' } });
+          const label = v === 'off' ? t('td.status.off') : v === 'proposed' ? t('td.statusToConfirm') : t('td.status.confirmed');
+          toast(t('td.statusSet', { name: p.name, status: label }), async () => {
+            const u = await setStatus({ data: { executionId: p.executionId, status: value } });
             if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
             await router.invalidate();
             toast(t('td.undone'));

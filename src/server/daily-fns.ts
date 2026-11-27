@@ -155,7 +155,7 @@ export const sendList = createServerFn({ method: 'POST' })
 export const setStatus = createServerFn({ method: 'POST' })
   .validator(z.union([
     z.object({ date: isoDate, routeId: uuid, status: z.enum(['confirmed', 'proposed', 'off']) }),
-    z.object({ executionId: uuid, status: z.enum(['confirmed', 'proposed']) }),
+    z.object({ executionId: uuid, status: z.enum(['confirmed', 'proposed', 'off']) }),
   ]))
   .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
     if ('executionId' in data) return { previous: null, personStatus: await setPersonStatus(tx, actor, data) };
