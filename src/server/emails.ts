@@ -97,11 +97,28 @@ ${rows}</table></td></tr>`,
 
 export interface DayListPerson { name: string; code: string | null; routes: string[]; contractor: boolean }
 
+/** What changed between two sends of the same day's list (by person). */
+export interface DayListChanges { added: string[]; removed: string[]; codes: { name: string; from: string | null; to: string | null }[]; routes: { name: string; routes: string[] }[] }
+
+export function diffDayList(before: DayListPerson[], after: DayListPerson[]): DayListChanges {
+  const was = new Map(before.map((p) => [p.name, p]));
+  const now = new Map(after.map((p) => [p.name, p]));
+  const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+  return {
+    added: after.filter((p) => !was.has(p.name)).map((p) => p.name),
+    removed: before.filter((p) => !now.has(p.name)).map((p) => p.name),
+    codes: after.filter((p) => was.has(p.name) && was.get(p.name)!.code !== p.code).map((p) => ({ name: p.name, from: was.get(p.name)!.code, to: p.code })),
+    routes: after.filter((p) => was.has(p.name) && !same(was.get(p.name)!.routes, p.routes)).map((p) => ({ name: p.name, routes: p.routes })),
+  };
+}
+export const hasChanges = (c: DayListChanges) => c.added.length + c.removed.length + c.codes.length + c.routes.length > 0;
+
 /**
  * "Confirm and send list": who works today, confirmed by the operator, for the people who set driver codes
  * and routes. People without a driver code go first; then everyone with their code and routes. No money.
  */
-export function dayListEmail(locale: Locale, to: string, date: string, sender: string, people: DayListPerson[], codesNoDriver: string[], operation: string, path = '/tforce/today'): Mail {
+export function dayListEmail(locale: Locale, to: string, date: string, sender: string, people: DayListPerson[], codesNoDriver: string[], operation: string, path = '/tforce/today',
+  update?: { at: string; changes: DayListChanges }): Mail {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(locale, k, v);
   const day = new Intl.DateTimeFormat(locale === 'es' ? 'es-US' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
   const noCode = people.filter((p) => !p.code).map((p) => p.name);
@@ -112,6 +129,18 @@ export function dayListEmail(locale: Locale, to: string, date: string, sender: s
   const lookBox = look.length
     ? `<tr><td style="padding-bottom:20px"><div style="background:#FFF7E6;border-left:4px solid #E0A100;border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.5">${look.map(esc).join('<br>')}</div></td></tr>`
     : '';
+  // A second send of the same day says what changed since the last one, before the full list.
+  const time = update ? new Intl.DateTimeFormat(locale === 'es' ? 'es-US' : 'en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' }).format(new Date(update.at)) : '';
+  const c = update?.changes;
+  const changeLines = c ? [
+    ...c.added.map((n) => t('mail.dayList.added', { name: n })),
+    ...c.removed.map((n) => t('mail.dayList.removed', { name: n })),
+    ...c.codes.map((x) => t('mail.dayList.codeChanged', { name: x.name, from: x.from ?? t('mail.dayList.missing'), to: x.to ?? t('mail.dayList.missing') })),
+    ...c.routes.map((x) => t('mail.dayList.routesChanged', { name: x.name, routes: x.routes.join(', ') || '–' })),
+  ] : [];
+  const changesBox = update
+    ? `<tr><td style="padding-bottom:20px"><div style="background:#EAF1FB;border-left:4px solid #1F4E9A;border-radius:6px;padding:12px 14px;font-size:15px;line-height:1.6"><strong>${esc(t('mail.dayList.changesSince', { time }))}</strong><br>${changeLines.length ? changeLines.map(esc).join('<br>') : esc(t('mail.dayList.noChanges'))}</div></td></tr>`
+    : '';
   const cell = 'padding:7px 8px;border-bottom:1px solid #E2E8F0;font-size:14px;line-height:1.4;vertical-align:top';
   const sorted = [...people.filter((p) => !p.code), ...people.filter((p) => p.code)];
   const rows = sorted.map((p) => `<tr><td style="${cell};font-weight:bold">${esc(p.name)}${p.contractor ? ` <span style="color:${MUTED};font-size:12px">· ${esc(t('mail.morning.contractor'))}</span>` : ''}</td>`
@@ -120,9 +149,10 @@ export function dayListEmail(locale: Locale, to: string, date: string, sender: s
   const link = `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}${path}?date=${date}`;
   return {
     to,
-    subject: t('mail.dayList.subject', { date: day, n: people.length, client: operation }),
+    subject: (update ? t('mail.dayList.updatedPrefix') : '') + t('mail.dayList.subject', { date: day, n: people.length, client: operation }),
     html: frame(locale, [
-      `<tr><td style="font-size:16px;line-height:1.5;padding-bottom:16px">${esc(t('mail.dayList.lead', { name: sender, date: day, n: people.length, client: operation }))}</td></tr>`,
+      `<tr><td style="font-size:16px;line-height:1.5;padding-bottom:16px">${esc(t(update ? 'mail.dayList.leadUpdate' : 'mail.dayList.lead', { name: sender, date: day, n: people.length, client: operation }))}</td></tr>`,
+      changesBox,
       lookBox,
       `<tr><td style="padding-bottom:20px">${button(link, t('mail.dayList.button'))}</td></tr>`,
       `<tr><td style="padding-bottom:24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">

@@ -52,7 +52,7 @@ function HovershipTodayPage() {
     const res = await sendHovershipList({ data: { date: day.date } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(res.value.recipients ? t('td.listSentToast', { count: res.value.sent }) : t('td.listNoRecipients'));
+    toast(!res.value.recipients ? t('td.listNoRecipients') : t(res.value.update ? 'td.listUpdateToast' : 'td.listSentToast', { count: res.value.sent }));
   };
   const unconfirm = async () => {
     const res = await unconfirmHovershipUsual({ data: { date: day.date } });
@@ -184,14 +184,17 @@ function HovershipTodayPage() {
         {day.canEdit && (
           <span className="send-list">
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
-            <Button variant={day.sent && s.proposed === 0 ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
+            <Button variant={day.sent && s.proposed === 0 && !day.sent.changed ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
               {t(day.sent && s.proposed === 0 ? 'td.resendList' : 'td.sendList')}
             </Button>
           </span>
         )}
       </div>
       {day.sent
-        ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}</p>
+        ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+            {t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}
+            {day.sent.changed && <> <Pill tone="warn">{t('td.changedSinceSent')}</Pill></>}
+          </p>
         : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('hd.listHint')}</p>}
       {s.shared.length > 0 && (
         <div className="notice" role="status" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>

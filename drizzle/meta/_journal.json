@@ -176,6 +176,13 @@
       "when": 1795738337635,
       "tag": "0024_driver_legal_name",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795740155571,
+      "tag": "0025_day_list_snapshot",
+      "breakpoints": true
     }
   ]
 }

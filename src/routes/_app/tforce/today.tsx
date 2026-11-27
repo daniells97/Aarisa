@@ -83,7 +83,7 @@ function TodayPage() {
     const res = await sendList({ data: { date: day.date, operation: day.operation.code } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(res.value.recipients ? t('td.listSentToast', { count: res.value.sent }) : t('td.listNoRecipients'));
+    toast(!res.value.recipients ? t('td.listNoRecipients') : t(res.value.update ? 'td.listUpdateToast' : 'td.listSentToast', { count: res.value.sent }));
   };
 
   // Back to "usual, not confirmed" for routes confirmed on their usual driver; changes stay.
@@ -296,14 +296,17 @@ function TodayPage() {
         {day.canEdit && (
           <span className="send-list">
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
-            <Button variant={day.sent && s.proposed === 0 ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
+            <Button variant={day.sent && s.proposed === 0 && !day.sent.changed ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
               {t(day.sent && s.proposed === 0 ? 'td.resendList' : 'td.sendList')}
             </Button>
           </span>
         )}
       </div>
       {day.sent
-        ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}</p>
+        ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+            {t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}
+            {day.sent.changed && <> <Pill tone="warn">{t('td.changedSinceSent')}</Pill></>}
+          </p>
         : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('td.listHint')}</p>}
 
       <div className="today-layout">

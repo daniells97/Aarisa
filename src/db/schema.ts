@@ -82,6 +82,8 @@ export const dayListSends = core.table('day_list_sends', {
   date: date('work_date').notNull(),
   sentBy: uuid('sent_by').references(() => users.id),
   recipients: integer('recipients').notNull(),
+  // The list as it was sent (name, code, routes), so the next send can say what changed.
+  snapshot: jsonb('snapshot'),
   sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

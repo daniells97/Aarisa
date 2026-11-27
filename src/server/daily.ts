@@ -10,7 +10,7 @@ import { assertNotLocked, getOperationById, operationFor } from './ops';
 import { payeeIdOf, payeeNamesById, routeDay, writeRouteDay } from './executions';
 import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners, type DriverInput } from './people';
 import { usualSortCodes } from './sort-codes';
-import { dayListEmail, type DayListPerson } from './emails';
+import { dayListEmail, diffDayList, hasChanges, type DayListPerson } from './emails';
 import { sendMail } from '~/integrations/mail';
 import { isLocale } from '~/i18n';
 
@@ -165,16 +165,19 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     doubles: [...rows.filter((r) => r.today.driverId && !r.contractorRoute && (r.status === 'confirmed' || r.status === 'changed' || r.status === 'proposed'))
       .reduce((m, r) => m.set(r.today.driverId!, [...(m.get(r.today.driverId!) ?? []), r]), new Map<string, typeof rows>())]
       .filter(([, rs]) => rs.length > 1 && rs.some((r) => r.status === 'changed')).map(([, rs]) => ({ name: rs[0]!.today.name ?? '', codes: rs.map((r) => r.code) })),
-    // The last "Confirm and send list" of this day: who and when.
-    sent: await lastSend(tx, op.id, date),
+    // The last "Confirm and send list" of this day: who, when, and whether the list changed since.
+    sent: await lastSend(tx, op.id, date, tforceListPeople({ noCode, rows })),
   };
 }
 
-export async function lastSend(tx: Tx, operationId: string, date: string) {
-  const [row] = await tx.select({ at: dayListSends.sentAt, by: users.name, recipients: dayListSends.recipients }).from(dayListSends)
+export async function lastSend(tx: Tx, operationId: string, date: string, now?: DayListPerson[]) {
+  const [row] = await tx.select({ at: dayListSends.sentAt, by: users.name, recipients: dayListSends.recipients, snapshot: dayListSends.snapshot }).from(dayListSends)
     .leftJoin(users, eq(users.id, dayListSends.sentBy))
     .where(and(eq(dayListSends.operationId, operationId), eq(dayListSends.date, date))).orderBy(desc(dayListSends.sentAt)).limit(1);
-  return row ? { at: row.at.toISOString(), by: row.by ?? null, recipients: row.recipients } : null;
+  return row ? {
+    at: row.at.toISOString(), by: row.by ?? null, recipients: row.recipients,
+    changed: !!now && hasChanges(diffDayList((row.snapshot as DayListPerson[] | null) ?? [], now)),
+  } : null;
 }
 
 async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: string, values: {
@@ -645,11 +648,7 @@ export async function sendDayList(tx: Tx, actor: Actor, date: string, operation?
   const confirmed = await confirmUsual(tx, actor, date, operation);
   const day = await loadDay(tx, actor, date, operation);
   const op = await operationFor(tx, operation, 'daily_list');
-  const people: DayListPerson[] = [
-    ...day.noCode.map((p) => ({ name: p.name, code: null, routes: p.sortCodes.map((x) => x.code), contractor: false })),
-    ...day.rows.filter((r) => r.today.name && r.status !== 'off' && r.status !== 'no_driver')
-      .map((r) => ({ name: r.today.name!, code: r.code, routes: r.sortCodes.map((x) => x.code), contractor: !!r.today.contractorId })),
-  ];
+  const people = tforceListPeople(day);
   const codesNoDriver = day.rows.filter((r) => r.status === 'no_driver').map((r) => r.code);
   const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, codesNoDriver, '/tforce/today');
   return { confirmed, ...res };
@@ -658,10 +657,22 @@ export async function sendDayList(tx: Tx, actor: Actor, date: string, operation?
 /** Emails a confirmed day list to everyone marked for it in Team access, and records the send. */
 export async function emailDayList(tx: Tx, actor: Actor, op: { id: string; name: string }, date: string, people: DayListPerson[], codesNoDriver: string[], path: string) {
   const to = await tx.select({ email: users.email, locale: users.locale }).from(users).where(and(eq(users.active, true), eq(users.receivesDayList, true)));
+  // Sent before today? Then this one is an update and says what changed.
+  const [prev] = await tx.select().from(dayListSends).where(and(eq(dayListSends.operationId, op.id), eq(dayListSends.date, date))).orderBy(desc(dayListSends.sentAt)).limit(1);
+  const update = prev ? { at: prev.sentAt.toISOString(), changes: diffDayList((prev.snapshot as DayListPerson[] | null) ?? [], people) } : undefined;
   const [me] = actor.userId ? await tx.select({ name: users.name }).from(users).where(eq(users.id, actor.userId)) : [];
   let sent = 0;
-  for (const p of to) if (await sendMail(dayListEmail(isLocale(p.locale) ? p.locale : 'en', p.email, date, me?.name ?? actor.name, people, codesNoDriver, op.name, path))) sent++;
-  const [row] = await tx.insert(dayListSends).values({ operationId: op.id, date, sentBy: actor.userId, recipients: sent }).returning();
+  for (const p of to) if (await sendMail(dayListEmail(isLocale(p.locale) ? p.locale : 'en', p.email, date, me?.name ?? actor.name, people, codesNoDriver, op.name, path, update))) sent++;
+  const [row] = await tx.insert(dayListSends).values({ operationId: op.id, date, sentBy: actor.userId, recipients: sent, snapshot: people }).returning();
   await audit(tx, { table: 'day_list_sends', recordId: row!.id, action: 'insert', after: { ...row, people: people.length }, userId: actor.userId, source: actor.source });
-  return { recipients: to.length, sent };
+  return { recipients: to.length, sent, update: !!update };
+}
+
+/** The T-Force list as it would be sent now (by person), to compare with what was sent. */
+export function tforceListPeople(day: { noCode: { name: string; sortCodes: { code: string }[] }[]; rows: { today: { name: string | null; contractorId: string | null }; status: DayStatus; code: string; sortCodes: { code: string }[] }[] }): DayListPerson[] {
+  return [
+    ...day.noCode.map((p) => ({ name: p.name, code: null, routes: p.sortCodes.map((x) => x.code), contractor: false })),
+    ...day.rows.filter((r) => r.today.name && r.status !== 'off' && r.status !== 'no_driver')
+      .map((r) => ({ name: r.today.name!, code: r.code, routes: r.sortCodes.map((x) => x.code), contractor: !!r.today.contractorId })),
+  ];
 }

@@ -123,7 +123,7 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
       sortCodes: (((l.after ?? {}) as { sortCodeIds?: string[] }).sortCodeIds ?? []).map((x) => name.get(x) ?? '?'),
     })),
     // The last "Confirm and send list" of this day: who and when.
-    sent: await lastSend(tx, op.id, date),
+    sent: await lastSend(tx, op.id, date, hovershipListPeople(rows)),
   };
 }
 
@@ -131,13 +131,18 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
  * "Confirm and send list" for Hovership: confirms everyone still on their usual routes, then emails who works
  * today (with their code and routes) to the people marked for it in Team access, like T-Force.
  */
+/** The Hovership list as it would be sent now (by person). */
+function hovershipListPeople(rows: { name: string; code: string | null; status: string; sortCodes: { code: string }[] }[]) {
+  return rows.filter((r) => r.status !== 'off' && r.status !== 'covered')
+    .map((r) => ({ name: r.name, code: r.code ?? '–', routes: r.sortCodes.map((x) => x.code), contractor: false }));
+}
+
 export async function sendHovershipList(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'drivers.confirm_today');
   const confirmed = await confirmUsualHovership(tx, actor, date, operation);
   const day = await loadHovershipDay(tx, actor, date, operation);
   const op = await operationFor(tx, operation, 'report_code');
-  const people = day.rows.filter((r) => r.status !== 'off' && r.status !== 'covered')
-    .map((r) => ({ name: r.name, code: r.code ?? '–', routes: r.sortCodes.map((x) => x.code), contractor: false }));
+  const people = hovershipListPeople(day.rows);
   const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, [], '/hovership/today');
   return { confirmed, ...res };
 }
