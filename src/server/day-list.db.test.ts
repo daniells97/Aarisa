@@ -19,6 +19,7 @@ const base = { hovershipCode: null, contractorId: null, phone: null, aliases: []
 // Person first (Nov 2026): the operator confirms who works and sends the list; the admin sets driver codes and routes.
 describe('daily list, person first', () => {
   it('lists people by name, then the codes nobody drives', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     const day = await loadDay(tx, d, date);
     const named = day.rows.filter((r) => r.today.name && r.status !== 'no_driver' && r.status !== 'off').map((r) => r.today.name!);
     expect(named).toEqual([...named].sort((a, b) => a.localeCompare(b)));
@@ -27,6 +28,7 @@ describe('daily list, person first', () => {
   }));
 
   it('a person can be on the list without a driver code, with routes, and is never added twice', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     const p = await createDriver(tx, d, { ...base, fullName: 'Test No Code' }, date);
     const id = await addPersonToday(tx, d, { date, driverId: p.id });
     const [sc] = await tx.select().from(sortCodes).limit(1);
@@ -44,6 +46,7 @@ describe('daily list, person first', () => {
   }));
 
   it('giving a code to a person without one moves them and their routes there; a confirmed person on it keeps working without code', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     const p = await createDriver(tx, d, { ...base, fullName: 'Test New Code' }, date);
     const e = await route(tx, '9000E');
     await setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: e.usualDriverId! } }); // confirmed
@@ -60,6 +63,7 @@ describe('daily list, person first', () => {
   }));
 
   it('changing a code swaps the two people; a typed new code is created', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     const e = await route(tx, '9000E');
     const robert = await driverNamed(tx, 'Robert Arteaga');
     const a = (await tx.select().from(routes).where(eq(routes.usualDriverId, robert.id)))[0]!;
@@ -74,6 +78,7 @@ describe('daily list, person first', () => {
   }));
 
   it('"Send list" emails the list as it is (it confirms nothing); confirming is its own step', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     sent.length = 0;
     await tx.update(users).set({ receivesDayList: false });
     await tx.insert(users).values([
@@ -101,6 +106,7 @@ describe('daily list, person first', () => {
   }));
 
   it('someone without code who is then picked on a code is one line, not two, with their routes', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     const p = await createDriver(tx, d, { ...base, fullName: 'Test Merge' }, date);
     const id = await addPersonToday(tx, d, { date, driverId: p.id });
     const [sc] = await tx.select().from(sortCodes).limit(1);
@@ -113,14 +119,16 @@ describe('daily list, person first', () => {
     expect(day.rows.filter((r) => r.today.driverId === p.id)).toHaveLength(1);
   }));
 
-  it('warns when one driver is on two driver codes the same day', () => withRollback(async (tx) => {
+  it('one driver on two driver codes the same day is refused (the screen moves them instead)', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true });
     const e = await route(tx, '9000E');
     const robert = await driverNamed(tx, 'Robert Arteaga');
-    await setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: robert.id } });
-    expect((await loadDay(tx, d, date)).doubles).toEqual([expect.objectContaining({ name: 'Robert Arteaga', codes: expect.arrayContaining(['9000E']) })]);
+    await expect(setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: robert.id } })).rejects.toMatchObject({ code: 'already_on_list' });
+    expect((await loadDay(tx, d, date)).doubles).toEqual([]);
   }));
 
   it("the day's changes keep someone without code who was taken off (the row is gone, the history isn't)", () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     const p = await createDriver(tx, d, { ...base, fullName: 'Test Trace' }, date);
     const id = await addPersonToday(tx, d, { date, driverId: p.id });
     await removePersonToday(tx, d, { executionId: id });
@@ -130,6 +138,7 @@ describe('daily list, person first', () => {
   }));
 
   it('the status of a row can be set: confirmed, to confirm, didn\'t run (who it was stays for the history)', () => withRollback(async (tx) => {
+    await tx.update(routes).set({ active: true }); // independent of what the test environment left off the list
     const e = await route(tx, '9000E');
     await setRouteStatus(tx, d, { date, routeId: e.id, status: 'confirmed' });
     expect((await loadDay(tx, d, date)).rows.find((r) => r.code === '9000E')!.status).toBe('confirmed');

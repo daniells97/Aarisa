@@ -42,7 +42,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   // Codes on the list, plus any taken off it ("No longer used") that still have someone saved this day:
   // that person is on the day's list, so they must show (and can be changed), never hidden.
   const keptForDay = (await tx.select({ routeId: executionView.routeId }).from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date),
-    eq(executionView.kind, 'route'), isNotNull(executionView.routeId), isNotNull(executionView.payeeId))))
+    eq(executionView.kind, 'route'), isNotNull(executionView.routeId), or(isNotNull(executionView.payeeId), isNotNull(executionView.driverId)))))
     .map((x) => x.routeId!);
   const routeRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id),
     keptForDay.length ? or(eq(routes.active, true), inArray(routes.id, keptForDay)) : eq(routes.active, true))).orderBy(asc(routes.code));
@@ -261,14 +261,17 @@ export async function setAssignment(tx: Tx, actor: Actor, input: { date: string;
  * Same as setAssignment without its permission check, for callers that already checked a
  * permission that covers it (resolving a weekly-check exception needs exceptions.clear).
  */
-export async function assignRoute(tx: Tx, actor: Actor, input: { date: string; routeId: string; payee: PayeeInput }) {
+export async function assignRoute(tx: Tx, actor: Actor, input: { date: string; routeId: string; payee: PayeeInput }, opts: { moving?: boolean } = {}) {
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
   const cols = payeeCols(input.payee);
   // A person is on one line a day (contractors can hold several codes).
-  if (cols.driverId) await assertNotOnList(tx, route.operationId, input.date, cols.driverId, { exceptRouteId: route.id, allowWithoutCode: true });
-  if (cols.driverId) await putOnTforce(tx, actor, cols.driverId);
   const usual = usualOf(route, await ownerOn(tx, route.id, input.date));
+  // Confirming the usual driver on their own code is never a second line, even if they are the usual of another code too.
+  if (cols.driverId && !opts.moving && !samePayee(cols, usual)) {
+    await assertNotOnList(tx, route.operationId, input.date, cols.driverId, { exceptRouteId: route.id, allowWithoutCode: true });
+  }
+  if (cols.driverId) await putOnTforce(tx, actor, cols.driverId);
   const status: DayStatus = !cols.driverId && !cols.contractorId ? 'no_driver' : samePayee(cols, usual) ? 'confirmed' : 'changed';
   const { before, after } = await writeAssignment(tx, actor, input.date, input.routeId, { ...cols, status });
   return { assignmentId: after.id, previous: before ? { driverId: before.driverId, contractorId: before.contractorId, rawName: before.rawName, status: before.status } : null };
@@ -545,13 +548,16 @@ async function onCode(tx: Tx, opId: string, date: string, route: typeof routes.$
  * One line per person per day. `exceptRouteId`: the code being set (it doesn't count against itself);
  * `allowWithoutCode`: their line without driver code is fine (it merges into the code).
  */
-async function assertNotOnList(tx: Tx, opId: string, date: string, driverId: string, opts: { exceptRouteId?: string; allowWithoutCode?: boolean } = {}) {
+async function assertNotOnList(tx: Tx, opId: string, date: string, driverId: string, opts: { exceptRouteId?: string; allowWithoutCode?: boolean; savedOnly?: boolean } = {}) {
   const day = (await tx.select().from(executionView).where(and(eq(executionView.operationId, opId), eq(executionView.date, date), eq(executionView.kind, 'route'),
     eq(executionView.payeeDriverId, driverId))))
     .filter((d) => d.routeId !== (opts.exceptRouteId ?? '') && !(opts.allowWithoutCode && !d.routeId));
   if (day.some((d) => d.status !== 'off' && d.status !== 'no_driver')) throw new RuleError('already_on_list');
   // Still only proposed on their usual driver code (nothing saved yet for that code today).
   const usual = await tx.select().from(routes).where(and(eq(routes.operationId, opId), eq(routes.active, true), eq(routes.usualDriverId, driverId)));
+  // Still only proposed on a usual code counts when adding someone new; when putting someone on a code, only saved lines
+  // do (a person can be the usual driver of two codes: the screen moves them instead).
+  if (opts.savedOnly) return;
   for (const r of usual) {
     if (r.id === opts.exceptRouteId) continue;
     const saved = await routeDay(tx, opId, date, r.id);
@@ -709,13 +715,13 @@ export async function moveToCode(tx: Tx, actor: Actor, input: {
     // Clear the old code first: a payee can't hold two codes the same day.
     await writeAssignment(tx, actor, input.date, source.route.id, { driverId: null, contractorId: null, status: 'no_driver' });
   }
-  await assignRoute(tx, actor, { date: input.date, routeId: target.id, payee: person.driverId ? { driverId: person.driverId } : { contractorId: person.contractorId! } });
+  await assignRoute(tx, actor, { date: input.date, routeId: target.id, payee: person.driverId ? { driverId: person.driverId } : { contractorId: person.contractorId! } }, { moving: true });
   const targetView = (await routeDay(tx, op.id, input.date, target.id))!;
   if (movingRoutes) await replaceSortCodes(tx, actor, op.id, targetView.id, movingRoutes, false);
 
   if ('route' in source) {
     if (other) {
-      await assignRoute(tx, actor, { date: input.date, routeId: source.route.id, payee: other.driverId ? { driverId: other.driverId } : { contractorId: other.contractorId! } });
+      await assignRoute(tx, actor, { date: input.date, routeId: source.route.id, payee: other.driverId ? { driverId: other.driverId } : { contractorId: other.contractorId! } }, { moving: true });
       const back = (await routeDay(tx, op.id, input.date, source.route.id))!;
       if (thereRoutes) await replaceSortCodes(tx, actor, op.id, back.id, thereRoutes, false);
     }

@@ -343,6 +343,7 @@ function HovershipRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day
       }
       toast(t(res.value.created ? 'hd.addedNew' : 'hd.recordSaved', { name: res.value.name }));
       setWho(null); setRoutes([]); setError(null);
+      onCancel(); // saved: the new line is now in the list, so the empty one closes
       await router.invalidate();
     } catch {
       setError(t('error.generic'));

@@ -59,7 +59,8 @@ function TodayPage() {
   const dateLabel = f.date(day.date, { weekday: 'short', month: 'short', day: 'numeric' });
   // The new-record line: open when the list is empty, or after "+ Add record".
   const [adding, setAdding] = useState(false);
-  const draftOpen = day.canEdit && (adding || day.rows.length === 0);
+  // Open after "+ Add record", or by itself when the day has nobody at all (no codes, nobody without code).
+  const draftOpen = day.canEdit && (adding || (day.rows.length === 0 && day.noCode.length === 0));
 
   // "+ New person…": the same form as Drivers and rates, then assigned to the row.
   const [newPerson, newPersonDialog] = useNewPerson(day.options.contractors, { worksTforce: true, worksHovership: false });
@@ -374,7 +375,7 @@ function TodayPage() {
 
       <div className="today-layout">
         <div className="today-list"><Panel>
-          {day.rows.length === 0 && !draftOpen ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('td.noRoutes', { client: day.operation.name })}</p> : (
+          {day.rows.length === 0 && day.noCode.length === 0 && !draftOpen ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('td.noRoutes', { client: day.operation.name })}</p> : (
             <>
               <div className="table-wrap desktop-only">
                 <table>
@@ -555,6 +556,7 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
         if (routes.length) await savePersonSortCodes({ data: { executionId: res.value, sortCodeIds: routes.map((x) => x.id) } });
         toast(t('td.personAdded', { name: whoName ?? '' }));
         setWho(null); setRoutes([]); setError(null);
+        onCancel(); // saved: the new line is now in the list, so the empty one closes
         await router.invalidate();
       } catch {
         setError(t('error.generic'));
@@ -574,6 +576,7 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
       }
       toast(t('td.recordSaved', { route: res.value.code, name: whoName ?? '' }));
       setCode(''); setWho(null); setRoutes([]); setError(null);
+      onCancel();
       await router.invalidate();
     } catch {
       setError(t('error.generic'));
