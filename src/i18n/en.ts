@@ -222,6 +222,8 @@ export const en = {
   "drivers.contractorSaved": "Contractor saved.",
   "drivers.contractorsTitle": "Contractors",
   "drivers.contractorRoutes": "Drivers",
+  "td.codeInUse": "Driver code {code} is already used by {name} on today's list. Free it first (give {name} another code or take them off).",
+  "error.code_in_use": "That driver code is already used by someone on today's list.",
   "td.movedHere": "{name} moved from {from} to {to}.",
   "error.route_taken": "That route is already on another line today. Take it off there first.",
   "td.statusToConfirm": "To confirm",

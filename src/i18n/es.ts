@@ -224,6 +224,8 @@ export const es: Record<MessageKey, string> = {
   "drivers.contractorSaved": "Contratista guardado.",
   "drivers.contractorsTitle": "Contratistas",
   "drivers.contractorRoutes": "Drivers",
+  "td.codeInUse": "El code driver {code} ya lo está usando {name} en la lista de hoy. Libéralo primero (dale otro code a {name} o quítalo de la lista).",
+  "error.code_in_use": "Ese code driver ya lo está usando alguien en la lista de hoy.",
   "td.movedHere": "{name} pasó de {from} a {to}.",
   "error.route_taken": "Esa ruta ya está en otra fila hoy. Quítala de ahí primero.",
   "td.statusToConfirm": "Por confirmar",

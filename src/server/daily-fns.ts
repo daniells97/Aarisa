@@ -134,6 +134,7 @@ export const giveCode = createServerFn({ method: 'POST' })
   .validator(z.object({
     date: isoDate, from: z.union([z.object({ routeId: uuid }), z.object({ executionId: uuid })]),
     to: z.union([z.object({ routeId: uuid }), z.object({ newCode: z.string().min(1).max(20) })]), operation,
+    swap: z.boolean().optional(),
   }))
   .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
     const res = await moveToCode(tx, actor, data);

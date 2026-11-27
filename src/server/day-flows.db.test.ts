@@ -65,7 +65,7 @@ describe('Daily operations, T-Force: add, change, take off', () => {
     await expect(setAssignment(tx, d, { date: DATE, routeId: e.id, payee: { driverId: robert.id } })).rejects.toMatchObject({ code: 'already_on_list' });
     // Moving them: they leave their code and swap with whoever was on 9000E.
     const a = (await loadDay(tx, d, DATE)).rows.find((r) => r.today.driverId === robert.id)!;
-    await moveToCode(tx, d, { date: DATE, from: { routeId: a.routeId }, to: { routeId: e.id } });
+    await moveToCode(tx, d, { date: DATE, from: { routeId: a.routeId }, to: { routeId: e.id }, swap: true });
     const day = await loadDay(tx, d, DATE);
     expect(day.rows.filter((r) => r.today.driverId === robert.id && r.status !== 'off' && r.status !== 'no_driver').map((r) => r.code)).toEqual(['9000E']);
     expect(day.rows.find((r) => r.code === a.code)!.today.driverId).toBe(e.usualDriverId);
@@ -76,14 +76,16 @@ describe('Daily operations, T-Force: add, change, take off', () => {
     const p = await createDriver(tx, d, { ...base, fullName: 'Flow Four' }, DATE);
     const id = await addPersonToday(tx, d, { date: DATE, driverId: p.id });
     await setPersonSortCodes(tx, d, { executionId: id, sortCodeIds: [sc[0]!.id] });
+    // A code someone else has on today's list is refused; a free one is given.
     const e = await code('9000E');
-    await moveToCode(tx, d, { date: DATE, from: { executionId: id }, to: { routeId: e.id } });
-    expect((await rowOf(tx, '9000E')).sortCodes.map((x) => x.id)).toEqual([sc[0]!.id]);
-    const g = await code('9000G');
-    await moveToCode(tx, d, { date: DATE, from: { routeId: e.id }, to: { routeId: g.id } });
+    await expect(moveToCode(tx, d, { date: DATE, from: { executionId: id }, to: { routeId: e.id } })).rejects.toMatchObject({ code: 'code_in_use' });
+    await moveToCode(tx, d, { date: DATE, from: { executionId: id }, to: { newCode: '9400A' } });
+    expect((await rowOf(tx, '9400A')).sortCodes.map((x) => x.id)).toEqual([sc[0]!.id]);
+    await moveToCode(tx, d, { date: DATE, from: { routeId: (await code('9400A')).id }, to: { newCode: '9400B' } });
     const day = await loadDay(tx, d, DATE);
     const holders = [...day.rows, ...day.noCode.map((x) => ({ ...x, code: '-' }))].filter((r) => r.sortCodes.some((s) => s.id === sc[0]!.id));
-    expect(holders.map((h) => h.code)).toEqual(['9000G']);
+    expect(holders.map((h) => h.code)).toEqual(['9400B']);
+    expect((await rowOf(tx, '9000E')).today.driverId).toBe(e.usualDriverId); // untouched
   }));
 
   it('the same route on two lines the same day is refused; confirming leaves a taken usual route with its holder', () => withRollback(async (tx) => {

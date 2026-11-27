@@ -70,7 +70,7 @@ function TodayPage() {
     // Someone already on another code today: they move here and swap with whoever was here (one line per person).
     const elsewhere = payee && 'driverId' in payee ? day.rows.find((x) => x.routeId !== r.routeId && x.today.driverId === payee.driverId && x.status !== 'off' && x.status !== 'no_driver') : undefined;
     if (elsewhere) {
-      const res = await giveCode({ data: { date: day.date, from: { routeId: elsewhere.routeId }, to: { routeId: r.routeId }, operation: day.operation.code } });
+      const res = await giveCode({ data: { date: day.date, from: { routeId: elsewhere.routeId }, to: { routeId: r.routeId }, operation: day.operation.code, swap: true } });
       if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
       await router.invalidate();
       return toast(t('td.movedHere', { name: elsewhere.today.name ?? '', from: elsewhere.code, to: r.code }));
@@ -220,6 +220,11 @@ function TodayPage() {
   }), contractors: [] };
   const toCode = async (from: { routeId: string } | { executionId: string }, name: string, to: { routeId: string } | { newCode: string }) => {
     const res = await giveCode({ data: { date: day.date, from, to, operation: day.operation.code } });
+    if (!res.ok && res.code === 'code_in_use' && 'routeId' in to) {
+      // Say who has it, so they free it first (take them off, or give them another code).
+      const holder = day.rows.find((x) => x.routeId === to.routeId);
+      return toast(t('td.codeInUse', { code: holder?.code ?? '', name: holder?.today.name ?? '' }));
+    }
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
     toast(t('td.codeGiven', { name, code: res.value.code }));

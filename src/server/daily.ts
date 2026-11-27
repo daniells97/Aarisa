@@ -679,6 +679,8 @@ async function setRoutesOf(tx: Tx, executionId: string | null) {
  */
 export async function moveToCode(tx: Tx, actor: Actor, input: {
   date: string; from: { routeId: string } | { executionId: string }; to: { routeId: string } | { newCode: string }; operation?: string;
+  /** Swap with whoever has the code (picking a person in the Driver column). Without it, a code in use is refused. */
+  swap?: boolean;
 }) {
   assertCan(actor, 'drivers.confirm_today');
   const op = await operationFor(tx, input.operation, 'daily_list');
@@ -716,13 +718,15 @@ export async function moveToCode(tx: Tx, actor: Actor, input: {
   if ('route' in source && source.route.id === target.id) return { code: target.code };
 
   const there = await onCode(tx, op.id, input.date, target);
+  const other = there.payee && !(there.payee.driverId === person.driverId && there.payee.contractorId === person.contractorId) ? there.payee : null;
+  // Giving someone a code another person already has on today's list is refused (the screen says who has it).
+  if (other && there.view?.status !== 'off' && !input.swap) throw new RuleError('code_in_use');
   const movingRoutes = 'route' in source ? await setRoutesOf(tx, source.executionId) : (await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, source.person.id))).map((x) => x.sortCodeId);
   const thereRoutes = await setRoutesOf(tx, there.view?.id ?? null);
 
   // The person without code leaves that row first (it holds the payee for the day).
   if ('person' in source) await dropPersonRow(tx, actor, source.person, target.id);
   // A confirmed person already on the target code stays on the list: swapped, or without code.
-  const other = there.payee && !(there.payee.driverId === person.driverId && there.payee.contractorId === person.contractorId) ? there.payee : null;
   if ('route' in source) {
     // Clear the old code first: a payee can't hold two codes the same day.
     await writeAssignment(tx, actor, input.date, source.route.id, { driverId: null, contractorId: null, status: 'no_driver' });

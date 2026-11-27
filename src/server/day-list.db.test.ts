@@ -53,7 +53,8 @@ describe('daily list, person first', () => {
     const id = await addPersonToday(tx, d, { date, driverId: p.id });
     const [sc] = await tx.select().from(sortCodes).limit(1);
     await setPersonSortCodes(tx, d, { executionId: id, sortCodeIds: [sc!.id] });
-    expect(await moveToCode(tx, actorAs('owner'), { date, from: { executionId: id }, to: { routeId: e.id } })).toEqual({ code: '9000E' });
+    await expect(moveToCode(tx, actorAs('owner'), { date, from: { executionId: id }, to: { routeId: e.id } })).rejects.toMatchObject({ code: 'code_in_use' });
+    expect(await moveToCode(tx, actorAs('owner'), { date, from: { executionId: id }, to: { routeId: e.id }, swap: true })).toEqual({ code: '9000E' });
     const day = await loadDay(tx, d, date);
     const row = day.rows.find((r) => r.code === '9000E')!;
     expect(row).toMatchObject({ status: 'changed', today: { driverId: p.id }, sortCodes: [{ id: sc!.id, code: sc!.code }], sortCodesSuggested: false });
@@ -67,7 +68,7 @@ describe('daily list, person first', () => {
     const e = await route(tx, '9000E');
     const robert = await driverNamed(tx, 'Robert Arteaga');
     const a = (await tx.select().from(routes).where(eq(routes.usualDriverId, robert.id)))[0]!;
-    await moveToCode(tx, d, { date, from: { routeId: a.id }, to: { routeId: e.id } });
+    await moveToCode(tx, d, { date, from: { routeId: a.id }, to: { routeId: e.id }, swap: true });
     let day = await loadDay(tx, d, date);
     expect(day.rows.find((r) => r.code === '9000E')!.today.driverId).toBe(robert.id);
     expect(day.rows.find((r) => r.code === a.code)!.today.driverId).toBe(e.usualDriverId);
