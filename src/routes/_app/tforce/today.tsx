@@ -29,6 +29,15 @@ export const Route = createFileRoute('/_app/tforce/today')({
 const encode = (p: { driverId: string | null; contractorId: string | null }) => (p.driverId ? `d:${p.driverId}` : p.contractorId ? `c:${p.contractorId}` : '');
 const decode = (v: string) => (v.startsWith('d:') ? { driverId: v.slice(2) } : v.startsWith('c:') ? { contractorId: v.slice(2) } : null);
 
+/** "Already on today's list": says where (which driver code, or without code), so nobody has to look for them. */
+function whereOnList(day: Day, driverId: string, t: ReturnType<typeof useT>) {
+  const name = day.options.drivers.find((d) => d.id === driverId)?.name ?? '';
+  const row = day.rows.find((r) => r.today.driverId === driverId && r.status !== 'off' && r.status !== 'no_driver');
+  if (row) return t(row.status === 'proposed' ? 'td.alreadyUsual' : 'td.alreadyOnCode', { name, code: row.code });
+  if (day.noCode.some((p) => p.driverId === driverId)) return t('td.alreadyNoCode', { name });
+  return t('error.already_on_list');
+}
+
 function statusOf(r: Row): { key: MessageKey; tone: PillTone } {
   if (r.status === 'off') return { key: 'td.status.off', tone: 'muted' };
   if (r.status === 'no_driver') return { key: 'td.status.no_driver', tone: 'warn' };
@@ -206,7 +215,7 @@ function TodayPage() {
       onPick={async (v) => {
         if (!v.startsWith('d:') || v.slice(2) === p.driverId) return;
         const res = await setPerson({ data: { executionId: p.executionId, driverId: v.slice(2) } });
-        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+        if (!res.ok) return toast(res.code === 'already_on_list' ? whereOnList(day, v.slice(2), t) : t(`error.${res.code}` as MessageKey));
         await router.invalidate();
       }}
       onCreate={(name) => newPerson(name, async (d) => {
@@ -475,7 +484,7 @@ function TforceRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day; d
       setBusy(true);
       try {
         const res = await addPerson({ data: { date: day.date, driverId: who.value.slice(2), operation: day.operation.code } });
-        if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
+        if (!res.ok) return setError(res.code === 'already_on_list' ? whereOnList(day, who.value.slice(2), t) : t(`error.${res.code}` as MessageKey));
         if (routes.length) await savePersonSortCodes({ data: { executionId: res.value, sortCodeIds: routes.map((x) => x.id) } });
         toast(t('td.personAdded', { name: whoName ?? '' }));
         setWho(null); setRoutes([]); setError(null);
