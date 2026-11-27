@@ -222,6 +222,8 @@ export const en = {
   "drivers.contractorSaved": "Contractor saved.",
   "drivers.contractorsTitle": "Contractors",
   "drivers.contractorRoutes": "Drivers",
+  "td.removeFromDay": "Take {name} off today's list",
+  "hd.removeFromList": "Take {name} off the Hovership list",
   "td.alreadyOnCode": "{name} is already on today's list, on {code}.",
   "td.alreadyUsual": "{name} is already on today's list: usual driver of {code} (not confirmed yet). Confirm it there or change it.",
   "td.alreadyNoCode": "{name} is already on today's list, without driver code.",

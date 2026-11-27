@@ -224,6 +224,8 @@ export const es: Record<MessageKey, string> = {
   "drivers.contractorSaved": "Contratista guardado.",
   "drivers.contractorsTitle": "Contratistas",
   "drivers.contractorRoutes": "Drivers",
+  "td.removeFromDay": "Quitar a {name} de la lista de hoy",
+  "hd.removeFromList": "Quitar a {name} de la lista de Hovership",
   "td.alreadyOnCode": "{name} ya está en la lista de hoy, en {code}.",
   "td.alreadyUsual": "{name} ya está en la lista de hoy: es el habitual de {code} (sin confirmar). Confírmalo o cámbialo ahí.",
   "td.alreadyNoCode": "{name} ya está en la lista de hoy, sin code driver.",

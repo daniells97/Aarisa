@@ -11,6 +11,7 @@ import { PersonActions } from '~/ui/PersonActions';
 import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
+import { RowRemove } from '~/ui/RowRemove';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -150,7 +151,7 @@ function TodayPage() {
     const res = await markOff({ data: { date: day.date, routeId: r.routeId } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(t('td.offDone', { route: r.code }), async () => {
+    toast(r.today.name ? t('td.personRemoved', { name: r.today.name }) : t('td.offDone', { route: r.code }), async () => {
       const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
       if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
       await router.invalidate();
@@ -171,21 +172,19 @@ function TodayPage() {
     if (r.status === 'off') return day.canEdit ? (
       <span className="person-actions">
         {(r.usual.driverId || r.usual.contractorId) && <button type="button" className="link-btn" onClick={() => backOn(r)}>{t('td.backOn', { name: r.usual.name ?? '' })}</button>}
-        <button type="button" className="link-btn" onClick={() => removeRoute(r)} aria-label={t('td.removeRoute', { route: r.code })}>{t('td.noLongerUsed')}</button>
       </span>
     ) : null;
     return r.today.driverId && r.today.name ? (
       <PersonActions driverId={r.today.driverId} name={r.today.name} date={day.date} openNotes={day.ledger[r.today.driverId]?.openNotes}
-        owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra}
-        onOff={day.canEdit ? () => offToday(r) : undefined} offText={t('td.offToday')} offLabel={t('td.offTodayFor', { route: r.code })}
-        onRemove={day.canEdit ? () => removeRoute(r) : undefined} removeLabel={t('td.removeRoute', { route: r.code })} removeText={t('td.noLongerUsed')} />
-    ) : day.canEdit ? (
-      <span className="person-actions">
-        <button type="button" className="link-btn" onClick={() => offToday(r)} aria-label={t('td.offTodayFor', { route: r.code })}>{t('td.offToday')}</button>
-        <button type="button" className="link-btn" onClick={() => removeRoute(r)} aria-label={t('td.removeRoute', { route: r.code })}>{t('td.noLongerUsed')}</button>
-      </span>
+        owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra} />
     ) : null;
   };
+
+  // The × on each row: a person comes off this day's list ("didn't run today", only this day); a driver code
+  // nobody drives that day comes off the list. Both with Undo.
+  const removeX = (r: Row) => !day.canEdit ? null : emptyCode(r)
+    ? <RowRemove label={t('td.removeRoute', { route: r.code })} onClick={() => removeRoute(r)} />
+    : <RowRemove label={t('td.removeFromDay', { name: r.today.name ?? r.code })} onClick={() => offToday(r)} />;
 
   // The driver code of the person on a line: pick another one (they swap with whoever had it) or type a new one.
   const codeOptions = { drivers: day.rows.map((r) => ({ id: r.routeId, name: r.code, contractor: r.today.name && r.status !== 'off' && r.status !== 'no_driver' ? r.today.name : null })), contractors: [] };
@@ -246,8 +245,7 @@ function TodayPage() {
   };
   const personActions = (p: NoCode) => (
     <PersonActions driverId={p.driverId} name={p.name} date={day.date} openNotes={day.ledger[p.driverId]?.openNotes}
-      owedCents={day.ledger[p.driverId]?.owedCents} canLogExtra={day.canLogExtra}
-      onOff={day.canEdit ? () => removeFromDay(p) : undefined} offText={t('td.offToday')} offLabel={t('td.offTodayFor', { route: p.name })} />
+      owedCents={day.ledger[p.driverId]?.owedCents} canLogExtra={day.canLogExtra} />
   );
 
   // Person first: everyone who works today by name (with or without driver code), then the codes nobody drives.
@@ -320,7 +318,7 @@ function TodayPage() {
                             <td>{personSelect(p)}<span className="sub">{t('td.noCodeHint')}</span>{personActions(p)}</td>
                             <td className="code-cell">{codePicker(line)}</td>
                             <td>{personRoutes(p)}</td>
-                            <td><Pill tone="warn">{t('td.status.noCode')}</Pill></td>
+                            <td><span className="status-cell"><Pill tone="warn">{t('td.status.noCode')}</Pill>{day.canEdit && <RowRemove label={t('td.removeFromDay', { name: p.name })} onClick={() => removeFromDay(p)} />}</span></td>
                           </tr>
                         );
                       }
@@ -331,7 +329,7 @@ function TodayPage() {
                           <td>{select(r)}<span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>{actions(r)}</td>
                           <td className="code-cell">{emptyCode(r) ? <RoutePlate code={r.code} needsDriver={r.status === 'no_driver'} /> : codePicker(line)}</td>
                           <td>{routesOf(r)}</td>
-                          <td><Pill tone={st.tone}>{t(st.key)}</Pill></td>
+                          <td><span className="status-cell"><Pill tone={st.tone}>{t(st.key)}</Pill>{removeX(r)}</span></td>
                         </tr>
                       );
                     })}
@@ -345,7 +343,7 @@ function TodayPage() {
                     const p = line.p;
                     return (
                       <li key={p.executionId}>
-                        <div className="row" style={{ justifyContent: 'flex-end' }}><Pill tone="warn">{t('td.status.noCode')}</Pill></div>
+                        <div className="row" style={{ justifyContent: 'flex-end' }}><Pill tone="warn">{t('td.status.noCode')}</Pill>{day.canEdit && <RowRemove label={t('td.removeFromDay', { name: p.name })} onClick={() => removeFromDay(p)} />}</div>
                         {personSelect(p)}
                         <div className="card-field"><span className="card-label">{t('td.codeDriver')}</span>{codePicker(line)}</div>
                         <div className="card-field"><span className="card-label">{t('td.sortCode')}</span>{personRoutes(p)}</div>
@@ -359,7 +357,7 @@ function TodayPage() {
                     <li key={r.routeId}>
                       <div className="row" style={{ justifyContent: emptyCode(r) ? 'space-between' : 'flex-end' }}>
                         {emptyCode(r) && <RoutePlate code={r.code} size="lg" needsDriver={r.status === 'no_driver'} />}
-                        <Pill tone={st.tone}>{t(st.key)}</Pill>
+                        <span className="status-cell"><Pill tone={st.tone}>{t(st.key)}</Pill>{removeX(r)}</span>
                       </div>
                       {select(r)}
                       <span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>

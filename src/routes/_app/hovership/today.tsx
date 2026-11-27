@@ -10,6 +10,7 @@ import { PersonActions } from '~/ui/PersonActions';
 import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
+import { RowRemove } from '~/ui/RowRemove';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 
@@ -143,11 +144,13 @@ function HovershipTodayPage() {
 
   const actions = (r: Row) => (
     <>
-      <PersonActions driverId={r.driverId} name={r.name} date={day.date} op={day.operation.code} openNotes={r.openNotes} owedCents={r.owedCents} canLogExtra={day.canLogExtra}
-        onOff={day.canEdit && r.status !== 'off' && r.status !== 'covered' ? () => offToday(r) : undefined} offText={t('hd.offToday')} offLabel={t('hd.offTodayFor', { name: r.name })}
-        onRemove={day.canEdit ? () => remove(r) : undefined} removeText={t('hd.noLongerHere')} />
+      <PersonActions driverId={r.driverId} name={r.name} date={day.date} op={day.operation.code} openNotes={r.openNotes} owedCents={r.owedCents} canLogExtra={day.canLogExtra} />
     </>
   );
+  // The × on each row: "didn't work today" (only this day); on someone already off that day, off the Hovership list. With Undo.
+  const removeX = (r: Row) => !day.canEdit ? null : r.status === 'off'
+    ? <RowRemove label={t('hd.removeFromList', { name: r.name })} onClick={() => remove(r)} />
+    : <RowRemove label={t('td.removeFromDay', { name: r.name })} onClick={() => offToday(r)} />;
 
   return (
     <>
@@ -199,7 +202,7 @@ function HovershipTodayPage() {
                         <td>{who(r)}</td>
                         <td>{picker(r)}<span className="sub">{about(r)}</span>{actions(r)}</td>
                         <td>{routesOf(r)}</td>
-                        <td><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill></td>
+                        <td><span className="status-cell"><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>{removeX(r)}</span></td>
                       </tr>
                     ))}
                     {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="row" focus={adding} onCancel={() => setAdding(false)} />}
@@ -211,7 +214,7 @@ function HovershipTodayPage() {
                   <li key={r.driverId}>
                     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>{who(r)}</div>
-                      <Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>
+                      <span className="status-cell"><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>{removeX(r)}</span>
                     </div>
                     {picker(r)}
                     <span className="sub">{about(r)}</span>

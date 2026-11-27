@@ -491,3 +491,8 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .details-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 20px; margin: 0; }
 .details-list dt { font-size: 13px; color: var(--ink-4); }
 .details-list dd { margin: 0; font-weight: 500; }
+
+/* The × on a row of the daily list. */
+.status-cell { display: inline-flex; align-items: center; gap: 4px; }
+.row-x { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin: -9px -10px -9px 0; border: 0; border-radius: 50%; background: none; color: var(--ink-4); cursor: pointer; flex: none; }
+.row-x:hover { background: var(--muted-tint); color: var(--red, #C02430); }
