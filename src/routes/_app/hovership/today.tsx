@@ -193,9 +193,8 @@ function HovershipTodayPage() {
       {day.sent
         ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}</p>
         : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('hd.listHint')}</p>}
-      {(s.unassigned.length > 0 || s.shared.length > 0) && (
+      {s.shared.length > 0 && (
         <div className="notice" role="status" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-          {s.unassigned.length > 0 && <span>{t('hd.unassigned', { routes: s.unassigned.join(', ') })}</span>}
           {s.shared.map((x) => <span key={x.code}>{t('hd.shared', { route: x.code, who: x.who.join(', ') })}</span>)}
         </div>
       )}

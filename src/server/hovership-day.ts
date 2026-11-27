@@ -138,7 +138,7 @@ export async function sendHovershipList(tx: Tx, actor: Actor, date: string, oper
   const op = await operationFor(tx, operation, 'report_code');
   const people = day.rows.filter((r) => r.status !== 'off' && r.status !== 'covered')
     .map((r) => ({ name: r.name, code: r.code ?? '–', routes: r.sortCodes.map((x) => x.code), contractor: false }));
-  const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, day.summary.unassigned, '/hovership/today');
+  const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, [], '/hovership/today');
   return { confirmed, ...res };
 }
 
