@@ -165,6 +165,18 @@ describe("Daily operations, T-Force: didn't run vs the ×", () => {
   }));
 });
 
+describe('Daily operations, T-Force: a code off the list', () => {
+  it('is free on a day nobody is saved on it, even if it has a usual driver', () => withRollback(async (tx) => {
+    const { code } = await tforceReady(tx);
+    const e = await code('9000E');
+    await setRouteOnList(tx, d, { routeId: e.id, active: false });
+    const p = await createDriver(tx, d, { ...base, fullName: 'Flow Off List' }, DATE);
+    const id = await addPersonToday(tx, d, { date: DATE, driverId: p.id });
+    await moveToCode(tx, d, { date: DATE, from: { executionId: id }, to: { routeId: e.id } });
+    expect(await rowOf(tx, '9000E')).toMatchObject({ today: { driverId: p.id } });
+  }));
+});
+
 describe('Daily operations, Hovership: routes, cover, status', () => {
   it('one route per person a day; covering moves the routes, Undo puts them back; confirm usual skips taken routes', () => withRollback(async (tx) => {
     const day = await loadHovershipDay(tx, d, DATE);

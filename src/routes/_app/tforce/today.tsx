@@ -223,7 +223,8 @@ function TodayPage() {
     if (!res.ok && res.code === 'code_in_use' && 'routeId' in to) {
       // Say who has it, so they free it first (take them off, or give them another code).
       const holder = day.rows.find((x) => x.routeId === to.routeId);
-      return toast(t('td.codeInUse', { code: holder?.code ?? '', name: holder?.today.name ?? '' }));
+      if (!holder?.today.name) return toast(t('error.code_in_use'));
+      return toast(t('td.codeInUse', { code: holder.code, name: holder.today.name }));
     }
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();

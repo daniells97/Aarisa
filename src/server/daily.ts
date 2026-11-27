@@ -714,10 +714,13 @@ export async function moveToCode(tx: Tx, actor: Actor, input: {
     const [clash] = await tx.select().from(routes).where(and(eq(routes.operationId, op.id), eq(routes.code, code)));
     target = clash ?? await createRoute(tx, actor, { operationId: op.id, code, contractorId: null, usualDriverId: person.driverId });
   }
+  // A code off the list with nobody saved that day is free (its usual driver isn't proposed on it).
+  const wasOffList = !target.active;
   if (!target.active) target = await reactivate(tx, actor, target, null);
   if ('route' in source && source.route.id === target.id) return { code: target.code };
 
-  const there = await onCode(tx, op.id, input.date, target);
+  const onTarget = await onCode(tx, op.id, input.date, target);
+  const there = wasOffList && !onTarget.view ? { ...onTarget, payee: null } : onTarget;
   const other = there.payee && !(there.payee.driverId === person.driverId && there.payee.contractorId === person.contractorId) ? there.payee : null;
   // Giving someone a code another person already has on today's list is refused (the screen says who has it).
   if (other && there.view?.status !== 'off' && !input.swap) throw new RuleError('code_in_use');
