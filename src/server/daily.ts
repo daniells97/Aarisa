@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { auditLog, contractors, dayListSends, drivers, executionSortCodes, executionView, routeExecutions, routes, sortCodes, users } from '~/db/schema';
 import { todayLA } from '~/domain/dates';
@@ -39,7 +39,13 @@ async function ownerOn(tx: Tx, routeId: string, date: string) {
 export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'payroll.view');
   const op = await operationFor(tx, operation, 'daily_list');
-  const routeRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id), eq(routes.active, true))).orderBy(asc(routes.code));
+  // Codes on the list, plus any taken off it ("No longer used") that still have someone saved this day:
+  // that person is on the day's list, so they must show (and can be changed), never hidden.
+  const keptForDay = (await tx.select({ routeId: executionView.routeId }).from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date),
+    eq(executionView.kind, 'route'), isNotNull(executionView.routeId), isNotNull(executionView.payeeId))))
+    .map((x) => x.routeId!);
+  const routeRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id),
+    keptForDay.length ? or(eq(routes.active, true), inArray(routes.id, keptForDay)) : eq(routes.active, true))).orderBy(asc(routes.code));
   const assignments = (routeRows.length
     ? await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date), eq(executionView.kind, 'route'), inArray(executionView.routeId, routeRows.map((r) => r.id))))
     : []).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId }));
