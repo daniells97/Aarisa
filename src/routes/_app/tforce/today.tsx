@@ -406,8 +406,10 @@ function TodayPage() {
                     <li key={c.id}>
                       <span className="num muted">{new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(c.at))}</span>
                       <span>
-                        <RoutePlate code={c.route} size="sm" />{' '}
-                        {c.sortCodes ? t('td.routesSet', { routes: c.sortCodes.join(', ') || t('td.noSortCodes') })
+                        {c.route && <><RoutePlate code={c.route} size="sm" />{' '}</>}
+                        {c.left ? t('td.leftList', { name: c.from ?? '' })
+                          : !c.route && !c.sortCodes && c.to && !c.from ? t('td.joinedList', { name: c.to })
+                          : c.sortCodes ? t('td.routesSet', { routes: c.sortCodes.join(', ') || t('td.noSortCodes') })
                           : c.off ? t('td.status.off') : c.from && c.from !== c.to ? t('td.fromTo', { from: c.from, to: c.to ?? t('td.noDriver') }) : (c.to ?? t('td.noDriver'))}
                         <span className="sub">{c.user ? t('td.by', { who: c.user, source: t(`audit.source.${c.source}` as MessageKey) }) : t('td.src.daily_list')}{c.action === 'undo' ? ` · ${t('audit.action.undo')}` : ''}</span>
                       </span>

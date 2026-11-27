@@ -115,4 +115,13 @@ describe('daily list, person first', () => {
     await setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: robert.id } });
     expect((await loadDay(tx, d, date)).doubles).toEqual([expect.objectContaining({ name: 'Robert Arteaga', codes: expect.arrayContaining(['9000E']) })]);
   }));
+
+  it("the day's changes keep someone without code who was taken off (the row is gone, the history isn't)", () => withRollback(async (tx) => {
+    const p = await createDriver(tx, d, { ...base, fullName: 'Test Trace' }, date);
+    const id = await addPersonToday(tx, d, { date, driverId: p.id });
+    await removePersonToday(tx, d, { executionId: id });
+    const changes = (await loadDay(tx, d, date)).changes;
+    expect(changes.find((c) => c.left && c.from === 'Test Trace')).toBeDefined();
+    expect(changes.find((c) => !c.route && c.to === 'Test Trace' && c.action === 'insert')).toBeDefined();
+  }));
 });

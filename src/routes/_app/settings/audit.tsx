@@ -32,7 +32,17 @@ function AuditPage() {
       </div>
       <Panel>
         {entries.length === 0 ? <p className="panel-body muted" style={{ paddingTop: 20, margin: 0 }}>{t('audit.empty')}</p> : (
-          <div className="table-wrap">
+          <>
+          <ul className="hist-cards phone-only">
+            {entries.map((e) => (
+              <li key={e.id}>
+                <div className="hist-card-top"><strong>{t(`audit.action.${e.action}` as MessageKey)} <code>{e.table}</code></strong><span className="num muted">{e.recordId.slice(0, 8)}</span></div>
+                <span className="muted">{f.dateTime(e.at)} · {e.user ?? t('audit.system')} · {t(`audit.source.${e.source}` as MessageKey)}</span>
+                {e.fields.length > 0 && <span style={{ overflowWrap: 'anywhere' }}>{e.fields.join(', ')}</span>}
+              </li>
+            ))}
+          </ul>
+          <div className="table-wrap desktop-only">
             <table>
               <thead><tr><th scope="col">{t('audit.when')}</th><th scope="col">{t('audit.who')}</th><th scope="col">{t('audit.what')}</th><th scope="col">{t('audit.fields')}</th><th scope="col">{t('audit.from')}</th></tr></thead>
               <tbody>
@@ -48,6 +58,7 @@ function AuditPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
         <div className="panel-body row" style={{ paddingTop: 16 }}>
           {before && <Link className={buttonClass('secondary', 'sm')} to="/settings/audit" search={{ table }}>{t('audit.newest')}</Link>}

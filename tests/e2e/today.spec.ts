@@ -31,7 +31,7 @@ test('a name that is not on the list opens the driver form (same as Drivers and 
   await page.getByRole('option', { name: `Add “${name}” as a new driver` }).click();
   // The same driver form as Drivers and rates, with the typed name already in it.
   const form = page.getByRole('dialog', { name: 'Add driver' });
-  await expect(form.getByLabel('Name', { exact: true }).first()).toHaveValue(name);
+  await expect(form.getByLabel('Full name (as on the license)')).toHaveValue(name);
   await form.getByLabel('Email').fill('e2e.driver@example.com');
   await form.getByLabel("Driver's license number").fill('d7654321');
   await form.getByLabel('Home address').fill('1 Test St, Oakland CA');

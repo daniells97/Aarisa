@@ -62,7 +62,10 @@ describe("adding routes and drivers from Today's drivers (server)", () => {
       const a = day.rows.find((x) => x.code === '9000A')!;
       await expect(setRouteOnList(tx, actorAs('finance'), { routeId: a.routeId, active: false })).rejects.toBeInstanceOf(ForbiddenError);
       await setRouteOnList(tx, d, { routeId: a.routeId, active: false });
-      expect((await loadDay(tx, d, DATE)).rows.find((x) => x.code === '9000A')).toBeUndefined();
+      // Gone from days with nobody saved on it; still shown on a day someone is saved on it (never hidden yet counted).
+      expect((await loadDay(tx, d, '2031-01-06')).rows.find((x) => x.code === '9000A')).toBeUndefined();
+      const sameDay = (await loadDay(tx, d, DATE)).rows.find((x) => x.code === '9000A');
+      if (a.assignmentId) expect(sameDay).toBeDefined(); else expect(sameDay).toBeUndefined();
       const norwin = (await driverNamed(tx, 'Norwin Saloman'))!;
       const back = await addRoute(tx, d, { date: DATE, code: '9000A', payee: { driverId: norwin.id } });
       expect(back).toMatchObject({ id: a.routeId, active: true, usualDriverId: norwin.id });

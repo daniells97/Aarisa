@@ -203,12 +203,12 @@ function HovershipTodayPage() {
             <>
               <div className="table-wrap desktop-only">
                 <table>
-                  <thead><tr><th scope="col">{t('td.route')}</th><th scope="col">{t('td.driverToday')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
+                  <thead><tr><th scope="col">{t('td.person')}</th><th scope="col">{t('hd.code')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
                   <tbody>
                     {day.rows.map((r) => (
                       <tr key={r.driverId}>
-                        <td>{who(r)}</td>
-                        <td>{picker(r)}<span className="sub">{about(r)}</span>{actions(r)}</td>
+                        <td>{picker(r)}<span className="sub">{r.status === 'covered' ? t('hd.coversFor', { name: r.name }) + ' · ' : ''}{about(r)}</span>{actions(r)}</td>
+                        <td><span className="cell-text">{r.code ? <strong>{r.code}</strong> : <span className="muted">–</span>}</span></td>
                         <td>{routesOf(r)}</td>
                         <td><span className="status-cell"><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>{removeX(r)}</span></td>
                       </tr>
@@ -326,5 +326,5 @@ function HovershipRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day
         return res.value.id;
       }} />,
   ];
-  return <>{newPersonDialog}<NewRecord cells={layout === 'card' ? cells.slice(1) : cells} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} /></>;
+  return <>{newPersonDialog}<NewRecord cells={layout === 'card' ? cells.slice(1) : [cells[1]!, cells[0]!, cells[2]!]} layout={layout} busy={busy} error={error} onCancel={onCancel} focus={focus} /></>;
 }

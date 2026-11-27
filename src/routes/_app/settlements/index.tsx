@@ -73,7 +73,30 @@ function Ledger({ data, selected, client }: { data: Data; selected?: string; cli
   };
   return (
     <Panel title={t('st.ledger')} id="ledger" aside={!selected && <span className="muted" style={{ fontSize: 13.5 }}>{t('st.pickLine')}</span>}>
-      <div className="table-wrap">
+      <ul className="hist-cards setup-cards phone-only">
+        {data.lines.map((l) => {
+          const p = statusPill(l.status, l.daysLate, t);
+          const covers = coversText(l, t, f);
+          return (
+            <li key={l.id} className={selected === l.id ? 'row-selected' : undefined}>
+              <div className="hist-card-top">
+                <span><strong>{clientName(l.operation)}</strong>
+                  <Link className="sub" to="/settlements" search={{ client: client as 'all', line: l.id }} aria-label={t('st.openClaim', { what: covers })}>{covers}</Link>
+                  {l.job && <span className="sub">{l.job.orderNumber ? t('st.order', { order: l.job.orderNumber }) : t('st.noOrder')}</span>}
+                </span>
+                <Pill tone={p.tone}>{p.label}</Pill>
+              </div>
+              <dl className="card-figures">
+                <div><dt>{t('st.expected')}</dt><dd className="num">{l.expectedCents == null ? <span className="muted">{t('st.unknownAmount')}</span> : f.money(l.expectedCents)}</dd></div>
+                <div><dt>{t('st.receivedCol')}</dt><dd className="num">{l.receivedCents ? f.money(l.receivedCents) : <span className="muted">{t('st.notYet')}</span>}</dd></div>
+                <div><dt>{t('st.missing')}</dt><dd className="num">{l.missingCents == null || l.receivedCents === 0 && l.status === 'open' ? '–' : l.missingCents === l.expectedCents ? t('st.allOfIt') : f.money(l.missingCents)}</dd></div>
+                <div><dt>{t('st.due')}</dt><dd className="num">{due(l)}</dd></div>
+              </dl>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="table-wrap desktop-only">
         <table>
           <thead>
             <tr>
@@ -255,8 +278,16 @@ function Payments({ data }: { data: Data }) {
   const f = useFormat();
   return (
     <Panel title={t('st.payments')} id="payments">
-      {data.payments.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('st.noPayments')}</p> : (
-        <div className="table-wrap">
+      {data.payments.length === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('st.noPayments')}</p> : (<>
+        <ul className="hist-cards phone-only">
+          {data.payments.map((p) => (
+            <li key={p.id}>
+              <div className="hist-card-top"><strong>{clientName(p.operation)}</strong><strong className="num">{f.money(p.amountCents)}</strong></div>
+              <span className="muted">{f.date(p.receivedOn)} · {p.method ?? '–'}{p.reference ? ` · ${p.reference}` : ''}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="table-wrap desktop-only">
           <table>
             <thead><tr><th scope="col">{t('st.p.date')}</th><th scope="col">{t('st.client')}</th><th scope="col" className="r">{t('st.p.amount')}</th><th scope="col">{t('st.p.method')}</th><th scope="col">{t('st.p.reference')}</th></tr></thead>
             <tbody>{data.payments.map((p) => (
@@ -264,7 +295,7 @@ function Payments({ data }: { data: Data }) {
             ))}</tbody>
           </table>
         </div>
-      )}
+      </>)}
     </Panel>
   );
 }

@@ -53,11 +53,13 @@ test('the signed-in person and Sign out are at the top', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Sign out' })).toBeVisible();
 });
 
-test("“Didn't run today” is one tap on the row, shows as didn't run, and Undo puts it back", async ({ page, isMobile }) => {
+test("the × on a row takes the person off that day's list (didn't run), and Undo puts them back", async ({ page, isMobile }) => {
   test.skip(isMobile, 'one device is enough; it writes data');
   await signInAs(page, 'dispatcher', '/tforce/today?date=2027-05-10');
-  await page.getByRole('button', { name: "9000A didn't run this day" }).locator('visible=true').first().click();
-  await expect(page.locator('.toasts')).toContainText("9000A: didn't run this day.");
+  const x = page.getByRole('button', { name: /^Take .+ off today's list$/ }).locator('visible=true').first();
+  const who = (await x.getAttribute('aria-label'))!.replace(/^Take | off today's list$/g, '');
+  await x.click();
+  await expect(page.locator('.toasts')).toContainText(`${who} is off today's list.`);
   await expect(page.getByText("1 didn't run")).toBeVisible();
   await page.locator('.toasts').getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.toasts')).toContainText('Change undone.');

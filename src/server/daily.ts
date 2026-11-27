@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { auditLog, contractors, dayListSends, drivers, executionSortCodes, executionView, routeExecutions, routes, sortCodes, users } from '~/db/schema';
 import { todayLA } from '~/domain/dates';
@@ -98,7 +98,13 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
 
   // Today's change log: audit entries for this day's executions, newest first. Executions kept the ids of
   // the daily assignments they replaced, so older entries (logged as daily_assignments) still show.
-  const ids = assignments.map((a) => a.id);
+  // Plus people on the day without a driver code, including those taken off it since (their row is gone,
+  // their history isn't): found by the day and contract written in their audit entries.
+  const loose = (await tx.selectDistinct({ id: auditLog.recordId }).from(auditLog).where(and(eq(auditLog.tableName, 'route_executions'),
+    sql`coalesce(${auditLog.after}->>'date', ${auditLog.before}->>'date') = ${date}`,
+    sql`coalesce(${auditLog.after}->>'operationId', ${auditLog.before}->>'operationId') = ${op.id}`,
+    sql`coalesce(${auditLog.after}->>'routeId', ${auditLog.before}->>'routeId') is null`))).map((x) => x.id);
+  const ids = [...new Set([...assignments.map((a) => a.id), ...loose])];
   const log = ids.length ? await tx.select({ log: auditLog, user: users.name }).from(auditLog).leftJoin(users, eq(users.id, auditLog.userId))
     .where(and(inArray(auditLog.tableName, ['route_executions', 'daily_assignments', 'execution_sort_codes']), inArray(auditLog.recordId, ids))).orderBy(desc(auditLog.at)).limit(50) : [];
   type Logged = { payeeId?: string | null; driverId?: string | null; contractorId?: string | null; rawName?: string | null };
@@ -110,14 +116,18 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   const sortCodeName = new Map([...sortCodeOptions, ...ran].map((x) => [x.id, x.code]));
   // A record created only to hold routes (still the usual driver, not confirmed) isn't a change of driver.
   // Nor are the usual routes saved when the day is confirmed.
-  const shown = log.filter(({ log: l }) => !(l.tableName === 'route_executions' && l.action === 'insert' && (l.after as { status?: string } | null)?.status === 'proposed')
+  // A person given a driver code leaves their row without code: the code's own entry says it, so that one is skipped.
+  const shown = log.filter(({ log: l }) => !(l.tableName === 'route_executions' && l.action === 'delete' && (l.after as { movedTo?: string } | null)?.movedTo)
+    && !(l.tableName === 'route_executions' && l.action === 'insert' && (l.after as { status?: string } | null)?.status === 'proposed')
     && !(l.tableName === 'execution_sort_codes' && l.action === 'insert'));
   const changes = shown.map(({ log: l, user }) => {
     const af = (l.after ?? {}) as Logged & { sortCodeIds?: string[] };
     const base = { id: l.id, at: l.at.toISOString(), route: routeOf.get(l.recordId) ?? '', action: l.action, source: l.source, user: user ?? null };
     // A change of the routes (sort codes) a driver ran, not of who drove.
-    if (l.tableName === 'execution_sort_codes') return { ...base, from: null, to: null, sortCodes: (af.sortCodeIds ?? []).map((x) => sortCodeName.get(x) ?? '?'), off: false };
-    return { ...base, from: l.before ? nameOf(l.before as Logged) : null, to: nameOf(af) ?? af.rawName ?? null, sortCodes: null, off: (af as { status?: string }).status === 'off' };
+    if (l.tableName === 'execution_sort_codes') return { ...base, from: null, to: null, sortCodes: (af.sortCodeIds ?? []).map((x) => sortCodeName.get(x) ?? '?'), off: false, left: false };
+    // Someone without driver code put on the day's list, or taken off it.
+    if (!base.route && l.action === 'delete') return { ...base, from: l.before ? nameOf(l.before as Logged) : null, to: null, sortCodes: null, off: false, left: true };
+    return { ...base, from: l.before ? nameOf(l.before as Logged) : null, to: nameOf(af) ?? af.rawName ?? null, sortCodes: null, off: (af as { status?: string }).status === 'off', left: false };
   });
 
   const count = (s: DayStatus | 'contractor') => codeRows.filter((r) => (s === 'contractor' ? r.contractorRoute && r.status !== 'no_driver' : !r.contractorRoute && r.status === s)).length;
@@ -206,7 +216,7 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
       eq(routeExecutions.kind, 'route'), isNull(routeExecutions.routeId), eq(routeExecutions.driverId, values.driverId)));
     if (loose) {
       carried = (await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, loose.id))).map((x) => x.sortCodeId);
-      await dropPersonRow(tx, actor, loose);
+      await dropPersonRow(tx, actor, loose, routeId);
     }
   }
   const { before, after } = await writeRouteDay(tx, {
@@ -493,14 +503,15 @@ async function personRow(tx: Tx, executionId: string) {
   return row;
 }
 
-async function dropPersonRow(tx: Tx, actor: Actor, row: typeof routeExecutions.$inferSelect) {
+/** Deletes a person-without-code row. `movedTo`: the driver code they were given (not "off the list"). */
+async function dropPersonRow(tx: Tx, actor: Actor, row: typeof routeExecutions.$inferSelect, movedTo?: string) {
   const had = await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, row.id));
   if (had.length) {
     await tx.delete(executionSortCodes).where(eq(executionSortCodes.executionId, row.id));
     await audit(tx, { table: 'execution_sort_codes', recordId: row.id, action: 'update', before: { sortCodeIds: had.map((h) => h.sortCodeId) }, after: { sortCodeIds: [] }, userId: actor.userId, source: actor.source });
   }
   await tx.delete(routeExecutions).where(eq(routeExecutions.id, row.id));
-  await audit(tx, { table: 'route_executions', recordId: row.id, action: 'delete', before: row, userId: actor.userId, source: actor.source });
+  await audit(tx, { table: 'route_executions', recordId: row.id, action: 'delete', before: row, after: movedTo ? { movedTo, date: row.date, operationId: row.operationId, routeId: null } : null, userId: actor.userId, source: actor.source });
 }
 
 /** Puts someone on today's list before they have a driver code (the admin sets it later). */
@@ -615,7 +626,7 @@ export async function moveToCode(tx: Tx, actor: Actor, input: {
   const thereRoutes = await setRoutesOf(tx, there.view?.id ?? null);
 
   // The person without code leaves that row first (it holds the payee for the day).
-  if ('person' in source) await dropPersonRow(tx, actor, source.person);
+  if ('person' in source) await dropPersonRow(tx, actor, source.person, target.id);
   // A confirmed person already on the target code stays on the list: swapped, or without code.
   const other = there.payee && !(there.payee.driverId === person.driverId && there.payee.contractorId === person.contractorId) ? there.payee : null;
   if ('route' in source) {

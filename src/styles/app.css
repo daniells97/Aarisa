@@ -496,3 +496,22 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .status-cell { display: inline-flex; align-items: center; gap: 4px; }
 .row-x { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin: -9px -10px -9px 0; border: 0; border-radius: 50%; background: none; color: var(--ink-4); cursor: pointer; flex: none; }
 .row-x:hover { background: var(--muted-tint); color: var(--red, #C02430); }
+/* Daily operations on a wide screen: every box of a row (driver, driver code, route) on the same line. */
+.today-list td { vertical-align: top; }
+.today-list td .status-cell { min-height: 44px; }
+/* Daily operations table: fixed column widths so the status and its × always fit next to the boxes. */
+@media (min-width: 900px) {
+  .today-list table { table-layout: fixed; width: 100%; }
+  .today-list th:nth-child(1) { width: 31%; }
+  .today-list th:nth-child(2) { width: 19%; }
+  .today-list th:nth-child(3) { width: 27%; }
+  .today-list th:nth-child(4) { width: 23%; }
+  .today-list td .picker, .today-list tr.new-record td:first-child .picker { min-width: 0; width: 100%; }
+  .today-list td input, .today-list td .input { width: 100%; min-width: 0; box-sizing: border-box; }
+  .today-list td .pill { height: auto; min-height: 26px; padding: 3px 10px; line-height: 1.25; }
+  .today-list .person-actions { flex-wrap: wrap; }
+  .today-list .code-cell { min-width: 0; }
+  .today-list .status-cell { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; }
+}
+.change-log .num { white-space: nowrap; }
+.cell-text { display: inline-flex; align-items: center; min-height: 40px; }

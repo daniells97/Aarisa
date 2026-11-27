@@ -74,7 +74,27 @@ function ClientPanel({ client, canEdit }: { client: Client; canEdit: boolean }) 
         {details ? <p style={{ margin: 0 }}>{details}</p> : <p className="muted" style={{ margin: 0 }}>{t('cl.noDetails')}</p>}
         <h3 className="cond" style={{ margin: 0 }}>{t('cl.contracts')}</h3>
       </div>
-      <div className="table-wrap">
+      <ul className="hist-cards setup-cards phone-only">
+        {client.contracts.map((o) => (
+          <li key={o.id}>
+            <div className="hist-card-top"><strong>{o.name}</strong>{!o.active && <Pill tone="muted">{t('pill.inactive')}</Pill>}</div>
+            <dl className="card-figures">
+              <div><dt>{t('cl.driverFrom')}</dt><dd>{t(`cl.source.${o.driverSource}`)}</dd></div>
+              <div><dt>{t('cl.paidEvery')}</dt><dd>{t(`cl.cycle.${o.payCycle}`)}</dd></div>
+              <div><dt>{t('cl.terms')}</dt><dd className="num">{t('cl.days', { n: o.paymentTermsDays })}</dd></div>
+              <div><dt>{t('cl.blocks')}</dt><dd>{o.blocksPayrollOnExceptions ? t('cl.yes') : t('cl.no')}</dd></div>
+              <div><dt>{t('cl.lowPieces')}</dt><dd className="num">{(o.lowQuantityThresholdBp / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}%</dd></div>
+            </dl>
+            {canEdit && (
+              <span className="card-actions">
+                <Button aria-label={t('cl.rulesNamed', { name: o.name })} onClick={() => setContract(o)}>{t('cl.rules')}</Button>
+                <Button aria-label={t('lay.titleNamed', { name: o.name })} onClick={() => setLayoutOf(o)}>{o.layout.length ? t('lay.button') : t('lay.set')}</Button>
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="table-wrap desktop-only">
         <table>
           <thead>
             <tr>
@@ -109,8 +129,23 @@ function ClientPanel({ client, canEdit }: { client: Client; canEdit: boolean }) 
         <h3 className="cond" style={{ margin: 0 }}>{t('cl.contacts')}</h3>
         {canEdit && <Button size="sm" onClick={() => setContact('new')}>{t('cl.addContact')}</Button>}
       </div>
-      {client.contacts.length ? (
-        <div className="table-wrap">
+      {client.contacts.length ? (<>
+        <ul className="hist-cards setup-cards phone-only">
+          {client.contacts.map((x) => (
+            <li key={x.id}>
+              <div className="hist-card-top">
+                <span><strong>{x.fullName ?? x.email ?? '–'}</strong><span className="sub">{t(`cl.role.${x.role}`)}</span></span>
+                {x.isPrimary && <Pill tone="ok">{t('cl.primary')}</Pill>}
+              </div>
+              <span className="row" style={{ gap: 12 }}>
+                {x.email && <a href={`mailto:${x.email}`} style={{ overflowWrap: 'anywhere' }}>{x.email}</a>}
+                {x.phone && <a href={`tel:${x.phone}`}>{x.phone}</a>}
+              </span>
+              {canEdit && <span className="card-actions"><Button aria-label={t('cl.editContactNamed', { name: x.fullName ?? x.email ?? '' })} onClick={() => setContact(x)}>{t('cl.edit')}</Button></span>}
+            </li>
+          ))}
+        </ul>
+        <div className="table-wrap desktop-only">
           <table>
             <thead>
               <tr>
@@ -131,7 +166,7 @@ function ClientPanel({ client, canEdit }: { client: Client; canEdit: boolean }) 
             </tbody>
           </table>
         </div>
-      ) : <p className="panel-body muted" style={{ margin: 0, paddingTop: 0 }}>{t('cl.noContacts')}</p>}
+      </>) : <p className="panel-body muted" style={{ margin: 0, paddingTop: 0 }}>{t('cl.noContacts')}</p>}
       {editing && <ClientDialog client={client} onClose={() => setEditing(false)} />}
       {contact && <ContactDialog clientId={client.id} contact={contact === 'new' ? null : contact} onClose={() => setContact(null)} />}
       {contract && <RulesDialog contract={contract} onClose={() => setContract(null)} />}
