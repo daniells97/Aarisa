@@ -187,7 +187,11 @@ function TodayPage() {
     : <RowRemove label={t('td.removeFromDay', { name: r.today.name ?? r.code })} onClick={() => offToday(r)} />;
 
   // The driver code of the person on a line: pick another one (they swap with whoever had it) or type a new one.
-  const codeOptions = { drivers: day.rows.map((r) => ({ id: r.routeId, name: r.code, contractor: r.today.name && r.status !== 'off' && r.status !== 'no_driver' ? r.today.name : null })), contractors: [] };
+  // Every code, with who has it today next to it (picking a taken one swaps them).
+  const codeOptions = { drivers: day.options.codes.map((c) => {
+    const r = day.rows.find((x) => x.routeId === c.id);
+    return { id: c.id, name: c.code, contractor: r && r.today.name && r.status !== 'off' && r.status !== 'no_driver' ? r.today.name : null };
+  }), contractors: [] };
   const toCode = async (from: { routeId: string } | { executionId: string }, name: string, to: { routeId: string } | { newCode: string }) => {
     const res = await giveCode({ data: { date: day.date, from, to, operation: day.operation.code } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));

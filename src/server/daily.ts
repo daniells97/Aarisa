@@ -155,6 +155,9 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       sortCodes: sortCodeOptions,
       // Driver codes taken off the list: typing one in a new record brings it back with its history.
       offList,
+      // Every driver code of the contract, on the list or not, for giving someone a code (one off the list comes back).
+      codes: [...routeRows.map((r) => ({ id: r.id, code: r.code })), ...offRows.filter((o) => !routeRows.some((r) => r.id === o.id)).map((r) => ({ id: r.id, code: r.code }))]
+        .sort((a, b) => a.code.localeCompare(b.code)),
     },
     changes,
     // One driver put on two or more driver codes the same day: allowed (it happens), but worth a second look.
