@@ -36,7 +36,7 @@ describe('history', () => {
     withRollback(async (tx) => {
       const owner = actorAs('owner');
       const day = await loadHistory(tx, owner, { from: '2026-06-18', to: '2026-06-18', operation: 'tforce' }, '2026-07-01');
-      const person = (await driverNamed(tx, day.rows.find((r) => r.name)!.name!))!;
+      const person = (await driverNamed(tx, day.rows.find((r) => r.name && r.driverId && !r.company)!.name!))!;
       await addLoan(tx, owner, { driverId: person.id, kind: 'advance', amountCents: 5000, givenOn: '2026-06-18', note: 'Gas' });
       await addDriverNote(tx, owner, { driverId: person.id, body: 'Owes the uniform' });
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());

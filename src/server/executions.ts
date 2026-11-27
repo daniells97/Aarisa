@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
 import { contractors, drivers, executionSortCodes, executionView, payees, routeExecutions } from '~/db/schema';
 import { RuleError } from './errors';
@@ -119,6 +119,6 @@ export async function sortCodesTaken(tx: Tx, operationId: string, date: string, 
   if (!sortCodeIds.length) return [];
   const rows = await tx.select({ executionId: executionSortCodes.executionId, sortCodeId: executionSortCodes.sortCodeId }).from(executionSortCodes)
     .innerJoin(routeExecutions, eq(routeExecutions.id, executionSortCodes.executionId))
-    .where(and(eq(routeExecutions.operationId, operationId), eq(routeExecutions.date, date), inArray(executionSortCodes.sortCodeId, sortCodeIds)));
+    .where(and(eq(routeExecutions.operationId, operationId), eq(routeExecutions.date, date), inArray(executionSortCodes.sortCodeId, sortCodeIds), ne(routeExecutions.status, 'off')));
   return [...new Set(rows.filter((r) => r.executionId !== exceptExecutionId).map((r) => r.sortCodeId))];
 }

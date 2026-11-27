@@ -42,13 +42,13 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   // Codes on the list, plus any taken off it ("No longer used") that still have someone saved this day:
   // that person is on the day's list, so they must show (and can be changed), never hidden.
   const keptForDay = (await tx.select({ routeId: executionView.routeId }).from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date),
-    eq(executionView.kind, 'route'), isNotNull(executionView.routeId), isNotNull(executionView.payeeId))))
+    eq(executionView.kind, 'route'), isNotNull(executionView.routeId), or(isNotNull(executionView.payeeId), isNotNull(executionView.driverId)))))
     .map((x) => x.routeId!);
   const routeRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id),
     keptForDay.length ? or(eq(routes.active, true), inArray(routes.id, keptForDay)) : eq(routes.active, true))).orderBy(asc(routes.code));
   const assignments = (routeRows.length
     ? await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date), eq(executionView.kind, 'route'), inArray(executionView.routeId, routeRows.map((r) => r.id))))
-    : []).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId }));
+    : []).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId, drove: a.driverId }));
   const owners = await routeOwners(tx, date, routeRows.map((r) => r.id));
   // The sort codes (routes) each driver code ran that day.
   const ran = assignments.length ? await tx.select({ executionId: executionSortCodes.executionId, id: sortCodes.id, code: sortCodes.code })
@@ -69,7 +69,8 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     const a = assignments.find((x) => x.routeId === r.id);
     const owner = owners.get(r.id) ?? null;
     const usual = usualOf(r, owner);
-    const today = a ? { driverId: a.driverId, contractorId: a.contractorId } : usual;
+    // "Didn't run" keeps who it was (not paid: no payee), so the line still shows the person and their routes.
+    const today = a ? (a.status === 'off' && a.drove ? { driverId: a.drove, contractorId: null } : { driverId: a.driverId, contractorId: a.contractorId }) : usual;
     const status: DayStatus = a ? a.status : usual.driverId || usual.contractorId ? 'proposed' : 'no_driver';
     return {
       routeId: r.id, code: r.code, contractorRoute: !!owner,
@@ -92,7 +93,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     sortCodes: p.sortCodes, status: (p.status === 'changed' ? 'changed' : p.status === 'proposed' ? 'proposed' : 'confirmed') as DayStatus, updatedAt: p.updatedAt.toISOString(),
   }));
   // Person first: the list reads by who works, then their driver code. Codes nobody drives go last.
-  const empty = (r: typeof codeRows[number]) => !r.today.name || r.status === 'off' || r.status === 'no_driver';
+  const empty = (r: typeof codeRows[number]) => !r.today.name || r.status === 'no_driver';
   const rows = codeRows.sort((a, b) => Number(empty(a)) - Number(empty(b))
     || (a.today.name ?? '').localeCompare(b.today.name ?? '') || a.code.localeCompare(b.code));
 
@@ -243,11 +244,7 @@ export async function markOffToday(tx: Tx, actor: Actor, input: { date: string; 
   const here = await onCode(tx, route.operationId, input.date, route);
   const { before, after } = await writeAssignment(tx, actor, input.date, input.routeId, { driverId: null, contractorId: null, rawName: null, status: 'off' });
   if (here.payee?.driverId) await tx.update(routeExecutions).set({ driverId: here.payee.driverId }).where(eq(routeExecutions.id, after.id));
-  const had = await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, after.id));
-  if (had.length) {
-    await tx.delete(executionSortCodes).where(eq(executionSortCodes.executionId, after.id));
-    await audit(tx, had.map((h) => ({ table: 'execution_sort_codes', recordId: after.id, action: 'delete' as const, before: h, userId: actor.userId, source: actor.source })));
-  }
+  // Their routes stay on the line (what they were going to run); someone else can still take them that day.
   return { assignmentId: after.id, previous: before };
 }
 
@@ -537,7 +534,7 @@ async function peopleWithoutCode(tx: Tx, operationId: string, date: string) {
 async function onCode(tx: Tx, opId: string, date: string, route: typeof routes.$inferSelect) {
   const view = await routeDay(tx, opId, date, route.id);
   if (view) {
-    const p = { driverId: view.payeeDriverId, contractorId: view.payeeContractorId };
+    const p = view.status === 'off' && view.driverId ? { driverId: view.driverId, contractorId: null } : { driverId: view.payeeDriverId, contractorId: view.payeeContractorId };
     return { view, payee: p.driverId || p.contractorId ? p : null, confirmed: view.status === 'confirmed' || view.status === 'changed' };
   }
   const usual = usualOf(route, await ownerOn(tx, route.id, date));
@@ -626,6 +623,8 @@ export async function removeRouteRow(tx: Tx, actor: Actor, input: { date: string
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
   const off = await markOffToday(tx, actor, input);
+  // The × means "this line doesn't belong today": unlike the "didn't run" status, nobody is kept on it.
+  await tx.update(routeExecutions).set({ driverId: null }).where(eq(routeExecutions.id, off.assignmentId));
   if (route.active) await setRouteOnList(tx, actor, { routeId: route.id, active: false });
   return { previous: off.previous, wasActive: route.active };
 }

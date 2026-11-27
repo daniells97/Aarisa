@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createDriver } from './people';
 import { describe, expect, it } from 'vitest';
 import { addDays } from '~/domain/dates';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
@@ -49,7 +50,8 @@ describe('a whole week, end to end', () => {
       const tue = addDays(WEEK, 1);
       const day = await loadDay(tx, owner, tue);
       const b = day.rows.find((r) => r.code === '9000B')!;
-      const other = day.options.drivers.find((d) => d.id !== b.today.driverId && d.name === 'Diana Arvelo')!;
+      // Someone not on Tuesday's list (a person on another code would be moved: one line per person).
+      const other = await createDriver(tx, owner, { fullName: 'Test Tuesday', hovershipCode: null, contractorId: null, phone: null, aliases: [], active: true, setupComplete: true }, tue);
       await setAssignment(tx, owner, { date: tue, routeId: b.routeId, payee: { driverId: other.id } });
       const a = day.rows.find((r) => r.code === '9000A')!;
       await setSortCodes(tx, owner, { date: tue, routeId: a.routeId, sortCodeIds: day.options.sortCodes.slice(0, 2).map((s) => s.id) });

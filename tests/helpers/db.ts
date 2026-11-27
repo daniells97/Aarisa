@@ -50,8 +50,9 @@ export async function clearHovership(tx: Tx) {
   }
   await tx.delete(payPeriods).where(eq(payPeriods.operationId, op!.id));
   await clearSettlements(tx, op!.id);
-  await tx.delete(routeExecutions).where(eq(routeExecutions.operationId, op!.id));
+  // Other revenue (STEM) points at the days, so it goes before them.
   await tx.delete(otherRevenues).where(eq(otherRevenues.operationId, op!.id));
+  await tx.delete(routeExecutions).where(eq(routeExecutions.operationId, op!.id));
   await tx.delete(reportImportRows).where(inArray(reportImportRows.importId, tx.select({ id: reportImports.id }).from(reportImports).where(eq(reportImports.operationId, op!.id))));
   await tx.delete(reportImports).where(eq(reportImports.operationId, op!.id));
   return op!;

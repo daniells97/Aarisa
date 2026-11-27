@@ -21,13 +21,15 @@ describe("Today's drivers for Hovership", () => {
       const [a, b] = day.rows;
       const id = (c: string) => day.options.sortCodes.find((s) => s.code === c)!.id;
       await setHovershipRoutes(tx, owner, { date: DATE, driverId: a!.driverId, sortCodeIds: [id('200'), id('202')] });
-      await setHovershipRoutes(tx, owner, { date: DATE, driverId: b!.driverId, sortCodeIds: [id('202')] });
+      // A route is run by one person a day: 202 is a's, so b can't have it too (client request, Nov 27 2026).
+      await expect(setHovershipRoutes(tx, owner, { date: DATE, driverId: b!.driverId, sortCodeIds: [id('202')] })).rejects.toMatchObject({ code: 'route_taken' });
+      await setHovershipRoutes(tx, owner, { date: DATE, driverId: b!.driverId, sortCodeIds: [id('203')] });
       await expect(setHovershipRoutes(tx, actorAs('finance'), { date: DATE, driverId: a!.driverId, sortCodeIds: [] })).rejects.toBeInstanceOf(ForbiddenError);
       const after = await loadHovershipDay(tx, owner, DATE);
       expect(after.rows.find((r) => r.driverId === a!.driverId)!.sortCodes.map((s) => s.code)).toEqual(['200', '202']);
       expect(after.summary.working).toBe(2);
       expect(after.summary.unassigned).not.toContain('200');
-      expect(after.summary.shared).toEqual([{ code: '202', who: [a!.name, b!.name] }]);
+      expect(after.summary.shared).toEqual([]);
       expect(after.changes).toHaveLength(2);
       // A day with routes but no report yet pays nothing and adds no driver-day.
       expect((await loadRun(tx, owner, runId)).lines.reduce((x, l) => x + l.payCents + l.routeDays, 0)).toBe(payBefore);

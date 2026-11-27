@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { operations, routeExecutions, routes, sortCodes } from '~/db/schema';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
 import {
-  addPersonToday, addRoute, confirmUsual, loadDay, markOffToday, moveToCode, removePersonToday, setAssignment, setPersonSortCodes,
+  removeRouteRow, addPersonToday, addRoute, confirmUsual, loadDay, markOffToday, moveToCode, removePersonToday, setAssignment, setPersonSortCodes,
   setPersonStatus, setRouteOnList, setRouteStatus, setSortCodes, undoAssignment,
 } from './daily';
 import { coverHovership, loadHovershipDay, restoreHovership, setHovershipRoutes } from './hovership-day';
@@ -133,10 +133,33 @@ describe('Daily operations, T-Force: add, change, take off', () => {
     const e = await code('9000E');
     await markOffToday(tx, d, { date: DATE, routeId: e.id });
     await setRouteOnList(tx, d, { routeId: e.id, active: false });
-    expect(await rowOf(tx, '9000E')).toBeUndefined(); // the × took the line off; the history keeps who didn't run
+    expect(await rowOf(tx, '9000E')).toBeDefined(); // "didn't run" keeps the line with its person (the × is what removes it)
     expect((await loadDay(tx, d, '2031-03-05')).rows.find((r) => r.code === '9000E')).toBeUndefined();
     await setRouteOnList(tx, d, { routeId: e.id, active: true });
     expect((await loadDay(tx, d, '2031-03-05')).rows.find((r) => r.code === '9000E')).toBeDefined();
+  }));
+});
+
+describe("Daily operations, T-Force: didn't run vs the ×", () => {
+  it("\"didn't run\" keeps the person and their routes on the line (not paid); the route is free for someone else", () => withRollback(async (tx) => {
+    const { code, sc } = await tforceReady(tx);
+    const e = await code('9000E');
+    await setSortCodes(tx, d, { date: DATE, routeId: e.id, sortCodeIds: [sc[0]!.id] });
+    await setRouteStatus(tx, d, { date: DATE, routeId: e.id, status: 'off' });
+    const row = await rowOf(tx, '9000E');
+    expect(row).toMatchObject({ status: 'off', today: { driverId: e.usualDriverId } });
+    expect(row.sortCodes.map((x) => x.id)).toEqual([sc[0]!.id]);
+    const g = await code('9000G');
+    await setSortCodes(tx, d, { date: DATE, routeId: g.id, sortCodeIds: [sc[0]!.id] }); // someone covered it: allowed
+    await setRouteStatus(tx, d, { date: DATE, routeId: e.id, status: 'confirmed' });
+    expect((await rowOf(tx, '9000E')).today.driverId).toBe(e.usualDriverId);
+  }));
+
+  it('the × takes the line off the day completely', () => withRollback(async (tx) => {
+    const { code } = await tforceReady(tx);
+    const e = await code('9000E');
+    await removeRouteRow(tx, d, { date: DATE, routeId: e.id });
+    expect(await rowOf(tx, '9000E')).toBeUndefined();
   }));
 });
 

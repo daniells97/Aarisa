@@ -323,7 +323,7 @@ export async function coverHovership(tx: Tx, actor: Actor, input: { date: string
   if (!moving.length) throw new RuleError('no_routes_to_cover');
   await setOnHovership(tx, actor, byId, true);
   const other = day.rows.find((r) => r.driverId === byId);
-  const has = other && !other.suggested ? other.sortCodes.map((s) => s.id) : [];
+  const has = other ? other.sortCodes.map((s) => s.id) : [];
   // The routes leave whoever runs them now (the person, or someone covering them before), then go to the new person:
   // a route is never on two people at once.
   await setHovershipRoutes(tx, actor, { date: input.date, driverId: row.driverId, sortCodeIds: [], operation: input.operation });
@@ -335,7 +335,7 @@ export async function coverHovership(tx: Tx, actor: Actor, input: { date: string
       await setHovershipRoutes(tx, actor, { date: input.date, driverId: o.driverId, sortCodeIds: mine.filter((x) => !moving.includes(x)), operation: input.operation });
     }
   }
-  await setHovershipRoutes(tx, actor, { date: input.date, driverId: byId, sortCodeIds: [...new Set([...has, ...moving])], operation: input.operation });
+  await setHovershipRoutes(tx, actor, { date: input.date, driverId: byId, sortCodeIds: [...new Set([...has, ...moving])], operation: input.operation }, { skipTaken: true });
   const [who] = await driverProfiles(tx, input.date, [byId]);
   return { name: who?.fullName ?? '', previous };
 }

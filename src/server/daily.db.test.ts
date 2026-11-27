@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { auditLog, operations, payPeriods, payrollRuns, routeExecutions, routes, sortCodes } from '~/db/schema';
 import { actorAs, withRollback, activeTforceRouteCount, driverNamed, contractorNamed } from '../../tests/helpers/db';
 import { ForbiddenError } from './actor';
+import { createDriver } from './people';
 import { addDriverForRoute, confirmUsual, loadDay, setAssignment, setSortCodes, unconfirmUsual, undoAssignment } from './daily';
 
 // Uses the seeded T-Force routes (pnpm db:seed). June 18 has the sample list; Sept 3 has none.
@@ -25,7 +26,8 @@ describe("today's drivers (server)", () => {
       const date = '2026-09-03';
       const confirmed = await confirmUsual(tx, d, date);
       const e = await route(tx, '9000E');
-      const robert = await driverNamed(tx, 'Robert Arteaga');
+      // Someone not on the list yet (a person on another code would be moved instead: one line per person).
+      const robert = await createDriver(tx, d, { fullName: 'Test Change', hovershipCode: null, contractorId: null, phone: null, aliases: [], active: true, setupComplete: true }, date);
       await setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: robert.id } });
       const rows = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.routeId, e.id), eq(routeExecutions.date, date)));
       expect(rows).toHaveLength(1); // updated, never duplicated

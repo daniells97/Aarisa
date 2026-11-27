@@ -197,15 +197,9 @@ function TodayPage() {
     await change(r, payee.driverId ? `d:${payee.driverId}` : `c:${payee.contractorId}`);
   };
 
-  // Shortcuts on today's person (not a contractor): notes and loans, extra job; "didn't run today" and
-  // "no longer used" (off the list from now on).
+  // Shortcuts on today's person (not a contractor): notes and loans, extra job. A "didn't run" line keeps its person.
   const actions = (r: Row) => {
     if (!day.canEdit && !r.today.driverId) return null;
-    if (r.status === 'off') return day.canEdit ? (
-      <span className="person-actions">
-        {(r.usual.driverId || r.usual.contractorId) && <button type="button" className="link-btn" onClick={() => backOn(r)}>{t('td.backOn', { name: r.usual.name ?? '' })}</button>}
-      </span>
-    ) : null;
     return r.today.driverId && r.today.name ? (
       <PersonActions driverId={r.today.driverId} name={r.today.name} date={day.date} openNotes={day.ledger[r.today.driverId]?.openNotes}
         owedCents={day.ledger[r.today.driverId]?.owedCents} canLogExtra={day.canLogExtra} />
@@ -285,7 +279,8 @@ function TodayPage() {
   );
 
   // Person first: everyone who works today by name (with or without driver code), then the codes nobody drives.
-  const emptyCode = (r: Row) => !r.today.name || r.status === 'off' || r.status === 'no_driver';
+  // A code with nobody on it. "Didn't run" keeps its person and routes, so it stays a normal line (status in red).
+  const emptyCode = (r: Row) => !r.today.name || r.status === 'no_driver';
   const lines: Line[] = [
     ...[...day.rows.filter((r) => !emptyCode(r)).map((r) => ({ kind: 'code' as const, r })), ...day.noCode.map((p) => ({ kind: 'person' as const, p }))]
       .sort((a, b) => (a.kind === 'code' ? a.r.today.name ?? '' : a.p.name).localeCompare(b.kind === 'code' ? b.r.today.name ?? '' : b.p.name)),
