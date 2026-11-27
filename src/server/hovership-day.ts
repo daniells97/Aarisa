@@ -139,12 +139,12 @@ function hovershipListPeople(rows: { name: string; code: string | null; status: 
 
 export async function sendHovershipList(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'drivers.confirm_today');
-  const confirmed = await confirmUsualHovership(tx, actor, date, operation);
+  // Sends the list as it is now; confirming is its own button.
   const day = await loadHovershipDay(tx, actor, date, operation);
   const op = await operationFor(tx, operation, 'report_code');
   const people = hovershipListPeople(day.rows);
   const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, [], '/hovership/today');
-  return { confirmed, ...res };
+  return res;
 }
 
 /**

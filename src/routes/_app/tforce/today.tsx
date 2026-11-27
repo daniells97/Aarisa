@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addPerson, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { addPerson, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -79,6 +79,14 @@ function TodayPage() {
 
   // "Confirm and send list" (the operator's step): confirms the usual drivers and emails the list to the people
   // marked for it in Team access, who then set driver codes and routes.
+  // "Confirm N usual drivers": only confirms (with Undo); sending the list is its own button.
+  const confirm = async () => {
+    const res = await confirmAll({ data: { date: day.date, operation: day.operation.code } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.confirmedAll', { count: res.value }), unconfirm);
+  };
+
   const send = async () => {
     const res = await sendList({ data: { date: day.date, operation: day.operation.code } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
@@ -295,9 +303,10 @@ function TodayPage() {
         <span className="muted" role="listitem">{t('td.sumPeople', { count: s.people })} · {t('td.sumRoutes', { count: s.routes })}</span>
         {day.canEdit && (
           <span className="send-list">
+            {s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all">{t('td.confirmAll', { count: s.proposed })}</Button>}
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
-            <Button variant={day.sent && s.proposed === 0 && !day.sent.changed ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
-              {t(day.sent && s.proposed === 0 ? 'td.resendList' : 'td.sendList')}
+            <Button variant={s.proposed === 0 && (!day.sent || day.sent.changed) ? 'primary' : 'secondary'} onClick={send} className="confirm-all">
+              {t(day.sent ? 'td.resendList' : 'td.sendList')}
             </Button>
           </span>
         )}

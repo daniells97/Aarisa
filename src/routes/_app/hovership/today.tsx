@@ -48,6 +48,14 @@ function HovershipTodayPage() {
   const draftOpen = day.canEdit && (adding || day.rows.length === 0);
 
   // "Confirm and send list", as on T-Force: confirms the usual routes and emails the list to the people marked for it.
+  // "Confirm usual": only confirms (with Undo); sending the list is its own button.
+  const confirm = async () => {
+    const res = await confirmHovershipUsual({ data: { date: day.date } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('hd.confirmedAll', { count: res.value }), unconfirm);
+  };
+
   const send = async () => {
     const res = await sendHovershipList({ data: { date: day.date } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
@@ -183,9 +191,10 @@ function HovershipTodayPage() {
         <span role="listitem" className="muted">{t('hd.people', { count: s.drivers })}</span>
         {day.canEdit && (
           <span className="send-list">
+            {s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all">{t('hd.confirmAll', { count: s.proposed })}</Button>}
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
-            <Button variant={day.sent && s.proposed === 0 && !day.sent.changed ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
-              {t(day.sent && s.proposed === 0 ? 'td.resendList' : 'td.sendList')}
+            <Button variant={s.proposed === 0 && (!day.sent || day.sent.changed) ? 'primary' : 'secondary'} onClick={send} className="confirm-all">
+              {t(day.sent ? 'td.resendList' : 'td.sendList')}
             </Button>
           </span>
         )}

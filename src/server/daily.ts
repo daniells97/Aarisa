@@ -656,13 +656,13 @@ export async function moveToCode(tx: Tx, actor: Actor, input: {
  */
 export async function sendDayList(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'drivers.confirm_today');
-  const confirmed = await confirmUsual(tx, actor, date, operation);
+  // Sends the list as it is now; confirming is its own button ("Confirm N usual drivers").
   const day = await loadDay(tx, actor, date, operation);
   const op = await operationFor(tx, operation, 'daily_list');
   const people = tforceListPeople(day);
   const codesNoDriver = day.rows.filter((r) => r.status === 'no_driver').map((r) => r.code);
   const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, codesNoDriver, '/tforce/today');
-  return { confirmed, ...res };
+  return res;
 }
 
 /** Emails a confirmed day list to everyone marked for it in Team access, and records the send. */

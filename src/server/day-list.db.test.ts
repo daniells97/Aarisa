@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { dayListSends, routeExecutions, routes, sortCodes, users } from '~/db/schema';
 import type { Mail } from '~/integrations/mail';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
-import { addPersonToday, loadDay, moveToCode, removePersonToday, sendDayList, setAssignment, setPersonSortCodes, setSortCodes } from './daily';
+import { addPersonToday, confirmUsual, loadDay, moveToCode, removePersonToday, sendDayList, setAssignment, setPersonSortCodes, setSortCodes } from './daily';
 import { createDriver } from './people';
 
 const sent: Mail[] = [];
@@ -72,7 +72,7 @@ describe('daily list, person first', () => {
     expect(day.rows.find((r) => r.code === '9000E')).toMatchObject({ status: 'no_driver' });
   }));
 
-  it('"Confirm and send list" confirms the usual drivers and emails the people marked for it', () => withRollback(async (tx) => {
+  it('"Send list" emails the list as it is (it confirms nothing); confirming is its own step', () => withRollback(async (tx) => {
     sent.length = 0;
     await tx.update(users).set({ receivesDayList: false });
     await tx.insert(users).values([
@@ -82,9 +82,12 @@ describe('daily list, person first', () => {
     ]);
     const p = await createDriver(tx, d, { ...base, fullName: 'Test Mail Person' }, date);
     await addPersonToday(tx, d, { date, driverId: p.id });
+    const before = (await loadDay(tx, d, date)).summary.proposed;
     const res = await sendDayList(tx, d, date);
-    expect(res.confirmed).toBeGreaterThan(0);
-    expect(res).toMatchObject({ recipients: 1, sent: 1 });
+    expect(res).toMatchObject({ recipients: 1, sent: 1, update: false });
+    expect((await loadDay(tx, d, date)).summary.proposed).toBe(before); // nothing confirmed by sending
+    expect(await confirmUsual(tx, d, date)).toBeGreaterThanOrEqual(before);
+    expect((await loadDay(tx, d, date)).summary.proposed).toBe(0);
     expect(sent[0]!.to).toBe('admin@test.com');
     expect(sent[0]!.subject).toMatch(/^Conductores de .+ confirmados para el jueves, 3 de septiembre/);
     expect(sent[0]!.html).toContain('Sin code driver: Test Mail Person.');
