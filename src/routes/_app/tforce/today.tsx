@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { setStatus, addPerson, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { removeRow, setStatus, addPerson, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -164,6 +164,20 @@ function TodayPage() {
     });
   };
 
+  // The × on a line: off today's list (the history keeps that they didn't run), with Undo putting it all back.
+  const removeLine = async (r: Row) => {
+    const res = await removeRow({ data: { date: day.date, routeId: r.routeId } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.personRemoved', { name: r.today.name ?? r.code }), async () => {
+      if (res.value.wasActive) await setRouteListed({ data: { routeId: r.routeId, active: true } });
+      const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
+
   // "Didn't run today": only this day, one tap, with Undo (the code is back tomorrow with its usual driver).
   const offToday = async (r: Row) => {
     const res = await markOff({ data: { date: day.date, routeId: r.routeId } });
@@ -202,7 +216,7 @@ function TodayPage() {
   // nobody drives that day comes off the list. Both with Undo.
   const removeX = (r: Row) => !day.canEdit ? null : emptyCode(r)
     ? <RowRemove label={t('td.removeRoute', { route: r.code })} onClick={() => removeRoute(r)} />
-    : <RowRemove label={t('td.removeFromDay', { name: r.today.name ?? r.code })} onClick={() => offToday(r)} />;
+    : <RowRemove label={t('td.removeFromDay', { name: r.today.name ?? r.code })} onClick={() => removeLine(r)} />;
 
   // The driver code of the person on a line: pick another one (they swap with whoever had it) or type a new one.
   // Every code, with who has it today next to it (picking a taken one swaps them).

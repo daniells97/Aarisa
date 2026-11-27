@@ -17,17 +17,33 @@ export function StatusSelect({ value, label, options, onChange }: {
   onChange: (v: RowStatus) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Fixed on screen (tables and panels clip what overflows), under the pill, or above it when there's no room below.
+  const [place, setPlace] = useState<React.CSSProperties>({});
   const wrap = useRef<HTMLSpanElement>(null);
   const menuId = useId();
   const current = options.find((o) => o.value === value) ?? options[0]!;
   useEffect(() => {
     if (!open) return;
+    const btn = wrap.current?.querySelector<HTMLButtonElement>('.status-btn');
+    if (btn) {
+      const r = btn.getBoundingClientRect();
+      const menuH = 56 + options.length * 46;
+      const below = window.innerHeight - r.bottom;
+      const right = Math.max(8, window.innerWidth - r.right);
+      setPlace(below < menuH && r.top > below ? { bottom: window.innerHeight - r.top + 6, right } : { top: r.bottom + 6, right });
+    }
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
     const away = (e: MouseEvent | TouchEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', away);
     document.addEventListener('touchstart', away);
     // Focus the chosen option so arrows and Enter work right away.
-    wrap.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('touchstart', away); };
+    wrap.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
+    return () => {
+      document.removeEventListener('mousedown', away); document.removeEventListener('touchstart', away);
+      window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close);
+    };
   }, [open]);
   const keys = (e: React.KeyboardEvent) => {
     const items = [...(wrap.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])];
@@ -43,7 +59,7 @@ export function StatusSelect({ value, label, options, onChange }: {
         {current.label}<Icon name="chevronDown" width={14} height={14} />
       </button>
       {open && (
-        <span className="status-menu" role="menu" id={menuId} aria-label={label}>
+        <span className="status-menu" role="menu" id={menuId} aria-label={label} style={place}>
           {options.map((o) => (
             <button key={o.value} type="button" role="menuitemradio" aria-checked={o.value === value} className="status-option"
               onClick={() => { setOpen(false); if (o.value !== value) onChange(o.value); }}>

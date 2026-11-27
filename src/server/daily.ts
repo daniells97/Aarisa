@@ -42,7 +42,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   // Codes on the list, plus any taken off it ("No longer used") that still have someone saved this day:
   // that person is on the day's list, so they must show (and can be changed), never hidden.
   const keptForDay = (await tx.select({ routeId: executionView.routeId }).from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date),
-    eq(executionView.kind, 'route'), isNotNull(executionView.routeId), or(isNotNull(executionView.payeeId), isNotNull(executionView.driverId)))))
+    eq(executionView.kind, 'route'), isNotNull(executionView.routeId), isNotNull(executionView.payeeId))))
     .map((x) => x.routeId!);
   const routeRows = await tx.select().from(routes).where(and(eq(routes.operationId, op.id),
     keptForDay.length ? or(eq(routes.active, true), inArray(routes.id, keptForDay)) : eq(routes.active, true))).orderBy(asc(routes.code));
@@ -615,6 +615,19 @@ export async function setPersonToday(tx: Tx, actor: Actor, input: { executionId:
   const [after] = await tx.update(routeExecutions).set({ payeeId, driverId: input.driverId, status: 'changed', updatedAt: new Date() }).where(eq(routeExecutions.id, row.id)).returning();
   await audit(tx, { table: 'route_executions', recordId: row.id, action: 'update', before: row, after, userId: actor.userId, source: actor.source });
   return row.id;
+}
+
+/**
+ * The × on a line with a driver code: the person didn't run that day (kept for the history, nobody paid) and the
+ * code comes off the list, so the line goes away. Returns what Undo needs.
+ */
+export async function removeRouteRow(tx: Tx, actor: Actor, input: { date: string; routeId: string }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
+  if (!route) throw new RuleError('not_found');
+  const off = await markOffToday(tx, actor, input);
+  if (route.active) await setRouteOnList(tx, actor, { routeId: route.id, active: false });
+  return { previous: off.previous, wasActive: route.active };
 }
 
 /** Takes someone without driver code off today's list ("Didn't work today"). Returns them, for Undo. */

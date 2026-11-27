@@ -128,12 +128,12 @@ describe('Daily operations, T-Force: add, change, take off', () => {
     expect(await tx.select().from(routeExecutions).where(and(eq(routeExecutions.date, DATE), isNull(routeExecutions.routeId), eq(routeExecutions.driverId, p.id)))).toHaveLength(1);
   }));
 
-  it('a code nobody drives that day comes off the list with the ×, and back with Undo', () => withRollback(async (tx) => {
+  it('the × on a line with a code: off the day\'s list (the history keeps who didn\'t run), back with Undo', () => withRollback(async (tx) => {
     const { code } = await tforceReady(tx);
     const e = await code('9000E');
     await markOffToday(tx, d, { date: DATE, routeId: e.id });
     await setRouteOnList(tx, d, { routeId: e.id, active: false });
-    expect(await rowOf(tx, '9000E')).toBeDefined(); // still shown on this day: it has who didn't run
+    expect(await rowOf(tx, '9000E')).toBeUndefined(); // the × took the line off; the history keeps who didn't run
     expect((await loadDay(tx, d, '2031-03-05')).rows.find((r) => r.code === '9000E')).toBeUndefined();
     await setRouteOnList(tx, d, { routeId: e.id, active: true });
     expect((await loadDay(tx, d, '2031-03-05')).rows.find((r) => r.code === '9000E')).toBeDefined();

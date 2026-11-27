@@ -8,7 +8,7 @@ import type { Tx } from '~/db/client';
 import { operations, routeExecutions, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { setPersonStatus, setRouteStatus, addPersonToday, moveToCode, removePersonToday, sendDayList, setPersonSortCodes, setPersonToday, addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
+import { removeRouteRow, setPersonStatus, setRouteStatus, addPersonToday, moveToCode, removePersonToday, sendDayList, setPersonSortCodes, setPersonToday, addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -161,4 +161,13 @@ export const setStatus = createServerFn({ method: 'POST' })
     const res = await setRouteStatus(tx, actor, data);
     await recheckRoute(tx, actor, data.date, data.routeId);
     return { previous: res.previous, personStatus: null };
+  }));
+
+/** The × on a line with a driver code: off the day's list (didn't run, kept for the history). */
+export const removeRow = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, routeId: uuid }))
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
+    const res = await removeRouteRow(tx, actor, data);
+    await recheckRoute(tx, actor, data.date, data.routeId);
+    return res;
   }));

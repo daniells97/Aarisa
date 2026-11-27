@@ -188,9 +188,27 @@ function HovershipTodayPage() {
     </>
   );
   // The × on each row: "didn't work today" (only this day); on someone already off that day, off the Hovership list. With Undo.
-  const removeX = (r: Row) => !day.canEdit ? null : r.status === 'off'
-    ? <RowRemove label={t('hd.removeFromList', { name: r.name })} onClick={() => remove(r)} />
-    : <RowRemove label={t('td.removeFromDay', { name: r.name })} onClick={() => offToday(r)} />;
+  // The × on a line: the person didn't work today (kept for the history) and comes off the Hovership list,
+  // so the line goes away. Undo puts both back.
+  const removeX = (r: Row) => !day.canEdit ? null
+    : <RowRemove label={t('td.removeFromDay', { name: r.name })} onClick={() => removeLine(r)} />;
+  const removeLine = async (r: Row) => {
+    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id) }];
+    if (r.status !== 'off') {
+      const off = await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: [] } });
+      if (!off.ok) return toast(t(`error.${off.code}` as MessageKey));
+    }
+    const res = await setHovershipDriverOnList({ data: { driverId: r.driverId, on: false } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(t('td.personRemoved', { name: r.name }), async () => {
+      await setHovershipDriverOnList({ data: { driverId: r.driverId, on: true } });
+      const u = await restoreHovershipDrivers({ data: { date: day.date, previous } });
+      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+      await router.invalidate();
+      toast(t('td.undone'));
+    });
+  };
 
   const sentTime = day.sent ? new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(day.sent.at)) : '';
   return (
