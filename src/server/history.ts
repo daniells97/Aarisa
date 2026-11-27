@@ -48,7 +48,15 @@ export async function loadHistory(tx: Tx, actor: Actor, input: { from: string; t
   // report names the driver (Hovership), a person with no routes and no pieces that day didn't work
   // ("Didn't work today" or covered by someone else), so that day isn't history, as in Daily operations.
   const byReport = new Set(ops.filter((o) => o.driverSource === 'report_code').map((o) => o.id));
-  const days = all.filter((e) => pieces.has(e.id) || ran.has(e.id) || (e.payeeId && !byReport.has(e.operationId)));
+  // A day's status for the history: confirmed, to confirm, or didn't run / didn't work (with who it was).
+  const dayStatus = (e: (typeof all)[number]): 'confirmed' | 'proposed' | 'off' | 'no_driver' => {
+    if (e.status === 'off') return 'off';
+    if (byReport.has(e.operationId) && e.payeeId && !pieces.has(e.id) && !ran.has(e.id)) return 'off';
+    if (e.status === 'proposed' || e.status === 'waiting') return 'proposed';
+    if (e.status === 'no_driver') return 'no_driver';
+    return 'confirmed';
+  };
+  const days = all.filter((e) => pieces.has(e.id) || ran.has(e.id) || !!e.payeeId || (e.status === 'off' && !!e.driverId));
 
   const people = await driverProfiles(tx, today);
   const companies = await contractorProfiles(tx);
@@ -64,12 +72,12 @@ export async function loadHistory(tx: Tx, actor: Actor, input: { from: string; t
 
   const rows = days.map((e) => ({
     id: e.id, date: e.date, operation: opCode.get(e.operationId) ?? '', driverCode: e.routeId ? routeCode.get(e.routeId) ?? null : null,
-    ...who(e), rawName: e.rawName, sortCodes: ran.get(e.id) ?? [], pieces: pieces.get(e.id) ?? null, status: e.status,
+    ...who(e), rawName: e.rawName, sortCodes: ran.get(e.id) ?? [], pieces: pieces.get(e.id) ?? null, status: dayStatus(e),
   }));
 
   const byPerson = new Map<string, { key: string; driverId: string | null; name: string; days: number; pieces: number; driverCodes: Set<string>; sortCodes: Map<string, number> }>();
   for (const r of rows) {
-    if (!r.name) continue;
+    if (!r.name || r.status === 'off') continue; // days worked only
     const key = r.driverId ?? r.name;
     const p = byPerson.get(key) ?? { key, driverId: r.driverId, name: r.name, days: 0, pieces: 0, driverCodes: new Set(), sortCodes: new Map() };
     p.days++; p.pieces += r.pieces ?? 0;

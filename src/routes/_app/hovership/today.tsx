@@ -11,6 +11,7 @@ import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
 import { RowRemove } from '~/ui/RowRemove';
+import { StatusSelect, type RowStatus } from '~/ui/StatusSelect';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 
@@ -83,6 +84,36 @@ function HovershipTodayPage() {
   };
 
   // "Didn't work today": only this day (no routes), one tap, with Undo back to how the day was.
+  // The status of a row, changeable in place: Confirmed (their routes), To confirm (back to the suggestion),
+  // Didn't work today (no routes). With Undo back to how the day was.
+  const statusCell = (r: Row) => {
+    const st = STATUS[r.status];
+    const routesFor = r.status === 'off' ? r.usual : r.sortCodes;
+    if (!day.canEdit || r.status === 'covered' || r.status === 'none') return <Pill tone={st.tone}>{t(st.key)}</Pill>;
+    const value: RowStatus = r.status === 'off' ? 'off' : r.status === 'proposed' ? 'proposed' : 'confirmed';
+    const options = [
+      ...(routesFor.length ? [{ value: 'confirmed' as const, label: t('td.status.confirmed') }] : []),
+      { value: 'proposed' as const, label: t('td.statusToConfirm') },
+      { value: 'off' as const, label: t('hd.status.off') },
+    ];
+    return <StatusSelect value={value} tone={st.tone} label={t('td.statusOf', { name: r.name })} options={options}
+      onChange={async (v) => {
+        if (v === 'off') return offToday(r);
+        const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id) }];
+        const res = v === 'confirmed'
+          ? await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: routesFor.map((x) => x.id) } })
+          : await restoreHovershipDrivers({ data: { date: day.date, previous: [{ driverId: r.driverId, sortCodeIds: null }] } });
+        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+        await router.invalidate();
+        toast(t('td.statusSet', { name: r.name, status: t(v === 'confirmed' ? 'td.status.confirmed' : 'td.statusToConfirm') }), async () => {
+          const u = await restoreHovershipDrivers({ data: { date: day.date, previous } });
+          if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+          await router.invalidate();
+          toast(t('td.undone'));
+        });
+      }} />;
+  };
+
   const offToday = async (r: Row) => {
     const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id) }];
     const res = await saveHovershipRoutes({ data: { date: day.date, driverId: r.driverId, sortCodeIds: [] } });
@@ -219,7 +250,7 @@ function HovershipTodayPage() {
                         <td>{picker(r)}<span className="sub">{r.status === 'covered' ? t('hd.coversFor', { name: r.name }) + ' · ' : ''}{about(r)}</span>{actions(r)}</td>
                         <td><span className="cell-text">{r.code ? <strong>{r.code}</strong> : <span className="muted">–</span>}</span></td>
                         <td>{routesOf(r)}</td>
-                        <td><span className="status-cell"><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>{removeX(r)}</span></td>
+                        <td><span className="status-cell">{statusCell(r)}{removeX(r)}</span></td>
                       </tr>
                     ))}
                     {draftOpen && <HovershipRecord day={day} dateLabel={dateLabel} layout="row" focus={adding} onCancel={() => setAdding(false)} />}
@@ -231,7 +262,7 @@ function HovershipTodayPage() {
                   <li key={r.driverId}>
                     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>{who(r)}</div>
-                      <span className="status-cell"><Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].key)}</Pill>{removeX(r)}</span>
+                      <span className="status-cell">{statusCell(r)}{removeX(r)}</span>
                     </div>
                     {picker(r)}
                     <span className="sub">{about(r)}</span>

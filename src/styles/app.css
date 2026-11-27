@@ -502,10 +502,10 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 /* Daily operations table: fixed column widths so the status and its × always fit next to the boxes. */
 @media (min-width: 900px) {
   .today-list table { table-layout: fixed; width: 100%; }
-  .today-list th:nth-child(1) { width: 31%; }
-  .today-list th:nth-child(2) { width: 19%; }
-  .today-list th:nth-child(3) { width: 27%; }
-  .today-list th:nth-child(4) { width: 23%; }
+  .today-list th:nth-child(1) { width: 29%; }
+  .today-list th:nth-child(2) { width: 18%; }
+  .today-list th:nth-child(3) { width: 25%; }
+  .today-list th:nth-child(4) { width: 28%; }
   .today-list td .picker, .today-list tr.new-record td:first-child .picker { min-width: 0; width: 100%; }
   .today-list td input, .today-list td .input { width: 100%; min-width: 0; box-sizing: border-box; }
   .today-list td .pill { height: auto; min-height: 26px; padding: 3px 10px; line-height: 1.25; }
@@ -518,3 +518,22 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 
 /* Test copy of the portal: a band on every screen. */
 .staging-banner { position: sticky; top: 0; z-index: 60; background: #B7791F; color: #fff; text-align: center; font: 600 14px var(--font); padding: 6px 12px; }
+/* A status you can change in place: the pill with a native select inside (phone-friendly, keyboard-friendly). */
+.status-select { position: relative; padding-right: 26px; cursor: pointer; }
+.status-select select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; margin: 0; cursor: pointer; min-height: 26px; max-width: 100%; }
+.status-select::after { content: ''; position: absolute; right: 10px; top: 50%; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+.status-select:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (max-width: 899px) { .status-select select { min-height: 36px; } }
+.status-select { flex: none; padding-right: 30px; }
+.status-select select { padding-right: 2px; width: auto; }
+.today-list td .status-select { padding-right: 30px; }
+/* Routes (sort codes) as plates, like the driver codes: navy with a red band (client request, Nov 27 2026). */
+.sort-chip { min-height: 30px; border-radius: 6px; padding: 3px 4px 0 10px; color: #fff; background: linear-gradient(var(--brand-red) 0 4px, var(--brand) 4px);
+  font: 700 15px/1 var(--font-cond); letter-spacing: .03em; box-shadow: inset 0 0 0 1px rgba(23,32,51,.55); }
+.sort-chip:not(:has(button)) { padding-right: 10px; }
+.sort-chip-x { color: #fff; width: 26px; height: 26px; border-radius: 4px; }
+.sort-chip-x:hover { background: rgba(255,255,255,.18); }
+/* Still only a suggestion (the usual routes, not saved for the day): an outlined plate. */
+.sort-chip.suggested { background: var(--surface); color: var(--brand); border: 1.5px dashed var(--brand-mid); box-shadow: none; padding-top: 0; }
+.sort-chip.suggested .sort-chip-x { color: var(--brand); }
+.sort-chip.suggested .sort-chip-x:hover { background: var(--brand-tint); }

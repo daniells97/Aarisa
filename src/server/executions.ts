@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { contractors, drivers, executionView, payees, routeExecutions } from '~/db/schema';
+import { contractors, drivers, executionSortCodes, executionView, payees, routeExecutions } from '~/db/schema';
 import { RuleError } from './errors';
 
 // Executions (docs/db-model.md §2.6): one payee, one day, one route or none. Screens still speak in
@@ -112,4 +112,13 @@ export async function extraDay(tx: Tx, input: { operationId: string; date: strin
     confirmedBy: input.userId, confirmedAt: new Date(),
   }).returning();
   return { row: row!, created: true };
+}
+
+/** Which of these routes (sort codes) another execution already has that day: a route is run by one line only. */
+export async function sortCodesTaken(tx: Tx, operationId: string, date: string, sortCodeIds: string[], exceptExecutionId?: string): Promise<string[]> {
+  if (!sortCodeIds.length) return [];
+  const rows = await tx.select({ executionId: executionSortCodes.executionId, sortCodeId: executionSortCodes.sortCodeId }).from(executionSortCodes)
+    .innerJoin(routeExecutions, eq(routeExecutions.id, executionSortCodes.executionId))
+    .where(and(eq(routeExecutions.operationId, operationId), eq(routeExecutions.date, date), inArray(executionSortCodes.sortCodeId, sortCodeIds)));
+  return [...new Set(rows.filter((r) => r.executionId !== exceptExecutionId).map((r) => r.sortCodeId))];
 }

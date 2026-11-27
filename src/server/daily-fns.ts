@@ -8,7 +8,7 @@ import type { Tx } from '~/db/client';
 import { operations, routeExecutions, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { addPersonToday, moveToCode, removePersonToday, sendDayList, setPersonSortCodes, setPersonToday, addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
+import { setPersonStatus, setRouteStatus, addPersonToday, moveToCode, removePersonToday, sendDayList, setPersonSortCodes, setPersonToday, addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -148,4 +148,17 @@ export const sendList = createServerFn({ method: 'POST' })
     const res = await sendDayList(tx, actor, data.date, data.operation);
     await recheckForDate(tx, actor, data.date, data.operation);
     return res;
+  }));
+
+/** The status chosen on a row: Confirmed, To confirm, or Didn't run today (T-Force). Returns what Undo needs. */
+export const setStatus = createServerFn({ method: 'POST' })
+  .validator(z.union([
+    z.object({ date: isoDate, routeId: uuid, status: z.enum(['confirmed', 'proposed', 'off']) }),
+    z.object({ executionId: uuid, status: z.enum(['confirmed', 'proposed']) }),
+  ]))
+  .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => {
+    if ('executionId' in data) return { previous: null, personStatus: await setPersonStatus(tx, actor, data) };
+    const res = await setRouteStatus(tx, actor, data);
+    await recheckRoute(tx, actor, data.date, data.routeId);
+    return { previous: res.previous, personStatus: null };
   }));

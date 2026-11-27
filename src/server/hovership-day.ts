@@ -9,7 +9,7 @@ import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { ledgerByDriver } from './driver-ledger';
 import { RuleError } from './errors';
-import { payeeIdOf } from './executions';
+import { payeeIdOf, sortCodesTaken } from './executions';
 import { assertNotLocked, operationFor } from './ops';
 import { contractorProfiles, createDriver, driverProfiles } from './people';
 import { emailDayList, lastSend } from './daily';
@@ -151,13 +151,13 @@ export async function sendHovershipList(tx: Tx, actor: Actor, date: string, oper
  * The routes a Hovership driver runs on a day, replacing what was there. The usual routes confirm the day,
  * others are a change, none means off. Someone with no usual routes yet keeps these as usual from now on.
  */
-export async function setHovershipRoutes(tx: Tx, actor: Actor, input: { date: string; driverId: string; sortCodeIds: string[]; operation?: string }) {
+export async function setHovershipRoutes(tx: Tx, actor: Actor, input: { date: string; driverId: string; sortCodeIds: string[]; operation?: string }, opts: { skipTaken?: boolean } = {}) {
   assertCan(actor, 'drivers.confirm_today');
   const op = await operationFor(tx, input.operation, 'report_code');
   await assertNotLocked(tx, op, input.date);
   const [person] = await driverProfiles(tx, input.date, [input.driverId]);
   if (!person) throw new RuleError('not_found');
-  const wanted = [...new Set(input.sortCodeIds)];
+  let wanted = [...new Set(input.sortCodeIds)];
   if (wanted.length) {
     const known = await tx.select({ id: sortCodes.id }).from(sortCodes).where(and(eq(sortCodes.operationId, op.id), inArray(sortCodes.id, wanted)));
     if (known.length !== wanted.length) throw new RuleError('not_found');
@@ -167,6 +167,12 @@ export async function setHovershipRoutes(tx: Tx, actor: Actor, input: { date: st
   if (!usual.length && wanted.length) await saveUsual(tx, actor, person.id, wanted, []);
 
   const payeeId = (await payeeIdOf(tx, { driverId: person.id, contractorId: null }))!;
+  // A route is run by one person a day: someone else's route is refused (or, when confirming usual routes, left with them).
+  const [mine] = await tx.select({ id: routeExecutions.id }).from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, input.date),
+    eq(routeExecutions.payeeId, payeeId), eq(routeExecutions.kind, 'route'), isNull(routeExecutions.routeId)));
+  const taken = await sortCodesTaken(tx, op.id, input.date, wanted, mine?.id);
+  if (taken.length && !opts.skipTaken) throw new RuleError('route_taken');
+  wanted = wanted.filter((x) => !taken.includes(x));
   let [day] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, input.date),
     eq(routeExecutions.payeeId, payeeId), eq(routeExecutions.kind, 'route'), isNull(routeExecutions.routeId)));
   if (!day) {
@@ -192,7 +198,7 @@ export async function confirmUsualHovership(tx: Tx, actor: Actor, date: string, 
   assertCan(actor, 'drivers.confirm_today');
   const day = await loadHovershipDay(tx, actor, date, operation);
   const todo = day.rows.filter((r) => r.status === 'proposed');
-  for (const r of todo) await setHovershipRoutes(tx, actor, { date, driverId: r.driverId, sortCodeIds: r.usual.map((u) => u.id), operation });
+  for (const r of todo) await setHovershipRoutes(tx, actor, { date, driverId: r.driverId, sortCodeIds: r.usual.map((u) => u.id), operation }, { skipTaken: true });
   return todo.length;
 }
 
@@ -317,9 +323,19 @@ export async function coverHovership(tx: Tx, actor: Actor, input: { date: string
   if (!moving.length) throw new RuleError('no_routes_to_cover');
   await setOnHovership(tx, actor, byId, true);
   const other = day.rows.find((r) => r.driverId === byId);
-  const has = other ? other.sortCodes.map((s) => s.id) : [];
-  await setHovershipRoutes(tx, actor, { date: input.date, driverId: byId, sortCodeIds: [...new Set([...has, ...moving])], operation: input.operation });
+  const has = other && !other.suggested ? other.sortCodes.map((s) => s.id) : [];
+  // The routes leave whoever runs them now (the person, or someone covering them before), then go to the new person:
+  // a route is never on two people at once.
   await setHovershipRoutes(tx, actor, { date: input.date, driverId: row.driverId, sortCodeIds: [], operation: input.operation });
+  for (const o of day.rows) {
+    if (o.driverId === row.driverId || o.driverId === byId || o.suggested) continue;
+    const mine = o.sortCodes.map((x) => x.id);
+    if (mine.some((x) => moving.includes(x))) {
+      previous.push({ driverId: o.driverId, sortCodeIds: mine });
+      await setHovershipRoutes(tx, actor, { date: input.date, driverId: o.driverId, sortCodeIds: mine.filter((x) => !moving.includes(x)), operation: input.operation });
+    }
+  }
+  await setHovershipRoutes(tx, actor, { date: input.date, driverId: byId, sortCodeIds: [...new Set([...has, ...moving])], operation: input.operation });
   const [who] = await driverProfiles(tx, input.date, [byId]);
   return { name: who?.fullName ?? '', previous };
 }
@@ -329,7 +345,7 @@ export async function restoreHovership(tx: Tx, actor: Actor, input: { date: stri
   assertCan(actor, 'drivers.confirm_today');
   const op = await operationFor(tx, input.operation, 'report_code');
   for (const p of input.previous) {
-    if (p.sortCodeIds) { await setHovershipRoutes(tx, actor, { date: input.date, driverId: p.driverId, sortCodeIds: p.sortCodeIds, operation: op.code }); continue; }
+    if (p.sortCodeIds) { await setHovershipRoutes(tx, actor, { date: input.date, driverId: p.driverId, sortCodeIds: p.sortCodeIds, operation: op.code }, { skipTaken: true }); continue; }
     // It was only a suggestion: drop the day made here, if nothing else depends on it.
     const payeeId = (await payeeIdOf(tx, { driverId: p.driverId, contractorId: null }))!;
     const [row] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, input.date),

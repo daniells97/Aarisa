@@ -22,6 +22,10 @@ function rangeOf(s: Search) {
   return rangeTooLong(r.from, r.to) ? { from: addDays(r.to, -(MAX_RANGE_DAYS - 1)), to: r.to, cut: true } : { ...r, cut: false };
 }
 
+/** A day's status in the history, as chosen in Daily operations. */
+const DAY_LABEL = { confirmed: 'td.status.confirmed', proposed: 'td.statusToConfirm', off: 'td.status.off', no_driver: 'td.status.no_driver' } as const;
+const DAY_TONE = { confirmed: 'ok', proposed: 'muted', off: 'muted', no_driver: 'warn' } as const;
+
 export const Route = createFileRoute('/_app/history')({
   validateSearch: search,
   loaderDeps: ({ search: s }) => s,
@@ -156,7 +160,7 @@ function HistoryPage() {
           <>
           <div className="table-wrap desktop-only">
             <table>
-              <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.contract')}</th><th scope="col">{t('td.route')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.routes')}</th><th scope="col" className="r">{t('hi.pieces')}</th></tr></thead>
+              <thead><tr><th scope="col">{t('hi.date')}</th><th scope="col">{t('hi.contract')}</th><th scope="col">{t('td.route')}</th><th scope="col">{t('hi.person')}</th><th scope="col">{t('hi.routes')}</th><th scope="col" className="r">{t('hi.pieces')}</th><th scope="col">{t('td.status')}</th></tr></thead>
               <tbody>
                 {data.rows.map((r) => (
                   <tr key={r.id}>
@@ -166,6 +170,7 @@ function HistoryPage() {
                     <td>{r.name ?? (r.rawName ? `“${r.rawName}”` : <span className="muted">{t('td.noDriver')}</span>)}{r.company && r.driverId && <> <Pill tone="contractor">{r.company}</Pill></>}</td>
                     <td>{r.sortCodes.length ? <span className="sort-codes">{r.sortCodes.map((c) => <span key={c} className="sort-chip">{c}</span>)}</span> : <span className="muted">–</span>}</td>
                     <td className="r num">{r.pieces == null ? <span className="muted">–</span> : f.number(r.pieces)}</td>
+                    <td><Pill tone={DAY_TONE[r.status]}>{t(DAY_LABEL[r.status])}</Pill></td>
                   </tr>
                 ))}
               </tbody>
@@ -176,8 +181,9 @@ function HistoryPage() {
               <li key={r.id}>
                 <div className="hist-card-top">
                   <span className="muted num">{shortDay(r.date)} · {clientName(r.operation)}</span>
-                  {r.pieces != null && <span className="num">{t('hi.piecesUnit', { n: f.number(r.pieces) })}</span>}
+                  <Pill tone={DAY_TONE[r.status]}>{t(DAY_LABEL[r.status])}</Pill>
                 </div>
+                {r.pieces != null && <span className="num muted">{t('hi.piecesUnit', { n: f.number(r.pieces) })}</span>}
                 <span className="row" style={{ gap: 8 }}>
                   {r.driverCode && <RoutePlate code={r.driverCode} size="sm" />}
                   <strong>{r.name ?? (r.rawName ? `“${r.rawName}”` : t('td.noDriver'))}</strong>

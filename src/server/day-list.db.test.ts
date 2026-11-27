@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { dayListSends, routeExecutions, routes, sortCodes, users } from '~/db/schema';
 import type { Mail } from '~/integrations/mail';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
-import { addPersonToday, confirmUsual, loadDay, moveToCode, removePersonToday, sendDayList, setAssignment, setPersonSortCodes, setSortCodes } from './daily';
+import { setPersonStatus, setRouteStatus, addPersonToday, confirmUsual, loadDay, moveToCode, removePersonToday, sendDayList, setAssignment, setPersonSortCodes, setSortCodes } from './daily';
 import { createDriver } from './people';
+import { loadHistory } from './history';
 
 const sent: Mail[] = [];
 vi.mock('~/integrations/mail', () => ({ sendMail: vi.fn(async (m: Mail) => { sent.push(m); return true; }) }));
@@ -126,5 +127,28 @@ describe('daily list, person first', () => {
     const changes = (await loadDay(tx, d, date)).changes;
     expect(changes.find((c) => c.left && c.from === 'Test Trace')).toBeDefined();
     expect(changes.find((c) => !c.route && c.to === 'Test Trace' && c.action === 'insert')).toBeDefined();
+  }));
+
+  it('the status of a row can be set: confirmed, to confirm, didn\'t run (who it was stays for the history)', () => withRollback(async (tx) => {
+    const e = await route(tx, '9000E');
+    await setRouteStatus(tx, d, { date, routeId: e.id, status: 'confirmed' });
+    expect((await loadDay(tx, d, date)).rows.find((r) => r.code === '9000E')!.status).toBe('confirmed');
+    await setRouteStatus(tx, d, { date, routeId: e.id, status: 'proposed' });
+    expect((await loadDay(tx, d, date)).rows.find((r) => r.code === '9000E')).toMatchObject({ status: 'proposed', today: { driverId: e.usualDriverId } });
+    await setRouteStatus(tx, d, { date, routeId: e.id, status: 'off' });
+    expect((await loadDay(tx, d, date)).rows.find((r) => r.code === '9000E')!.status).toBe('off');
+    const h = await loadHistory(tx, actorAs('owner'), { from: date, to: date, operation: 'tforce' }, date);
+    const row = h.rows.find((r) => r.driverCode === '9000E')!;
+    expect(row).toMatchObject({ status: 'off', driverId: e.usualDriverId });
+    // Back on the road from "didn't run": confirmed on the usual driver.
+    await setRouteStatus(tx, d, { date, routeId: e.id, status: 'confirmed' });
+    expect((await loadDay(tx, d, date)).rows.find((r) => r.code === '9000E')).toMatchObject({ status: 'confirmed', today: { driverId: e.usualDriverId } });
+    // A person without driver code can be left to confirm; "Confirm usual" confirms them too.
+    const p = await createDriver(tx, d, { ...base, fullName: 'Test Status' }, date);
+    const id = await addPersonToday(tx, d, { date, driverId: p.id });
+    await setPersonStatus(tx, d, { executionId: id, status: 'proposed' });
+    expect((await loadDay(tx, d, date)).noCode.find((x) => x.executionId === id)!.status).toBe('proposed');
+    await confirmUsual(tx, d, date);
+    expect((await loadDay(tx, d, date)).noCode.find((x) => x.executionId === id)!.status).toBe('confirmed');
   }));
 });

@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addPerson, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { setStatus, addPerson, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -12,6 +12,7 @@ import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
 import { RowRemove } from '~/ui/RowRemove';
+import { StatusSelect, type RowStatus } from '~/ui/StatusSelect';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -65,6 +66,14 @@ function TodayPage() {
 
   const change = async (r: Row, value: string, knownName?: string) => {
     const payee = decode(value);
+    // Someone already on another code today: they move here and swap with whoever was here (one line per person).
+    const elsewhere = payee && 'driverId' in payee ? day.rows.find((x) => x.routeId !== r.routeId && x.today.driverId === payee.driverId && x.status !== 'off' && x.status !== 'no_driver') : undefined;
+    if (elsewhere) {
+      const res = await giveCode({ data: { date: day.date, from: { routeId: elsewhere.routeId }, to: { routeId: r.routeId }, operation: day.operation.code } });
+      if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+      await router.invalidate();
+      return toast(t('td.movedHere', { name: elsewhere.today.name ?? '', from: elsewhere.code, to: r.code }));
+    }
     const res = await assign({ data: { date: day.date, routeId: r.routeId, payee } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     const name = knownName ?? (payee ? (value.startsWith('d:') ? day.options.drivers.find((d) => d.id === value.slice(2))?.name : day.options.contractors.find((c) => c.id === value.slice(2))?.name) : null);
@@ -269,6 +278,51 @@ function TodayPage() {
   ];
   const sentTime = day.sent ? new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(day.sent.at)) : '';
 
+  // The status of a row, changeable in place: Confirmed, To confirm, Didn't run today (with Undo).
+  const statusOptions = (withOff: boolean) => [
+    { value: 'confirmed' as const, label: t('td.status.confirmed') },
+    { value: 'proposed' as const, label: t('td.statusToConfirm') },
+    ...(withOff ? [{ value: 'off' as const, label: t('td.status.off') }] : []),
+  ];
+  const statusCell = (line: Line) => {
+    if (line.kind === 'person') {
+      const p = line.p;
+      const value: RowStatus = p.status === 'proposed' ? 'proposed' : 'confirmed';
+      if (!day.canEdit) return <Pill tone={value === 'proposed' ? 'muted' : 'ok'}>{t(value === 'proposed' ? 'td.statusToConfirm' : 'td.status.confirmed')}</Pill>;
+      return <StatusSelect value={value} tone={value === 'proposed' ? 'muted' : 'ok'} label={t('td.statusOf', { name: p.name })} options={statusOptions(true)}
+        onChange={async (v) => {
+          if (v === 'off') return removeFromDay(p);
+          const res = await setStatus({ data: { executionId: p.executionId, status: v } });
+          if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+          await router.invalidate();
+          toast(t('td.statusSet', { name: p.name, status: t(v === 'proposed' ? 'td.statusToConfirm' : 'td.status.confirmed') }), async () => {
+            const u = await setStatus({ data: { executionId: p.executionId, status: v === 'proposed' ? 'confirmed' : 'proposed' } });
+            if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+            await router.invalidate();
+            toast(t('td.undone'));
+          });
+        }} />;
+    }
+    const r = line.r;
+    const st = statusOf(r);
+    // Nobody on the code, or a contractor's own route: a plain pill (nothing to confirm by hand here).
+    if (!day.canEdit || r.status === 'no_driver' || r.status === 'waiting') return <Pill tone={st.tone}>{t(st.key)}</Pill>;
+    const value: RowStatus = r.status === 'off' ? 'off' : r.status === 'proposed' ? 'proposed' : 'confirmed';
+    return <StatusSelect value={value} tone={st.tone} label={t('td.statusOf', { name: r.today.name ?? r.code })} options={statusOptions(true)}
+      onChange={async (v) => {
+        const res = await setStatus({ data: { date: day.date, routeId: r.routeId, status: v } });
+        if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+        await router.invalidate();
+        const label = v === 'off' ? t('td.status.off') : v === 'proposed' ? t('td.statusToConfirm') : t('td.status.confirmed');
+        toast(t('td.statusSet', { name: r.today.name ?? r.usual.name ?? r.code, status: label }), async () => {
+          const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
+          if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
+          await router.invalidate();
+          toast(t('td.undone'));
+        });
+      }} />;
+  };
+
   const s = day.summary;
   const unknown = day.rows.filter((r) => r.rawName && r.status === 'no_driver');
   return (
@@ -332,9 +386,9 @@ function TodayPage() {
                         return (
                           <tr key={p.executionId}>
                             <td>{personSelect(p)}<span className="sub">{t('td.noCodeHint')}</span>{personActions(p)}</td>
-                            <td className="code-cell">{codePicker(line)}</td>
+                            <td className="code-cell">{codePicker(line)}<span className="sub" style={{ color: 'var(--amber-ink)' }}>{t('td.status.noCode')}</span></td>
                             <td>{personRoutes(p)}</td>
-                            <td><span className="status-cell"><Pill tone="warn">{t('td.status.noCode')}</Pill>{day.canEdit && <RowRemove label={t('td.removeFromDay', { name: p.name })} onClick={() => removeFromDay(p)} />}</span></td>
+                            <td><span className="status-cell">{statusCell(line)}{day.canEdit && <RowRemove label={t('td.removeFromDay', { name: p.name })} onClick={() => removeFromDay(p)} />}</span></td>
                           </tr>
                         );
                       }
@@ -345,7 +399,7 @@ function TodayPage() {
                           <td>{select(r)}<span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>{actions(r)}</td>
                           <td className="code-cell">{emptyCode(r) ? <RoutePlate code={r.code} needsDriver={r.status === 'no_driver'} /> : codePicker(line)}</td>
                           <td>{routesOf(r)}</td>
-                          <td><span className="status-cell"><Pill tone={st.tone}>{t(st.key)}</Pill>{removeX(r)}</span></td>
+                          <td><span className="status-cell">{statusCell(line)}{removeX(r)}</span></td>
                         </tr>
                       );
                     })}
@@ -359,7 +413,7 @@ function TodayPage() {
                     const p = line.p;
                     return (
                       <li key={p.executionId}>
-                        <div className="row" style={{ justifyContent: 'flex-end' }}><Pill tone="warn">{t('td.status.noCode')}</Pill>{day.canEdit && <RowRemove label={t('td.removeFromDay', { name: p.name })} onClick={() => removeFromDay(p)} />}</div>
+                        <div className="row" style={{ justifyContent: 'space-between' }}><Pill tone="warn">{t('td.status.noCode')}</Pill><span className="status-cell">{statusCell(line)}{day.canEdit && <RowRemove label={t('td.removeFromDay', { name: p.name })} onClick={() => removeFromDay(p)} />}</span></div>
                         {personSelect(p)}
                         <div className="card-field"><span className="card-label">{t('td.codeDriver')}</span>{codePicker(line)}</div>
                         <div className="card-field"><span className="card-label">{t('td.sortCode')}</span>{personRoutes(p)}</div>
@@ -373,7 +427,7 @@ function TodayPage() {
                     <li key={r.routeId}>
                       <div className="row" style={{ justifyContent: emptyCode(r) ? 'space-between' : 'flex-end' }}>
                         {emptyCode(r) && <RoutePlate code={r.code} size="lg" needsDriver={r.status === 'no_driver'} />}
-                        <span className="status-cell"><Pill tone={st.tone}>{t(st.key)}</Pill>{removeX(r)}</span>
+                        <span className="status-cell">{statusCell(line)}{removeX(r)}</span>
                       </div>
                       {select(r)}
                       <span className="sub">{r.rawName && r.status === 'no_driver' ? `“${r.rawName}”` : aboutText(r)}</span>

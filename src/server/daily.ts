@@ -7,7 +7,7 @@ import { assertCan, type Actor } from './actor';
 import { audit } from './audit';
 import { RuleError } from './errors';
 import { assertNotLocked, getOperationById, operationFor } from './ops';
-import { payeeIdOf, payeeNamesById, routeDay, writeRouteDay } from './executions';
+import { payeeIdOf, payeeNamesById, routeDay, sortCodesTaken, writeRouteDay } from './executions';
 import { contractorProfiles, createDriver, createRoute, driverProfiles, routeOwners, type DriverInput } from './people';
 import { usualSortCodes } from './sort-codes';
 import { dayListEmail, diffDayList, hasChanges, type DayListPerson } from './emails';
@@ -89,7 +89,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   // People confirmed for the day who don't have a driver code yet (the admin gives them one).
   const noCode = (await peopleWithoutCode(tx, op.id, date)).map((p) => ({
     executionId: p.id, driverId: p.payeeDriverId!, name: label({ driverId: p.payeeDriverId, contractorId: null }) ?? '',
-    sortCodes: p.sortCodes, status: (p.status === 'changed' ? 'changed' : 'confirmed') as DayStatus, updatedAt: p.updatedAt.toISOString(),
+    sortCodes: p.sortCodes, status: (p.status === 'changed' ? 'changed' : p.status === 'proposed' ? 'proposed' : 'confirmed') as DayStatus, updatedAt: p.updatedAt.toISOString(),
   }));
   // Person first: the list reads by who works, then their driver code. Codes nobody drives go last.
   const empty = (r: typeof codeRows[number]) => !r.today.name || r.status === 'off' || r.status === 'no_driver';
@@ -224,7 +224,7 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
     status: values.status, source, userId: actor.userId,
   });
   await audit(tx, { table: 'route_executions', recordId: after.id, action: before ? action : 'insert', before, after, userId: actor.userId, source: actor.source });
-  if (carried.length && !(await sortCodesSetOn(tx, [after.id])).size) await replaceSortCodes(tx, actor, op.id, after.id, carried);
+  if (carried.length && !(await sortCodesSetOn(tx, [after.id])).size) await replaceSortCodes(tx, actor, op.id, after.id, carried, false);
   if (values.status === 'confirmed' || values.status === 'changed') await keepUsualSortCodes(tx, actor, after.id, routeId);
   // Callers undo to the previous driver or contractor, so hand back that shape.
   const previous = view ? { driverId: view.payeeDriverId, contractorId: view.payeeContractorId, rawName: view.rawName, status: view.status } : null;
@@ -237,7 +237,12 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
  */
 export async function markOffToday(tx: Tx, actor: Actor, input: { date: string; routeId: string }) {
   assertCan(actor, 'drivers.confirm_today');
+  // Who was going to drive it, kept for the history ("Adolfo Mora — didn't run"). Nobody is paid: the payee is empty.
+  const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
+  if (!route) throw new RuleError('not_found');
+  const here = await onCode(tx, route.operationId, input.date, route);
   const { before, after } = await writeAssignment(tx, actor, input.date, input.routeId, { driverId: null, contractorId: null, rawName: null, status: 'off' });
+  if (here.payee?.driverId) await tx.update(routeExecutions).set({ driverId: here.payee.driverId }).where(eq(routeExecutions.id, after.id));
   const had = await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, after.id));
   if (had.length) {
     await tx.delete(executionSortCodes).where(eq(executionSortCodes.executionId, after.id));
@@ -260,6 +265,8 @@ export async function assignRoute(tx: Tx, actor: Actor, input: { date: string; r
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
   const cols = payeeCols(input.payee);
+  // A person is on one line a day (contractors can hold several codes).
+  if (cols.driverId) await assertNotOnList(tx, route.operationId, input.date, cols.driverId, { exceptRouteId: route.id, allowWithoutCode: true });
   if (cols.driverId) await putOnTforce(tx, actor, cols.driverId);
   const usual = usualOf(route, await ownerOn(tx, route.id, input.date));
   const status: DayStatus = !cols.driverId && !cols.contractorId ? 'no_driver' : samePayee(cols, usual) ? 'confirmed' : 'changed';
@@ -288,7 +295,57 @@ export async function confirmUsual(tx: Tx, actor: Actor, date: string, operation
     await writeAssignment(tx, actor, date, r.routeId, { driverId: r.usual.driverId, contractorId: r.usual.contractorId, status: 'confirmed' });
     n++;
   }
+  // People without driver code someone left "to confirm".
+  for (const p of day.noCode) {
+    if (p.status !== 'proposed') continue;
+    await setPersonStatus(tx, actor, { executionId: p.executionId, status: 'confirmed' });
+    n++;
+  }
   return n;
+}
+
+export type RowStatus = 'confirmed' | 'proposed' | 'off';
+
+/**
+ * The status chosen on a row of Daily operations (T-Force): Confirmed, To confirm, or Didn't run today.
+ * Confirmed/To confirm keep who is on the code (the usual one when nobody is saved); "didn't run" clears it.
+ * Returns what Undo needs.
+ */
+export async function setRouteStatus(tx: Tx, actor: Actor, input: { date: string; routeId: string; status: RowStatus }) {
+  assertCan(actor, 'drivers.confirm_today');
+  if (input.status === 'off') return markOffToday(tx, actor, input);
+  const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
+  if (!route) throw new RuleError('not_found');
+  const op = await getOperationById(tx, route.operationId);
+  const here = await onCode(tx, op.id, input.date, route);
+  // Back from "didn't run": the usual payee again.
+  const payee = here.payee ?? (() => { const u = usualOf(route, null); return u.driverId ? u : null; })();
+  const owner = await ownerOn(tx, route.id, input.date);
+  const p = payee ?? (owner ? { driverId: null, contractorId: owner } : null);
+  if (!p) throw new RuleError('no_person');
+  if (input.status === 'confirmed') {
+    // Confirming who is already there: no change of person, so no "already on the list" check.
+    const usual = usualOf(route, owner);
+    const status: DayStatus = (p.driverId ?? null) === usual.driverId && (p.contractorId ?? null) === usual.contractorId ? 'confirmed' : 'changed';
+    const { before, after } = await writeAssignment(tx, actor, input.date, route.id, { driverId: p.driverId, contractorId: p.contractorId, status });
+    return { assignmentId: after.id, previous: before };
+  }
+  const { before, after } = await writeAssignment(tx, actor, input.date, route.id, { driverId: p.driverId, contractorId: p.contractorId, status: 'proposed' });
+  return { assignmentId: after.id, previous: before };
+}
+
+/** The same for someone without driver code: Confirmed / To confirm; "didn't work" takes them off the day (Undo adds them back). */
+export async function setPersonStatus(tx: Tx, actor: Actor, input: { executionId: string; status: 'confirmed' | 'proposed' }) {
+  assertCan(actor, 'drivers.confirm_today');
+  const row = await personRow(tx, input.executionId);
+  await assertNotLocked(tx, await getOperationById(tx, row.operationId), row.date);
+  const confirmed = input.status === 'confirmed';
+  if ((row.status === 'proposed') === !confirmed) return row.status;
+  const [after] = await tx.update(routeExecutions).set({
+    status: input.status, confirmedBy: confirmed ? actor.userId : null, confirmedAt: confirmed ? new Date() : null, updatedAt: new Date(),
+  }).where(eq(routeExecutions.id, row.id)).returning();
+  await audit(tx, { table: 'route_executions', recordId: row.id, action: 'update', before: row, after, userId: actor.userId, source: actor.source });
+  return row.status;
 }
 
 /**
@@ -347,6 +404,7 @@ export async function addRoute(tx: Tx, actor: Actor, input: { date: string; code
   const [clash] = await tx.select().from(routes).where(and(eq(routes.operationId, op.id), eq(routes.code, code)));
   if (clash?.active) throw new RuleError('route_exists');
 
+  if ('driverId' in input.payee) await assertNotOnList(tx, op.id, input.date, input.payee.driverId, { exceptRouteId: clash?.id, allowWithoutCode: true });
   let payee: { driverId: string } | { contractorId: string };
   if ('newDriverName' in input.payee) payee = { driverId: (await createQuickDriver(tx, actor, input.payee.newDriverName, null)).id };
   else payee = input.payee;
@@ -424,6 +482,7 @@ export async function setSortCodes(tx: Tx, actor: Actor, input: { date: string; 
     await writeAssignment(tx, actor, input.date, route.id, { ...usual, status: usual.driverId || usual.contractorId ? 'proposed' : 'no_driver' }, 'insert');
     view = (await routeDay(tx, op.id, input.date, route.id))!;
   }
+  if ((await sortCodesTaken(tx, op.id, input.date, wanted, view.id)).length) throw new RuleError('route_taken');
   const before = (await tx.select({ id: executionSortCodes.sortCodeId }).from(executionSortCodes).where(eq(executionSortCodes.executionId, view.id))).map((x) => x.id);
   const gone = before.filter((x) => !wanted.includes(x));
   const added = wanted.filter((x) => !before.includes(x));
@@ -446,7 +505,11 @@ async function sortCodesSetOn(tx: Tx, executionIds: string[]) {
 /** Confirming a day saves the driver code's usual routes on it, unless someone already set its routes. */
 async function keepUsualSortCodes(tx: Tx, actor: Actor, executionId: string, routeId: string) {
   if ((await sortCodesSetOn(tx, [executionId])).size) return;
-  const usual = (await usualSortCodes(tx, [routeId])).get(routeId) ?? [];
+  const all = (await usualSortCodes(tx, [routeId])).get(routeId) ?? [];
+  // A usual route someone else already runs today stays with them.
+  const [ex] = await tx.select({ op: routeExecutions.operationId, date: routeExecutions.date }).from(routeExecutions).where(eq(routeExecutions.id, executionId));
+  const taken = ex ? await sortCodesTaken(tx, ex.op, ex.date, all.map((u) => u.id), executionId) : [];
+  const usual = all.filter((u) => !taken.includes(u.id));
   if (!usual.length) return;
   await tx.insert(executionSortCodes).values(usual.map((u) => ({ executionId, sortCodeId: u.id, createdBy: actor.userId }))).onConflictDoNothing();
   await audit(tx, { table: 'execution_sort_codes', recordId: executionId, action: 'insert', after: { sortCodeIds: usual.map((u) => u.id) }, userId: actor.userId, source: actor.source });
@@ -478,13 +541,22 @@ async function onCode(tx: Tx, opId: string, date: string, route: typeof routes.$
   return { view: null, payee: usual.driverId || usual.contractorId ? usual : null, confirmed: false };
 }
 
-async function assertNotOnList(tx: Tx, opId: string, date: string, driverId: string) {
-  const day = await tx.select().from(executionView).where(and(eq(executionView.operationId, opId), eq(executionView.date, date), eq(executionView.kind, 'route'),
-    eq(executionView.payeeDriverId, driverId)));
+/**
+ * One line per person per day. `exceptRouteId`: the code being set (it doesn't count against itself);
+ * `allowWithoutCode`: their line without driver code is fine (it merges into the code).
+ */
+async function assertNotOnList(tx: Tx, opId: string, date: string, driverId: string, opts: { exceptRouteId?: string; allowWithoutCode?: boolean } = {}) {
+  const day = (await tx.select().from(executionView).where(and(eq(executionView.operationId, opId), eq(executionView.date, date), eq(executionView.kind, 'route'),
+    eq(executionView.payeeDriverId, driverId))))
+    .filter((d) => d.routeId !== (opts.exceptRouteId ?? '') && !(opts.allowWithoutCode && !d.routeId));
   if (day.some((d) => d.status !== 'off' && d.status !== 'no_driver')) throw new RuleError('already_on_list');
   // Still only proposed on their usual driver code (nothing saved yet for that code today).
   const usual = await tx.select().from(routes).where(and(eq(routes.operationId, opId), eq(routes.active, true), eq(routes.usualDriverId, driverId)));
-  for (const r of usual) if (!day.some((d) => d.routeId === r.id) && !(await ownerOn(tx, r.id, date))) throw new RuleError('already_on_list');
+  for (const r of usual) {
+    if (r.id === opts.exceptRouteId) continue;
+    const saved = await routeDay(tx, opId, date, r.id);
+    if (!saved && !(await ownerOn(tx, r.id, date))) throw new RuleError('already_on_list');
+  }
 }
 
 async function writePersonDay(tx: Tx, actor: Actor, opId: string, date: string, driverId: string) {
@@ -557,8 +629,12 @@ export async function setPersonSortCodes(tx: Tx, actor: Actor, input: { executio
   return replaceSortCodes(tx, actor, row.operationId, row.id, input.sortCodeIds);
 }
 
-async function replaceSortCodes(tx: Tx, actor: Actor, opId: string, executionId: string, ids: string[]) {
+async function replaceSortCodes(tx: Tx, actor: Actor, opId: string, executionId: string, ids: string[], check = true) {
   const wanted = [...new Set(ids)];
+  if (check) {
+    const [ex] = await tx.select({ date: routeExecutions.date }).from(routeExecutions).where(eq(routeExecutions.id, executionId));
+    if (ex && (await sortCodesTaken(tx, opId, ex.date, wanted, executionId)).length) throw new RuleError('route_taken');
+  }
   if (wanted.length) {
     const known = await tx.select({ id: sortCodes.id }).from(sortCodes).where(and(eq(sortCodes.operationId, opId), inArray(sortCodes.id, wanted)));
     if (known.length !== wanted.length) throw new RuleError('not_found');
@@ -635,17 +711,22 @@ export async function moveToCode(tx: Tx, actor: Actor, input: {
   }
   await assignRoute(tx, actor, { date: input.date, routeId: target.id, payee: person.driverId ? { driverId: person.driverId } : { contractorId: person.contractorId! } });
   const targetView = (await routeDay(tx, op.id, input.date, target.id))!;
-  if (movingRoutes) await replaceSortCodes(tx, actor, op.id, targetView.id, movingRoutes);
+  if (movingRoutes) await replaceSortCodes(tx, actor, op.id, targetView.id, movingRoutes, false);
 
   if ('route' in source) {
     if (other) {
       await assignRoute(tx, actor, { date: input.date, routeId: source.route.id, payee: other.driverId ? { driverId: other.driverId } : { contractorId: other.contractorId! } });
       const back = (await routeDay(tx, op.id, input.date, source.route.id))!;
-      if (thereRoutes) await replaceSortCodes(tx, actor, op.id, back.id, thereRoutes);
+      if (thereRoutes) await replaceSortCodes(tx, actor, op.id, back.id, thereRoutes, false);
+    }
+    // The routes went with the person: the old code doesn't keep them too.
+    if (movingRoutes && !(other && thereRoutes)) {
+      const old = await routeDay(tx, op.id, input.date, source.route.id);
+      if (old) await replaceSortCodes(tx, actor, op.id, old.id, [], false);
     }
   } else if (other && there.confirmed && other.driverId) {
     const row = await writePersonDay(tx, actor, op.id, input.date, other.driverId);
-    if (thereRoutes) await replaceSortCodes(tx, actor, op.id, row.id, thereRoutes);
+    if (thereRoutes) await replaceSortCodes(tx, actor, op.id, row.id, thereRoutes, false);
   }
   return { code: target.code };
 }

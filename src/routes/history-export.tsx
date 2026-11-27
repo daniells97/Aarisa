@@ -34,10 +34,11 @@ export const Route = createFileRoute('/history-export')({
           const file = xlsx([
             {
               name: t('hi.detail'),
-              header: [t('hi.date'), t('hi.contract'), t('td.route'), t('hi.person'), t('hi.company'), t('hi.routes'), t('hi.pieces')],
+              header: [t('hi.date'), t('hi.contract'), t('td.route'), t('hi.person'), t('hi.company'), t('hi.routes'), t('hi.pieces'), t('td.status')],
               rows: data.rows.slice().reverse().map((r) => [
                 r.date, opName.get(r.operation) ?? r.operation, r.driverCode ?? '', r.name ?? (r.rawName ? `“${r.rawName}”` : t('td.noDriver')),
                 r.company && r.driverId ? r.company : '', r.sortCodes.join(', '), r.pieces,
+                t(({ confirmed: 'td.status.confirmed', proposed: 'td.statusToConfirm', off: 'td.status.off', no_driver: 'td.status.no_driver' } as const)[r.status]),
               ]),
             },
             {
