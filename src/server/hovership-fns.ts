@@ -6,7 +6,7 @@ import { read, run } from './fn';
 import { requireSignedIn } from './auth';
 import { importHovership, latestHovershipWeek, loadHovershipWeek, resolveUnknownCode, setBonus } from './hovership';
 import { classifyOtherRevenue } from './revenue';
-import { coverHovership, restoreHovership, addHovershipPerson, setOnHovership, confirmUsualHovership, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
+import { coverHovership, restoreHovership, addHovershipPerson, setOnHovership, confirmUsualHovership, sendHovershipList as sendHovershipDayList, loadHovershipDay, setHovershipRoutes, setHovershipUsual, unconfirmUsualHovership } from './hovership-day';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 // Any contract whose report names the driver; omitted = the first one (Hovership).
@@ -68,6 +68,11 @@ export const saveHovershipRoutes = createServerFn({ method: 'POST' })
 export const confirmHovershipUsual = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, operation }))
   .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => confirmUsualHovership(tx, actor, data.date, data.operation)));
+
+/** "Confirm and send list": confirms the usual routes and emails the day's list to the people marked for it. */
+export const sendHovershipList = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, operation }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => sendHovershipDayList(tx, actor, data.date, data.operation)));
 
 export const unconfirmHovershipUsual = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, operation }))

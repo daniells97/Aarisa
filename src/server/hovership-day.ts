@@ -12,6 +12,7 @@ import { RuleError } from './errors';
 import { payeeIdOf } from './executions';
 import { assertNotLocked, operationFor } from './ops';
 import { contractorProfiles, createDriver, driverProfiles } from './people';
+import { emailDayList, lastSend } from './daily';
 
 // Today's drivers for Hovership: which routes (sort codes) each Hovership driver runs on a day. Hovership's
 // report already names the driver, so there is no driver code; Aarisa assigns the routes by hand. It works
@@ -121,7 +122,24 @@ export async function loadHovershipDay(tx: Tx, actor: Actor, date: string, opera
       id: l.id, at: l.at.toISOString(), driver: driverOf.get(l.recordId) ?? '', user: user ?? null, source: l.source,
       sortCodes: (((l.after ?? {}) as { sortCodeIds?: string[] }).sortCodeIds ?? []).map((x) => name.get(x) ?? '?'),
     })),
+    // The last "Confirm and send list" of this day: who and when.
+    sent: await lastSend(tx, op.id, date),
   };
+}
+
+/**
+ * "Confirm and send list" for Hovership: confirms everyone still on their usual routes, then emails who works
+ * today (with their code and routes) to the people marked for it in Team access, like T-Force.
+ */
+export async function sendHovershipList(tx: Tx, actor: Actor, date: string, operation?: string) {
+  assertCan(actor, 'drivers.confirm_today');
+  const confirmed = await confirmUsualHovership(tx, actor, date, operation);
+  const day = await loadHovershipDay(tx, actor, date, operation);
+  const op = await operationFor(tx, operation, 'report_code');
+  const people = day.rows.filter((r) => r.status !== 'off' && r.status !== 'covered')
+    .map((r) => ({ name: r.name, code: r.code ?? '–', routes: r.sortCodes.map((x) => x.code), contractor: false }));
+  const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, day.summary.unassigned, '/hovership/today');
+  return { confirmed, ...res };
 }
 
 /**

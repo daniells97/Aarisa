@@ -167,7 +167,7 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
   };
 }
 
-async function lastSend(tx: Tx, operationId: string, date: string) {
+export async function lastSend(tx: Tx, operationId: string, date: string) {
   const [row] = await tx.select({ at: dayListSends.sentAt, by: users.name, recipients: dayListSends.recipients }).from(dayListSends)
     .leftJoin(users, eq(users.id, dayListSends.sentBy))
     .where(and(eq(dayListSends.operationId, operationId), eq(dayListSends.date, date))).orderBy(desc(dayListSends.sentAt)).limit(1);
@@ -648,11 +648,17 @@ export async function sendDayList(tx: Tx, actor: Actor, date: string, operation?
       .map((r) => ({ name: r.today.name!, code: r.code, routes: r.sortCodes.map((x) => x.code), contractor: !!r.today.contractorId })),
   ];
   const codesNoDriver = day.rows.filter((r) => r.status === 'no_driver').map((r) => r.code);
+  const res = await emailDayList(tx, actor, { id: op.id, name: op.name }, date, people, codesNoDriver, '/tforce/today');
+  return { confirmed, ...res };
+}
+
+/** Emails a confirmed day list to everyone marked for it in Team access, and records the send. */
+export async function emailDayList(tx: Tx, actor: Actor, op: { id: string; name: string }, date: string, people: DayListPerson[], codesNoDriver: string[], path: string) {
   const to = await tx.select({ email: users.email, locale: users.locale }).from(users).where(and(eq(users.active, true), eq(users.receivesDayList, true)));
   const [me] = actor.userId ? await tx.select({ name: users.name }).from(users).where(eq(users.id, actor.userId)) : [];
   let sent = 0;
-  for (const p of to) if (await sendMail(dayListEmail(isLocale(p.locale) ? p.locale : 'en', p.email, date, me?.name ?? actor.name, people, codesNoDriver, op.name))) sent++;
+  for (const p of to) if (await sendMail(dayListEmail(isLocale(p.locale) ? p.locale : 'en', p.email, date, me?.name ?? actor.name, people, codesNoDriver, op.name, path))) sent++;
   const [row] = await tx.insert(dayListSends).values({ operationId: op.id, date, sentBy: actor.userId, recipients: sent }).returning();
   await audit(tx, { table: 'day_list_sends', recordId: row!.id, action: 'insert', after: { ...row, people: people.length }, userId: actor.userId, source: actor.source });
-  return { confirmed, recipients: to.length, sent };
+  return { recipients: to.length, sent };
 }

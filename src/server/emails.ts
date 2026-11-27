@@ -101,7 +101,7 @@ export interface DayListPerson { name: string; code: string | null; routes: stri
  * "Confirm and send list": who works today, confirmed by the operator, for the people who set driver codes
  * and routes. People without a driver code go first; then everyone with their code and routes. No money.
  */
-export function dayListEmail(locale: Locale, to: string, date: string, sender: string, people: DayListPerson[], codesNoDriver: string[], operation: string): Mail {
+export function dayListEmail(locale: Locale, to: string, date: string, sender: string, people: DayListPerson[], codesNoDriver: string[], operation: string, path = '/tforce/today'): Mail {
   const t = (k: MessageKey, v?: Record<string, string | number>) => translate(locale, k, v);
   const day = new Intl.DateTimeFormat(locale === 'es' ? 'es-US' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
   const noCode = people.filter((p) => !p.code).map((p) => p.name);
@@ -117,7 +117,7 @@ export function dayListEmail(locale: Locale, to: string, date: string, sender: s
   const rows = sorted.map((p) => `<tr><td style="${cell};font-weight:bold">${esc(p.name)}${p.contractor ? ` <span style="color:${MUTED};font-size:12px">· ${esc(t('mail.morning.contractor'))}</span>` : ''}</td>`
     + `<td style="${cell};white-space:nowrap">${p.code ? esc(p.code) : `<span style="color:#C02430;font-weight:bold">${esc(t('mail.dayList.missing'))}</span>`}</td>`
     + `<td style="${cell}">${esc(p.routes.join(', ')) || `<span style="color:${MUTED}">–</span>`}</td></tr>`).join('');
-  const link = `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}/tforce/today?date=${date}`;
+  const link = `${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}${path}?date=${date}`;
   return {
     to,
     subject: t('mail.dayList.subject', { date: day, n: people.length, client: operation }),

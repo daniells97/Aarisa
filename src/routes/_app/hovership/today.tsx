@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
+import { sendHovershipList, addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
 import { Button, Icon, PageHead, Panel, PersonPicker, Pill, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
@@ -47,11 +47,12 @@ function HovershipTodayPage() {
   const [adding, setAdding] = useState(false);
   const draftOpen = day.canEdit && (adding || day.rows.length === 0);
 
-  const confirm = async () => {
-    const res = await confirmHovershipUsual({ data: { date: day.date } });
+  // "Confirm and send list", as on T-Force: confirms the usual routes and emails the list to the people marked for it.
+  const send = async () => {
+    const res = await sendHovershipList({ data: { date: day.date } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(t('hd.confirmedAll', { count: res.value }), unconfirm);
+    toast(res.value.recipients ? t('td.listSentToast', { count: res.value.sent }) : t('td.listNoRecipients'));
   };
   const unconfirm = async () => {
     const res = await unconfirmHovershipUsual({ data: { date: day.date } });
@@ -152,6 +153,7 @@ function HovershipTodayPage() {
     ? <RowRemove label={t('hd.removeFromList', { name: r.name })} onClick={() => remove(r)} />
     : <RowRemove label={t('td.removeFromDay', { name: r.name })} onClick={() => offToday(r)} />;
 
+  const sentTime = day.sent ? new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(day.sent.at)) : '';
   return (
     <>
       {newPersonDialog}
@@ -179,9 +181,18 @@ function HovershipTodayPage() {
         {s.none > 0 && <span role="listitem"><Pill tone="waiting">{t('hd.sumNone', { count: s.none })}</Pill></span>}
         {s.off > 0 && <span role="listitem"><Pill tone="muted">{t('hd.sumOff', { count: s.off })}</Pill></span>}
         <span role="listitem" className="muted">{t('hd.people', { count: s.drivers })}</span>
-        {day.canEdit && s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('hd.confirmAll', { count: s.proposed })}</Button>}
-        {day.canEdit && s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm} className="confirm-all" style={{ marginLeft: 'auto' }}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
+        {day.canEdit && (
+          <span className="send-list">
+            {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
+            <Button variant={day.sent && s.proposed === 0 ? 'secondary' : 'primary'} onClick={send} className="confirm-all">
+              {t(day.sent && s.proposed === 0 ? 'td.resendList' : 'td.sendList')}
+            </Button>
+          </span>
+        )}
       </div>
+      {day.sent
+        ? <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}</p>
+        : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('hd.listHint')}</p>}
       {(s.unassigned.length > 0 || s.shared.length > 0) && (
         <div className="notice" role="status" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
           {s.unassigned.length > 0 && <span>{t('hd.unassigned', { routes: s.unassigned.join(', ') })}</span>}
