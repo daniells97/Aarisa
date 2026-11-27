@@ -12,7 +12,7 @@ import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
 import { RowRemove } from '~/ui/RowRemove';
-import { StatusSelect, type RowStatus } from '~/ui/StatusSelect';
+import { STATUS_TONE, StatusSelect, type RowStatus } from '~/ui/StatusSelect';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
 type Day = Awaited<ReturnType<typeof getDay>>;
@@ -41,13 +41,13 @@ function whereOnList(day: Day, driverId: string, t: ReturnType<typeof useT>) {
 }
 
 function statusOf(r: Row): { key: MessageKey; tone: PillTone } {
-  if (r.status === 'off') return { key: 'td.status.off', tone: 'muted' };
+  if (r.status === 'off') return { key: 'td.status.off', tone: 'bad' };
   if (r.status === 'no_driver') return { key: 'td.status.no_driver', tone: 'warn' };
   if (r.contractorRoute && r.today.contractorId) return { key: 'td.status.contractor', tone: 'contractor' };
   if (r.status === 'waiting') return { key: 'td.status.waiting', tone: 'waiting' };
   if (r.status === 'changed') return { key: 'td.status.changed', tone: 'ok' };
   if (r.status === 'confirmed') return { key: 'td.status.confirmed', tone: 'ok' };
-  return { key: 'td.status.proposed', tone: 'muted' };
+  return { key: 'td.status.proposed', tone: 'waiting' };
 }
 
 function TodayPage() {
@@ -288,7 +288,7 @@ function TodayPage() {
     if (line.kind === 'person') {
       const p = line.p;
       const value: RowStatus = p.status === 'proposed' ? 'proposed' : 'confirmed';
-      if (!day.canEdit) return <Pill tone={value === 'proposed' ? 'muted' : 'ok'}>{t(value === 'proposed' ? 'td.statusToConfirm' : 'td.status.confirmed')}</Pill>;
+      if (!day.canEdit) return <Pill tone={STATUS_TONE[value]}>{t(value === 'proposed' ? 'td.statusToConfirm' : 'td.status.confirmed')}</Pill>;
       return <StatusSelect value={value} tone={value === 'proposed' ? 'muted' : 'ok'} label={t('td.statusOf', { name: p.name })} options={statusOptions(true)}
         onChange={async (v) => {
           if (v === 'off') return removeFromDay(p);
@@ -348,11 +348,11 @@ function TodayPage() {
 
       <div className="row" role="list" aria-label={t('td.status')}>
         <span role="listitem"><Pill tone="ok">{t('td.sumConfirmed', { count: s.confirmed })}</Pill></span>
-        {s.proposed > 0 && <span role="listitem"><Pill tone="muted">{t('td.sumProposed', { count: s.proposed })}</Pill></span>}
+        {s.proposed > 0 && <span role="listitem"><Pill tone="waiting">{t('td.sumProposed', { count: s.proposed })}</Pill></span>}
         {s.contractor > 0 && <span role="listitem"><Pill tone="contractor">{t('td.sumContractor', { count: s.contractor })}</Pill></span>}
         {s.waiting > 0 && <span role="listitem"><Pill tone="waiting">{t('td.sumWaiting', { count: s.waiting })}</Pill></span>}
         {s.noDriver > 0 && <span role="listitem"><Pill tone="warn">{t('td.sumNoDriver', { count: s.noDriver })}</Pill></span>}
-        {s.off > 0 && <span role="listitem"><Pill tone="muted">{t(s.off === 1 ? 'td.sumOffOne' : 'td.sumOff', { count: s.off })}</Pill></span>}
+        {s.off > 0 && <span role="listitem"><Pill tone="bad">{t(s.off === 1 ? 'td.sumOffOne' : 'td.sumOff', { count: s.off })}</Pill></span>}
         {s.noCode > 0 && <span role="listitem"><Pill tone="warn">{t('td.sumNoCode', { count: s.noCode })}</Pill></span>}
         <span className="muted" role="listitem">{t('td.sumPeople', { count: s.people })} · {t('td.sumRoutes', { count: s.routes })}</span>
         {day.canEdit && (

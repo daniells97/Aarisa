@@ -24,7 +24,7 @@ function rangeOf(s: Search) {
 
 /** A day's status in the history, as chosen in Daily operations. */
 const DAY_LABEL = { confirmed: 'td.status.confirmed', proposed: 'td.statusToConfirm', off: 'td.status.off', no_driver: 'td.status.no_driver' } as const;
-const DAY_TONE = { confirmed: 'ok', proposed: 'muted', off: 'muted', no_driver: 'warn' } as const;
+const DAY_TONE = { confirmed: 'ok', proposed: 'waiting', off: 'bad', no_driver: 'warn' } as const;
 
 export const Route = createFileRoute('/_app/history')({
   validateSearch: search,

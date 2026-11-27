@@ -518,15 +518,7 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 
 /* Test copy of the portal: a band on every screen. */
 .staging-banner { position: sticky; top: 0; z-index: 60; background: #B7791F; color: #fff; text-align: center; font: 600 14px var(--font); padding: 6px 12px; }
-/* A status you can change in place: the pill with a native select inside (phone-friendly, keyboard-friendly). */
-.status-select { position: relative; padding-right: 26px; cursor: pointer; }
-.status-select select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; margin: 0; cursor: pointer; min-height: 26px; max-width: 100%; }
-.status-select::after { content: ''; position: absolute; right: 10px; top: 50%; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-70%) rotate(45deg); pointer-events: none; }
-.status-select:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
-@media (max-width: 899px) { .status-select select { min-height: 36px; } }
-.status-select { flex: none; padding-right: 30px; }
-.status-select select { padding-right: 2px; width: auto; }
-.today-list td .status-select { padding-right: 30px; }
+
 /* Routes (sort codes) as plates, like the driver codes: navy with a red band (client request, Nov 27 2026). */
 .sort-chip { min-height: 30px; border-radius: 6px; padding: 3px 4px 0 10px; color: #fff; background: linear-gradient(var(--brand-red) 0 4px, var(--brand) 4px);
   font: 700 15px/1 var(--font-cond); letter-spacing: .03em; box-shadow: inset 0 0 0 1px rgba(23,32,51,.55); }
@@ -537,3 +529,14 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 .sort-chip.suggested { background: var(--surface); color: var(--brand); border: 1.5px dashed var(--brand-mid); box-shadow: none; padding-top: 0; }
 .sort-chip.suggested .sort-chip-x { color: var(--brand); }
 .sort-chip.suggested .sort-chip-x:hover { background: var(--brand-tint); }
+
+/* The status of a row: a colored pill that opens a small menu of statuses, each in its color. */
+.status-select { position: relative; display: inline-flex; flex: none; }
+.status-btn { border: 0; cursor: pointer; gap: 6px; min-height: 30px; padding: 0 8px 0 10px; font: 600 13px var(--font); }
+.status-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.status-menu { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; min-width: 190px; display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 28px rgba(18,42,90,.16); }
+.status-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 0 10px; border: 0; border-radius: 8px; background: none; cursor: pointer; color: var(--brand); }
+.status-option:hover, .status-option:focus-visible { background: var(--muted-tint); outline: none; }
+.status-option .pill { font-size: 13.5px; }
+@media (max-width: 899px) { .status-btn { min-height: 36px; font-size: 14px; } }

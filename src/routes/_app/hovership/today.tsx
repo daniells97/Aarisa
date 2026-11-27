@@ -27,10 +27,10 @@ type Row = Day['rows'][number];
 
 // Same states as T-Force's list: usual (suggested), confirmed, changed; plus off and "no usual routes yet".
 const STATUS: Record<Row['status'], { key: MessageKey; tone: PillTone }> = {
-  proposed: { key: 'td.status.proposed', tone: 'muted' },
+  proposed: { key: 'td.status.proposed', tone: 'waiting' },
   confirmed: { key: 'td.status.confirmed', tone: 'ok' },
   changed: { key: 'td.status.changed', tone: 'ok' },
-  off: { key: 'hd.status.off', tone: 'muted' },
+  off: { key: 'hd.status.off', tone: 'bad' },
   covered: { key: 'td.status.changed', tone: 'ok' },
   none: { key: 'hd.status.none', tone: 'waiting' },
 };
@@ -216,9 +216,9 @@ function HovershipTodayPage() {
 
       <div className="row" role="list" aria-label={t('td.status')}>
         <span role="listitem"><Pill tone="ok">{t('hd.sumConfirmed', { count: s.confirmed + s.changed })}</Pill></span>
-        {s.proposed > 0 && <span role="listitem"><Pill tone="muted">{t('td.sumProposed', { count: s.proposed })}</Pill></span>}
+        {s.proposed > 0 && <span role="listitem"><Pill tone="waiting">{t('td.sumProposed', { count: s.proposed })}</Pill></span>}
         {s.none > 0 && <span role="listitem"><Pill tone="waiting">{t('hd.sumNone', { count: s.none })}</Pill></span>}
-        {s.off > 0 && <span role="listitem"><Pill tone="muted">{t('hd.sumOff', { count: s.off })}</Pill></span>}
+        {s.off > 0 && <span role="listitem"><Pill tone="bad">{t('hd.sumOff', { count: s.off })}</Pill></span>}
         <span role="listitem" className="muted">{t('hd.people', { count: s.drivers })}</span>
         {day.canEdit && (
           <span className="send-list">

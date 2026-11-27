@@ -14,6 +14,7 @@ const paths = {
   chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   signOut: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10',
   close: 'M6 6l12 12M18 6 6 18',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
   menu: 'M4 6h16M4 12h16M4 18h16',
   upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
   download: 'M12 4v12M7 11l5 5 5-5M4 20h16',
