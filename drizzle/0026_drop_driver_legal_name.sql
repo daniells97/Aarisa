@@ -1,0 +1,1 @@
+ALTER TABLE "core"."drivers" DROP COLUMN "legal_name";

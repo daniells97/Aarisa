@@ -224,6 +224,8 @@ export const es: Record<MessageKey, string> = {
   "drivers.contractorSaved": "Contratista guardado.",
   "drivers.contractorsTitle": "Contratistas",
   "drivers.contractorRoutes": "Drivers",
+  "drivers.fullName": "Nombre completo (como en la licencia)",
+  "drivers.fullNameHint": "Tal como aparece en la licencia de conducción: lo usan la lista diaria, la nómina y los cheques.",
   "td.changedSinceSent": "Hay cambios desde el último envío",
   "td.listUpdateToast": "Lista actualizada enviada a {count} personas, con lo que cambió.",
   "mail.dayList.updatedPrefix": "Actualizada: ",

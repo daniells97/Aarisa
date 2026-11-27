@@ -311,7 +311,6 @@ function DriversTab({ data }: { data: Setup }) {
                 {status(d)}
               </div>
               <span className="muted">{[d.hovershipCode, platform(d), d.contractorId ? contractorName(d.contractorId) : t('drivers.aarisa')].filter(Boolean).join(' · ')}</span>
-              {d.active && !d.legalName && <span><Pill tone="warn">{t('drivers.noLegalName')}</Pill></span>}
               {d.usualRoutes.length > 0 && <span className="row" style={{ gap: 6 }}>{d.usualRoutes.map((r) => <RoutePlate key={r} code={r} size="sm" />)}</span>}
               {(d.phone || d.email) && (
                 <span className="row" style={{ gap: 12 }}>
@@ -346,8 +345,6 @@ function DriversTab({ data }: { data: Setup }) {
                 <tr key={d.id}>
                   <td>
                     <strong>{d.fullName}</strong>{d.hovershipCode && <span className="sub">{d.hovershipCode}</span>}
-                    {d.legalName && d.legalName !== d.fullName && <span className="sub">{t('drivers.licenseAs', { name: d.legalName })}</span>}
-                    {d.active && !d.legalName && <span className="sub"><Pill tone="warn">{t('drivers.noLegalName')}</Pill></span>}
                     {(d.openNotes > 0 || d.owedCents > 0) && (
                       <span className="row" style={{ gap: 6, marginTop: 4 }}>
                         {d.openNotes > 0 && <Pill tone="muted">{t('df.notesCount', { count: d.openNotes })}</Pill>}

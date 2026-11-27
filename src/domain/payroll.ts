@@ -126,13 +126,13 @@ const csvCell = (v: string | number) => {
 };
 const dollars = (c: Cents) => (c / 100).toFixed(2);
 
-export interface ExportLine { name: string; /** Full name as on the license: who the check is made out to. */ legalName: string; code: string; payee: string; routeDays: number; packages: number; stops: number; bonusCents: Cents; payCents: Cents }
+export interface ExportLine { /** Full name as on the license: who the check is made out to. */ name: string; code: string; payee: string; routeDays: number; packages: number; stops: number; bonusCents: Cents; payCents: Cents }
 
 /** Payroll file, CSV for now (open question 6: final format to confirm with Aarisa). */
 export function payrollCsv(run: { operation: string; start: string; end: string }, lines: ExportLine[]) {
-  const header = ['operation', 'period_start', 'period_end', 'payee', 'name_on_license', 'name', 'code', 'route_days', 'packages', 'stops', 'bonus', 'pay'];
-  const rows = lines.map((l) => [run.operation, run.start, run.end, l.payee, l.legalName, l.name, l.code, l.routeDays, l.packages, l.stops, dollars(l.bonusCents), dollars(l.payCents)]);
+  const header = ['operation', 'period_start', 'period_end', 'payee', 'name', 'code', 'route_days', 'packages', 'stops', 'bonus', 'pay'];
+  const rows = lines.map((l) => [run.operation, run.start, run.end, l.payee, l.name, l.code, l.routeDays, l.packages, l.stops, dollars(l.bonusCents), dollars(l.payCents)]);
   const total = lines.reduce((s, l) => s + l.payCents, 0);
-  rows.push([run.operation, run.start, run.end, 'total', '', '', '', '', '', '', dollars(lines.reduce((s, l) => s + l.bonusCents, 0)), dollars(total)]);
+  rows.push([run.operation, run.start, run.end, 'total', '', '', '', '', '', dollars(lines.reduce((s, l) => s + l.bonusCents, 0)), dollars(total)]);
   return [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }

@@ -12,7 +12,6 @@ export const driverInput = z.object({
   worksHovership: z.boolean().optional(),
   email: z.string().max(200).nullable().optional(),
   address: z.string().max(300).nullable().optional(),
-  legalName: z.string().max(160).nullable().optional(),
   licenseNumber: z.string().max(40).nullable().optional(),
   emergencyName: z.string().max(120).nullable().optional(),
   emergencyPhone: z.string().max(30).nullable().optional(),

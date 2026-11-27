@@ -49,9 +49,9 @@ export async function loadDriverFile(tx: Tx, actor: Actor, driverId: string, tod
     driver: { id: person.id, name: person.fullName },
     // Contact details; license, home address and emergency contact only for those who can edit drivers.
     details: {
-      legalName: person.legalName, phone: person.phone, email: person.email,
+      phone: person.phone, email: person.email,
       ...(can(actor.role, 'setup.edit') ? { licenseNumber: person.licenseNumber, address: person.address, emergencyName: person.emergencyName, emergencyPhone: person.emergencyPhone } : {}),
-    } as { legalName: string | null; phone: string | null; email: string | null; licenseNumber?: string | null; address?: string | null; emergencyName?: string | null; emergencyPhone?: string | null },
+    } as { phone: string | null; email: string | null; licenseNumber?: string | null; address?: string | null; emergencyName?: string | null; emergencyPhone?: string | null },
     canWriteNotes: can(actor.role, 'drivers.confirm_today'),
     canLend: canRecordLoans(actor),
     notes: notes.map(({ n, author }) => ({ id: n.id, body: n.body, author, at: n.createdAt.toISOString(), resolved: !!n.resolvedAt }))

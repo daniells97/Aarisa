@@ -129,21 +129,21 @@ async function computeLive(tx: Tx, op: Operation, start: string) {
 async function payeeInfo(tx: Tx, keys: string[]) {
   const driverIds = keys.filter((k) => k.startsWith('d:')).map((k) => k.slice(2));
   const contractorIds = keys.filter((k) => k.startsWith('c:')).map((k) => k.slice(2));
-  const map = new Map<string, { name: string; legalName: string | null; code: string; contractor: boolean }>();
+  const map = new Map<string, { name: string; code: string; contractor: boolean }>();
   if (driverIds.length) {
     for (const d of await driverProfiles(tx, todayLA(), driverIds)) {
-      map.set(`d:${d.id}`, { name: d.fullName, legalName: d.legalName, code: d.hovershipCode ?? '', contractor: false });
+      map.set(`d:${d.id}`, { name: d.fullName, code: d.hovershipCode ?? '', contractor: false });
     }
   }
   if (contractorIds.length) {
     for (const c of await contractorProfiles(tx, { ids: contractorIds })) {
-      map.set(`c:${c.id}`, { name: c.name, legalName: c.name, code: '', contractor: true });
+      map.set(`c:${c.id}`, { name: c.name, code: '', contractor: true });
     }
   }
   return map;
 }
 
-export interface RunLineView { key: string; driverId: string | null; contractorId: string | null; contractor: boolean; name: string; /** As on the license (contractors: their company name); null while missing. */ legalName: string | null; code: string; routeDays: number; extraJobs: number; packages: number; stops: number; bonusCents: number; payCents: number; marginCents: number | null }
+export interface RunLineView { key: string; driverId: string | null; contractorId: string | null; contractor: boolean; name: string; code: string; routeDays: number; extraJobs: number; packages: number; stops: number; bonusCents: number; payCents: number; marginCents: number | null }
 
 export async function loadRun(tx: Tx, actor: Actor, runId: string, now = new Date()) {
   assertCan(actor, 'payroll.view');
@@ -160,7 +160,7 @@ export async function loadRun(tx: Tx, actor: Actor, runId: string, now = new Dat
   const view = (l: { driverId: string | null; contractorId: string | null; routeDays: number; extraJobs?: number; packages: number; stops: number; bonusCents: number; payCents: number; marginCents: number }, info: Awaited<ReturnType<typeof payeeInfo>>): RunLineView => {
     const key = payeeKey(l);
     const p = info.get(key);
-    return { key, driverId: l.driverId, contractorId: l.contractorId, contractor: !!l.contractorId, name: p?.name ?? '', legalName: p?.legalName ?? null, code: p?.code ?? '', routeDays: l.routeDays, extraJobs: l.extraJobs ?? 0, packages: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents };
+    return { key, driverId: l.driverId, contractorId: l.contractorId, contractor: !!l.contractorId, name: p?.name ?? '', code: p?.code ?? '', routeDays: l.routeDays, extraJobs: l.extraJobs ?? 0, packages: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents, marginCents: l.marginCents };
   };
   if (frozen) {
     const refs = await payeeRefs(tx);
@@ -296,7 +296,7 @@ export async function exportRun(tx: Tx, actor: Actor, runId: string) {
   assertCan(actor, 'payroll.export');
   const view = await loadRun(tx, { ...actor, role: actor.role }, runId);
   const csv = payrollCsv({ operation: view.operation, start: view.period.start, end: view.period.end },
-    view.lines.map((l) => ({ name: l.name, legalName: l.legalName ?? '', code: l.code, payee: l.contractor ? 'contractor' : 'driver', routeDays: l.routeDays, packages: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents })));
+    view.lines.map((l) => ({ name: l.name, code: l.code, payee: l.contractor ? 'contractor' : 'driver', routeDays: l.routeDays, packages: l.packages, stops: l.stops, bonusCents: l.bonusCents, payCents: l.payCents })));
   const approved = view.status === 'approved' || view.status === 'paid';
   return { csv, fileName: `aarisa-${view.operation}-payroll-${view.period.start}${approved ? '' : '-draft'}.csv` };
 }

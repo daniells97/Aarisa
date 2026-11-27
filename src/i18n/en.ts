@@ -222,6 +222,8 @@ export const en = {
   "drivers.contractorSaved": "Contractor saved.",
   "drivers.contractorsTitle": "Contractors",
   "drivers.contractorRoutes": "Drivers",
+  "drivers.fullName": "Full name (as on the license)",
+  "drivers.fullNameHint": "Exactly as on the driver's license: the daily list, payroll and checks all use it.",
   "td.changedSinceSent": "Changes since the last send",
   "td.listUpdateToast": "Updated list sent to {count} people, with what changed.",
   "mail.dayList.updatedPrefix": "Updated: ",

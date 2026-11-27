@@ -76,7 +76,7 @@ export async function loadSetup(tx: Tx, actor: Actor, today: string) {
     drivers: driverRows.map((d) => ({
       id: d.id, fullName: d.fullName, hovershipCode: d.hovershipCode, contractorId: d.contractorId, phone: d.phone,
       aliases: d.aliases, active: d.active, setupComplete: d.setupComplete, worksTforce: d.worksTforce, worksHovership: d.worksHovership,
-      email: d.email, legalName: d.legalName,
+      email: d.email,
       // Home address, license and emergency contact only for those who can edit drivers.
       address: canEditDrivers ? d.address : null, licenseNumber: canEditDrivers ? d.licenseNumber : null,
       emergencyName: canEditDrivers ? d.emergencyName : null, emergencyPhone: canEditDrivers ? d.emergencyPhone : null,

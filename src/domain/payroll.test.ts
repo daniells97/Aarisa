@@ -44,11 +44,11 @@ describe('Hovership payroll run June 8 to 21 (spec §9)', () => {
 describe('payroll file', () => {
   it('writes a CSV with escaped names and a total row', () => {
     const csv = payrollCsv({ operation: 'hovership', start: '2026-06-08', end: '2026-06-21' }, [
-      { name: 'Arteaga, Robert', legalName: 'Robert Antonio Arteaga', code: 'DUB061', payee: 'driver', routeDays: 10, packages: 600, stops: 2, bonusCents: 400_00, payCents: 1_900_25 },
+      { name: 'Arteaga, Robert', code: 'DUB061', payee: 'driver', routeDays: 10, packages: 600, stops: 2, bonusCents: 400_00, payCents: 1_900_25 },
     ]);
     const lines = csv.trim().split('\r\n');
-    expect(lines[0]).toBe('operation,period_start,period_end,payee,name_on_license,name,code,route_days,packages,stops,bonus,pay');
-    expect(lines[1]).toBe('hovership,2026-06-08,2026-06-21,driver,Robert Antonio Arteaga,"Arteaga, Robert",DUB061,10,600,2,400.00,1900.25');
+    expect(lines[0]).toBe('operation,period_start,period_end,payee,name,code,route_days,packages,stops,bonus,pay');
+    expect(lines[1]).toBe('hovership,2026-06-08,2026-06-21,driver,"Arteaga, Robert",DUB061,10,600,2,400.00,1900.25');
     expect(lines[2]).toContain('total');
     expect(lines[2]?.endsWith('1900.25')).toBe(true);
   });

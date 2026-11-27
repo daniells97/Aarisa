@@ -39,7 +39,6 @@ function Details({ file }: { file: File }) {
   const t = useT();
   const d = file.details;
   const rows: [string, React.ReactNode][] = [
-    [t('drivers.legalName'), d.legalName ?? <Pill tone="warn">{t('drivers.noLegalName')}</Pill>],
     [t('drivers.phone'), d.phone ? <a href={`tel:${d.phone}`}>{d.phone}</a> : '–'],
     [t('drivers.email'), d.email ? <a href={`mailto:${d.email}`} style={{ overflowWrap: 'anywhere' }}>{d.email}</a> : '–'],
   ];
