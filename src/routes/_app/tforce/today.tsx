@@ -374,8 +374,14 @@ function TodayPage() {
         <div className="stack today-aside">
           <Panel title={t('td.needsTitle')} id="needs">
             <div className="panel-body stack">
-              {unknown.length === 0 ? <p className="muted" style={{ margin: 0 }}>{t('td.noNeeds')}</p>
-                : unknown.map((r) => <UnknownName key={r.routeId} row={r} day={day} />)}
+              {unknown.length === 0 && day.doubles.length === 0 && <p className="muted" style={{ margin: 0 }}>{t('td.noNeeds')}</p>}
+              {day.doubles.map((x) => (
+                <div key={x.name} className="row" style={{ flexWrap: 'nowrap', alignItems: 'flex-start' }}>
+                  <WarningDiamond size={22} />
+                  <div><strong>{t('td.doubleTitle', { name: x.name })}</strong><span className="sub" style={{ fontSize: 14 }}>{t('td.doubleBody', { codes: x.codes.join(', ') })}</span></div>
+                </div>
+              ))}
+              {unknown.map((r) => <UnknownName key={r.routeId} row={r} day={day} />)}
             </div>
           </Panel>
           <Panel title={t('td.waTitle')} id="wa">

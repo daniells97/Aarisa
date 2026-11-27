@@ -151,6 +151,11 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       offList,
     },
     changes,
+    // One driver put on two or more driver codes the same day: allowed (it happens), but worth a second look.
+    // Someone who is the usual driver of two codes isn't flagged until a change puts them on another one.
+    doubles: [...rows.filter((r) => r.today.driverId && !r.contractorRoute && (r.status === 'confirmed' || r.status === 'changed' || r.status === 'proposed'))
+      .reduce((m, r) => m.set(r.today.driverId!, [...(m.get(r.today.driverId!) ?? []), r]), new Map<string, typeof rows>())]
+      .filter(([, rs]) => rs.length > 1 && rs.some((r) => r.status === 'changed')).map(([, rs]) => ({ name: rs[0]!.today.name ?? '', codes: rs.map((r) => r.code) })),
     // The last "Confirm and send list" of this day: who and when.
     sent: await lastSend(tx, op.id, date),
   };
@@ -181,11 +186,23 @@ async function writeAssignment(tx: Tx, actor: Actor, date: string, routeId: stri
   }
   const source = actor.source === 'whatsapp' ? 'whatsapp' as const : actor.source === 'system' ? 'system' as const : 'manual' as const;
   const view = await routeDay(tx, op.id, date, routeId);
+  // Someone on the day without a driver code who is now put on a code: one line for them, not two.
+  // Their routes come along when the code has none set yet.
+  let carried: string[] = [];
+  if (values.driverId && (values.status === 'confirmed' || values.status === 'changed')) {
+    const [loose] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, date),
+      eq(routeExecutions.kind, 'route'), isNull(routeExecutions.routeId), eq(routeExecutions.driverId, values.driverId)));
+    if (loose) {
+      carried = (await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, loose.id))).map((x) => x.sortCodeId);
+      await dropPersonRow(tx, actor, loose);
+    }
+  }
   const { before, after } = await writeRouteDay(tx, {
     operationId: op.id, date, routeId, payee: { driverId: values.driverId, contractorId: values.contractorId }, rawName: values.rawName ?? null,
     status: values.status, source, userId: actor.userId,
   });
   await audit(tx, { table: 'route_executions', recordId: after.id, action: before ? action : 'insert', before, after, userId: actor.userId, source: actor.source });
+  if (carried.length && !(await sortCodesSetOn(tx, [after.id])).size) await replaceSortCodes(tx, actor, op.id, after.id, carried);
   if (values.status === 'confirmed' || values.status === 'changed') await keepUsualSortCodes(tx, actor, after.id, routeId);
   // Callers undo to the previous driver or contractor, so hand back that shape.
   const previous = view ? { driverId: view.payeeDriverId, contractorId: view.payeeContractorId, rawName: view.rawName, status: view.status } : null;

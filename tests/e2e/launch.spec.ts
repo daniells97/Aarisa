@@ -85,7 +85,7 @@ test('person first: Driver, Driver code, Route; "Confirm and send list" confirms
   await expect(page.locator('.toasts')).toContainText(`${name} is on today's list.`);
   const code = page.getByRole('combobox', { name: new RegExp(`Driver code for ${name}`) }).locator('visible=true');
   await code.click();
-  await code.fill(`E${String(Date.now()).slice(-5)}`);
+  await code.fill(`E2E${String(Date.now()).slice(-5)}`);
   await page.getByRole('option', { name: /New driver code/ }).click();
   await expect(page.locator('.toasts')).toContainText(`${name} now drives`);
 });

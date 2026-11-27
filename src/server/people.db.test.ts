@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { contractors, payees, routeOwnerships } from '~/db/schema';
 import { actorAs, contractorNamed, withRollback } from '../../tests/helpers/db';
 import {
-  contractorProfiles, createDriver, createRoute, driverProfile, ownCompanyId, routeOwners, updateDriverProfile,
+  contractorProfiles, createDriver, normalizePhone, createRoute, driverProfile, ownCompanyId, routeOwners, updateDriverProfile,
 } from './people';
 import { getOperation } from './ops';
 import { addDriverFromToday } from './daily';
@@ -38,12 +38,12 @@ describe('payees, companies and route owners (stage 2 of the redesign)', () => {
 
   it('keeps email, home address, license and emergency contact; an edit without them leaves them as they were', () => withRollback(async (tx) => {
     const d = await createDriver(tx, owner, {
-      ...base, fullName: 'Test Contact', email: ' Pedro@Example.com ', address: '1 Main St,  Oakland', licenseNumber: 'd123',
+      ...base, fullName: 'Test Contact', email: ' Contact.Test@Example.com ', address: '1 Main St,  Oakland', licenseNumber: 'd123',
       emergencyName: 'Ana', emergencyPhone: '+14155550100',
     }, '2026-11-26');
-    expect(d).toMatchObject({ email: 'pedro@example.com', address: '1 Main St, Oakland', licenseNumber: 'D123', emergencyName: 'Ana', emergencyPhone: '+14155550100' });
+    expect(d).toMatchObject({ email: 'contact.test@example.com', address: '1 Main St, Oakland', licenseNumber: 'D123', emergencyName: 'Ana', emergencyPhone: '+14155550100' });
     const after = await updateDriverProfile(tx, owner, d.id, { ...base, fullName: 'Test Contact' }, '2026-11-26');
-    expect(after).toMatchObject({ email: 'pedro@example.com', licenseNumber: 'D123', emergencyName: 'Ana' });
+    expect(after).toMatchObject({ email: 'contact.test@example.com', licenseNumber: 'D123', emergencyName: 'Ana' });
     const cleared = await updateDriverProfile(tx, owner, d.id, { ...base, fullName: 'Test Contact', email: '', licenseNumber: null }, '2026-11-26');
     expect(cleared).toMatchObject({ email: null, licenseNumber: null, emergencyName: 'Ana' });
     await expect(createDriver(tx, owner, { ...base, fullName: 'Bad Mail', email: 'not-an-email' }, '2026-11-26')).rejects.toMatchObject({ code: 'email_invalid' });
@@ -53,6 +53,16 @@ describe('payees, companies and route owners (stage 2 of the redesign)', () => {
     const d = await addDriverFromToday(tx, actorAs('dispatcher'), { ...base, fullName: 'Test From Today', worksTforce: true, worksHovership: false, licenseNumber: 'X1' });
     expect(d).toMatchObject({ setupComplete: true, worksTforce: true, licenseNumber: 'X1' });
     await expect(addDriverFromToday(tx, actorAs('viewer'), { ...base, fullName: 'Nope' })).rejects.toThrow();
+  }));
+
+  it('never repeats a driver: same name with accents or spaces, same phone written differently, same email or license', () => withRollback(async (tx) => {
+    await createDriver(tx, owner, { ...base, fullName: 'José  Pérez', phone: '(415) 555-0177', email: 'Jose@Test.com', licenseNumber: 'x900' }, '2026-11-26');
+    await expect(createDriver(tx, owner, { ...base, fullName: 'jose perez' }, '2026-11-26')).rejects.toMatchObject({ code: 'driver_exists' });
+    await expect(createDriver(tx, owner, { ...base, fullName: 'Other A', phone: '+1 415 555 0177' }, '2026-11-26')).rejects.toMatchObject({ code: 'phone_taken' });
+    await expect(createDriver(tx, owner, { ...base, fullName: 'Other B', email: 'jose@test.com' }, '2026-11-26')).rejects.toMatchObject({ code: 'driver_email_taken' });
+    await expect(createDriver(tx, owner, { ...base, fullName: 'Other C', licenseNumber: 'X900' }, '2026-11-26')).rejects.toMatchObject({ code: 'license_taken' });
+    expect(normalizePhone('(415) 555-0177')).toBe('+14155550177');
+    expect(normalizePhone('+57 300 123 4567')).toBe('+573001234567');
   }));
 
   it('answers who owns a route on a date from its ownership history', () => withRollback(async (tx) => {

@@ -165,6 +165,8 @@ export const payees = core.table('payees', {
   // One active driver per name, one contractor per name (case-insensitive).
   uniqueIndex('payees_active_driver_name').on(t.payeeType, sql`lower(${t.displayName})`).where(sql`${t.payeeType} = 'driver' and ${t.active}`),
   uniqueIndex('payees_contractor_name').on(sql`lower(${t.displayName})`).where(sql`${t.payeeType} = 'contractor'`),
+  // One driver per email (any case).
+  uniqueIndex('payees_driver_email').on(sql`lower(${t.email})`).where(sql`${t.payeeType} = 'driver' and ${t.email} is not null`),
 ]);
 
 // Companies that own routes. Aarisa itself is the one row with is_own_company: it owns routes but is
@@ -197,7 +199,10 @@ export const drivers = core.table('drivers', {
   emergencyContactName: text('emergency_contact_name'),
   emergencyContactPhone: text('emergency_contact_phone'),
   createdAt: createdAt(), updatedAt: updatedAt(),
-});
+}, (t) => [
+  // One driver per license number.
+  uniqueIndex('drivers_license').on(sql`upper(${t.licenseNumber})`).where(sql`${t.licenseNumber} is not null`),
+]);
 
 // Names people use for a driver on WhatsApp and in the daily list, stored lower-case and trimmed.
 export const driverAliases = core.table('driver_aliases', {

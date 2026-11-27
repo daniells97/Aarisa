@@ -140,6 +140,25 @@ export interface DriverInput {
   emergencyPhone?: string | null;
 }
 
+/**
+ * One way to write a phone, so the same number can't be saved twice in different shapes:
+ * "+1 (415) 555-0101", "415 555 0101" and "+14155550101" are all +14155550101 (10 digits = US/Canada).
+ */
+export function normalizePhone(p: string | null | undefined): string | null {
+  const raw = p?.trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  if (raw.startsWith('+')) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return `+${digits}`;
+}
+
+/** A name compared without case, extra spaces or accents: "José  Pérez" is "jose perez". */
+const nameKey = (col: unknown) => sql`lower(regexp_replace(translate(${col}, 'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN'), '[[:space:]]+', ' ', 'g'))`;
+const plainName = (n: string) => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
 const opt = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim().replace(/\s+/g, ' ') || null);
 
 function clean(input: DriverInput) {
@@ -153,7 +172,7 @@ function clean(input: DriverInput) {
     fullName: input.fullName.trim().replace(/\s+/g, ' '),
     hovershipCode: input.hovershipCode?.trim().toUpperCase() || null,
     contractorId: input.contractorId || null,
-    phone: input.phone?.trim() || null,
+    phone: normalizePhone(input.phone),
     aliases: [...new Set(input.aliases.map(cleanAlias).filter(Boolean))],
     active: input.active,
   };
@@ -167,7 +186,7 @@ async function assertContractor(tx: Tx, id: string | null) {
 
 async function assertNameFree(tx: Tx, name: string, exceptPayeeId?: string) {
   const [same] = await tx.select({ id: payees.id }).from(payees)
-    .where(and(eq(payees.payeeType, 'driver'), eq(payees.active, true), sql`lower(${payees.displayName}) = lower(${name})`));
+    .where(and(eq(payees.payeeType, 'driver'), eq(payees.active, true), sql`${nameKey(payees.displayName)} = ${plainName(name)}`));
   if (same && same.id !== exceptPayeeId) throw new RuleError('driver_exists');
 }
 
@@ -182,6 +201,18 @@ async function assertAliasesFree(tx: Tx, aliases: string[], exceptDriverId?: str
   if (!aliases.length) return;
   const taken = await tx.select().from(driverAliases).where(inArray(driverAliases.aliasText, aliases));
   if (taken.some((t) => t.driverId !== exceptDriverId)) throw new RuleError('alias_taken');
+}
+
+async function assertEmailFree(tx: Tx, email: string | null | undefined, exceptPayeeId?: string) {
+  if (!email) return;
+  const [other] = await tx.select({ id: payees.id }).from(payees).where(and(eq(payees.payeeType, 'driver'), sql`lower(${payees.email}) = ${email}`));
+  if (other && other.id !== exceptPayeeId) throw new RuleError('driver_email_taken');
+}
+
+async function assertLicenseFree(tx: Tx, license: string | null | undefined, exceptDriverId?: string) {
+  if (!license) return;
+  const [other] = await tx.select({ id: drivers.id }).from(drivers).where(sql`upper(${drivers.licenseNumber}) = ${license}`);
+  if (other && other.id !== exceptDriverId) throw new RuleError('license_taken');
 }
 
 async function assertPhoneFree(tx: Tx, phone: string | null, exceptPayeeId?: string) {
@@ -200,6 +231,8 @@ export async function createDriver(tx: Tx, actor: Actor, input: DriverInput & { 
   if (hov) await assertCodeFree(tx, hov, v.hovershipCode);
   await assertAliasesFree(tx, v.aliases);
   await assertPhoneFree(tx, v.phone);
+  await assertEmailFree(tx, v.email);
+  await assertLicenseFree(tx, v.licenseNumber);
   const [payee] = await tx.insert(payees).values({
     payeeType: 'driver', displayName: v.fullName, phone: v.phone, active: v.active, email: v.email ?? null, postalAddress: v.address ?? null,
   }).returning();
@@ -232,6 +265,8 @@ export async function updateDriverProfile(tx: Tx, actor: Actor, id: string, inpu
   if (hov) await assertCodeFree(tx, hov, v.hovershipCode, id);
   await assertAliasesFree(tx, v.aliases, id);
   await assertPhoneFree(tx, v.phone, before.payeeId);
+  await assertEmailFree(tx, v.email, before.payeeId);
+  await assertLicenseFree(tx, v.licenseNumber, id);
 
   await tx.update(payees).set({
     displayName: v.fullName, phone: v.phone, active: v.active, updatedAt: new Date(), email: v.email, postalAddress: v.address,

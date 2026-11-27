@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { dayListSends, routeExecutions, routes, sortCodes, users } from '~/db/schema';
 import type { Mail } from '~/integrations/mail';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
-import { addPersonToday, loadDay, moveToCode, removePersonToday, sendDayList, setAssignment, setPersonSortCodes } from './daily';
+import { addPersonToday, loadDay, moveToCode, removePersonToday, sendDayList, setAssignment, setPersonSortCodes, setSortCodes } from './daily';
 import { createDriver } from './people';
 
 const sent: Mail[] = [];
@@ -94,5 +94,25 @@ describe('daily list, person first', () => {
     expect(day.sent).toMatchObject({ recipients: 1 });
     expect(await tx.select().from(dayListSends).where(eq(dayListSends.date, date))).toHaveLength(1);
     await expect(sendDayList(tx, actorAs('finance'), date)).rejects.toThrow();
+  }));
+
+  it('someone without code who is then picked on a code is one line, not two, with their routes', () => withRollback(async (tx) => {
+    const p = await createDriver(tx, d, { ...base, fullName: 'Test Merge' }, date);
+    const id = await addPersonToday(tx, d, { date, driverId: p.id });
+    const [sc] = await tx.select().from(sortCodes).limit(1);
+    await setPersonSortCodes(tx, d, { executionId: id, sortCodeIds: [sc!.id] });
+    const e = await route(tx, '9000E');
+    await setSortCodes(tx, d, { date, routeId: e.id, sortCodeIds: [] }); // the code had its routes set to none
+    await setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: p.id } });
+    const day = await loadDay(tx, d, date);
+    expect(day.noCode).toHaveLength(0);
+    expect(day.rows.filter((r) => r.today.driverId === p.id)).toHaveLength(1);
+  }));
+
+  it('warns when one driver is on two driver codes the same day', () => withRollback(async (tx) => {
+    const e = await route(tx, '9000E');
+    const robert = await driverNamed(tx, 'Robert Arteaga');
+    await setAssignment(tx, d, { date, routeId: e.id, payee: { driverId: robert.id } });
+    expect((await loadDay(tx, d, date)).doubles).toEqual([expect.objectContaining({ name: 'Robert Arteaga', codes: expect.arrayContaining(['9000E']) })]);
   }));
 });
