@@ -44,8 +44,11 @@ export async function loadHistory(tx: Tx, actor: Actor, input: { from: string; t
       ran.set(r.id, [...(ran.get(r.id) ?? []), r.code]);
     }
   }
-  // Only days somebody worked or something was recorded: a person, pieces or routes.
-  const days = all.filter((e) => e.payeeId || pieces.has(e.id) || ran.has(e.id));
+  // Only days somebody worked or something was recorded: a person, pieces or routes. On a contract whose
+  // report names the driver (Hovership), a person with no routes and no pieces that day didn't work
+  // ("Didn't work today" or covered by someone else), so that day isn't history, as in Daily operations.
+  const byReport = new Set(ops.filter((o) => o.driverSource === 'report_code').map((o) => o.id));
+  const days = all.filter((e) => pieces.has(e.id) || ran.has(e.id) || (e.payeeId && !byReport.has(e.operationId)));
 
   const people = await driverProfiles(tx, today);
   const companies = await contractorProfiles(tx);
