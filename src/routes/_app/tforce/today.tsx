@@ -12,6 +12,8 @@ import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
 import { RowRemove } from '~/ui/RowRemove';
+import { useLineOrder } from '~/ui/useLineOrder';
+import { SortSelect, SortTh } from '~/ui/SortControls';
 import { STATUS_TONE, StatusSelect, type RowStatus } from '~/ui/StatusSelect';
 import { Button, Dialog, FormError, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, TextField, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 
@@ -287,11 +289,25 @@ function TodayPage() {
   // Person first: everyone who works today by name (with or without driver code), then the codes nobody drives.
   // A code with nobody on it. "Didn't run" keeps its person and routes, so it stays a normal line (status in red).
   const emptyCode = (r: Row) => !r.today.name || r.status === 'no_driver';
-  const lines: Line[] = [
+  const baseLines: Line[] = [
     ...[...day.rows.filter((r) => !emptyCode(r)).map((r) => ({ kind: 'code' as const, r })), ...day.noCode.map((p) => ({ kind: 'person' as const, p }))]
       .sort((a, b) => (a.kind === 'code' ? a.r.today.name ?? '' : a.p.name).localeCompare(b.kind === 'code' ? b.r.today.name ?? '' : b.p.name)),
     ...day.rows.filter(emptyCode).map((r) => ({ kind: 'code' as const, r })),
   ];
+  // Lines keep their place while people work (by person: a line doesn't jump when its code or status changes);
+  // a column can be chosen to sort by.
+  const STATUS_RANK: Record<string, number> = { confirmed: 0, changed: 0, proposed: 1, waiting: 1, off: 2, no_driver: 3 };
+  const nameOf = (l: Line) => (l.kind === 'code' ? l.r.today.name ?? '' : l.p.name);
+  const order = useLineOrder(baseLines,
+    (l) => (l.kind === 'person' ? `d:${l.p.driverId}` : l.r.today.driverId && !emptyCode(l.r) ? `d:${l.r.today.driverId}` : `r:${l.r.routeId}`),
+    {
+      driver: (a, b) => (nameOf(a) || '\uffff').localeCompare(nameOf(b) || '\uffff'),
+      code: (a, b) => (a.kind === 'code' ? a.r.code : '\uffff').localeCompare(b.kind === 'code' ? b.r.code : '\uffff'),
+      route: (a, b) => ((a.kind === 'code' ? a.r.sortCodes : a.p.sortCodes)[0]?.code ?? '\uffff').localeCompare((b.kind === 'code' ? b.r.sortCodes : b.p.sortCodes)[0]?.code ?? '\uffff'),
+      status: (a, b) => (STATUS_RANK[a.kind === 'code' ? a.r.status : a.p.status] ?? 9) - (STATUS_RANK[b.kind === 'code' ? b.r.status : b.p.status] ?? 9),
+    }, 'aarisa.sort.tforce');
+  const lines = order.lines;
+  const sortLabels = { entry: t('sort.entry'), driver: t('sort.driver'), code: t('sort.code'), route: t('sort.route'), status: t('sort.status') };
   const sentTime = day.sent ? new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(day.sent.at)) : '';
 
   // The status of a row, changeable in place: Confirmed, To confirm, Didn't run today (with Undo).
@@ -394,7 +410,12 @@ function TodayPage() {
             <>
               <div className="table-wrap desktop-only">
                 <table>
-                  <thead><tr><th scope="col">{t('td.person')}</th><th scope="col">{t('td.codeDriver')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
+                  <thead><tr>
+                    <SortTh label={t('td.person')} k="driver" sort={order.sort} choose={order.choose} />
+                    <SortTh label={t('td.codeDriver')} k="code" sort={order.sort} choose={order.choose} />
+                    <SortTh label={t('td.sortCode')} k="route" sort={order.sort} choose={order.choose} />
+                    <SortTh label={t('td.status')} k="status" sort={order.sort} choose={order.choose} />
+                  </tr></thead>
                   <tbody>
                     {lines.map((line) => {
                       if (line.kind === 'person') {
@@ -423,6 +444,7 @@ function TodayPage() {
                   </tbody>
                 </table>
               </div>
+              <SortSelect sort={order.sort} choose={order.choose} labels={sortLabels} />
               <ul className="route-cards phone-only">
                 {lines.map((line) => {
                   if (line.kind === 'person') {

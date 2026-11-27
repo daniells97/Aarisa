@@ -543,3 +543,12 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 
 /* Daily operations: date and buttons always under the title, the same on T-Force and Hovership. */
 .page-head-stacked { flex-direction: column; align-items: flex-start; justify-content: flex-start; }
+/* Sortable column titles (Daily operations). */
+.th-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; min-height: 32px; }
+.th-sort:hover { color: var(--brand); }
+.th-sort.on { color: var(--brand); font-weight: 600; }
+.th-arrow { font-size: 12px; opacity: .55; }
+.th-sort.on .th-arrow { opacity: 1; }
+.sort-select { align-items: center; gap: 8px; padding: 10px 16px 0; font-size: 14px; color: var(--ink-3); }
+.sort-select .input { min-height: 40px; flex: 1; }
+@media (max-width: 899px) { .sort-select.phone-only { display: flex; } }

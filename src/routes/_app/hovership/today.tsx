@@ -11,6 +11,8 @@ import { NewRecord } from '~/ui/NewRecord';
 import { NotesLoansButton } from '~/ui/NotesLoansButton';
 import { useNewPerson } from '~/ui/DriverForm';
 import { RowRemove } from '~/ui/RowRemove';
+import { useLineOrder } from '~/ui/useLineOrder';
+import { SortSelect, SortTh } from '~/ui/SortControls';
 import { StatusSelect, type RowStatus } from '~/ui/StatusSelect';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
@@ -197,6 +199,15 @@ function HovershipTodayPage() {
     });
   };
 
+  // Lines keep their place while people work; a column can be chosen to sort by.
+  const HRANK: Record<string, number> = { confirmed: 0, changed: 0, covered: 0, proposed: 1, none: 1, off: 2 };
+  const order = useLineOrder(day.rows, (r) => r.driverId, {
+    driver: (a, b) => a.name.localeCompare(b.name),
+    code: (a, b) => (a.code ?? '\uffff').localeCompare(b.code ?? '\uffff'),
+    route: (a, b) => (a.sortCodes[0]?.code ?? '\uffff').localeCompare(b.sortCodes[0]?.code ?? '\uffff'),
+    status: (a, b) => (HRANK[a.status] ?? 9) - (HRANK[b.status] ?? 9),
+  }, 'aarisa.sort.hovership');
+  const sortLabels = { entry: t('sort.entry'), driver: t('sort.driver'), code: t('hd.sortCode'), route: t('sort.route'), status: t('sort.status') };
   const sentTime = day.sent ? new Intl.DateTimeFormat(undefined, { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' }).format(new Date(day.sent.at)) : '';
   return (
     <>
@@ -248,9 +259,14 @@ function HovershipTodayPage() {
             <>
               <div className="table-wrap desktop-only">
                 <table>
-                  <thead><tr><th scope="col">{t('td.person')}</th><th scope="col">{t('hd.code')}</th><th scope="col">{t('td.sortCode')}</th><th scope="col">{t('td.status')}</th></tr></thead>
+                  <thead><tr>
+                    <SortTh label={t('td.person')} k="driver" sort={order.sort} choose={order.choose} />
+                    <SortTh label={t('hd.code')} k="code" sort={order.sort} choose={order.choose} />
+                    <SortTh label={t('td.sortCode')} k="route" sort={order.sort} choose={order.choose} />
+                    <SortTh label={t('td.status')} k="status" sort={order.sort} choose={order.choose} />
+                  </tr></thead>
                   <tbody>
-                    {day.rows.map((r) => (
+                    {order.lines.map((r) => (
                       <tr key={r.driverId}>
                         <td>{picker(r)}<span className="sub">{r.status === 'covered' ? t('hd.coversFor', { name: r.name }) + ' · ' : ''}{about(r)}</span>{actions(r)}</td>
                         <td><span className="cell-text">{r.code ? <strong>{r.code}</strong> : <span className="muted">–</span>}</span></td>
@@ -262,8 +278,9 @@ function HovershipTodayPage() {
                   </tbody>
                 </table>
               </div>
+              <SortSelect sort={order.sort} choose={order.choose} labels={sortLabels} />
               <ul className="route-cards phone-only">
-                {day.rows.map((r) => (
+                {order.lines.map((r) => (
                   <li key={r.driverId}>
                     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>{who(r)}</div>
