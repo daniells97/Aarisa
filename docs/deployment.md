@@ -116,3 +116,24 @@ Setup:
 - Restore (stop the portal first): `pg_restore --clean --if-exists -d "$DATABASE_URL" <file>` from a
   postgres:16-alpine container on the `data` network.
 - These copies live on the same server; an off-server copy is still an open item.
+
+## Test environment (aarisa.dimetrics.com.co)
+
+A second copy of the portal for trying things without touching the real operation (client request, Nov 27 2026).
+
+- Service `aarisa-staging` in `/docker/aarisa/docker-compose.yml`, image `aarisa-portal:staging`.
+- Database: `aarisa_dev` (the development database, with the June 2026 sample data). Never `aarisa_db`.
+- `/docker/aarisa/staging.env` (mode 600) overrides `.env`: `DATABASE_URL` (aarisa_dev), `APP_BASE_URL=https://aarisa.dimetrics.com.co`,
+  `APP_ENV=staging`, its own `SESSION_SECRET`. Files go to its own volume `aarisa-staging-storage`.
+- Sign-in is the same Zitadel login (the callback for this domain was already registered); a person signing in for the
+  first time gets a user in `aarisa_dev` with their Zitadel role.
+- `APP_ENV=staging` shows an orange "test environment" band on every screen and prefixes emails with `[PRUEBAS]`.
+- The end-to-end tests also run against `aarisa_dev`; they only remove rows they created (E2E prefixes).
+
+Release flow: build once and tag it for both, try it on staging, then production.
+
+```bash
+docker build -t aarisa-portal:$SHA -t aarisa-portal:staging .
+cd /docker/aarisa && docker compose up -d aarisa-staging          # try it on aarisa.dimetrics.com.co
+docker tag aarisa-portal:$SHA aarisa-portal:latest && docker compose up -d aarisa   # after the prod backup
+```
