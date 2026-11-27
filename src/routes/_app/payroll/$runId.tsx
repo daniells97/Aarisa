@@ -101,7 +101,10 @@ function RunPage() {
             <tbody>
               {run.lines.map((l) => (
                 <tr key={l.key}>
-                  <td><strong>{l.name}</strong>{l.contractor ? <> <Pill tone="contractor">{t('pill.contractor')}</Pill></> : !tforce && <span className="sub">{l.code}</span>}</td>
+                  <td>
+                    <strong>{l.name}</strong>{l.contractor ? <> <Pill tone="contractor">{t('pill.contractor')}</Pill></> : !tforce && <span className="sub">{l.code}</span>}
+                    {!l.contractor && (l.legalName ? <span className="sub">{t('pr.checkTo', { name: l.legalName })}</span> : <span className="sub"><Pill tone="warn">{t('drivers.noLegalName')}</Pill></span>)}
+                  </td>
                   <td className="r num">{l.routeDays}</td><td className="r num">{f.number(l.packages)}</td>
                   {!tforce && <><td className="r num">{l.stops}</td><td className="r num">{f.money(l.bonusCents)}</td></>}
                   <td className="r num"><strong>{money(l.payCents)}</strong></td>

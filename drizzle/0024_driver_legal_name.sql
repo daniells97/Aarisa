@@ -1,0 +1,1 @@
+ALTER TABLE "core"."drivers" ADD COLUMN "legal_name" text;

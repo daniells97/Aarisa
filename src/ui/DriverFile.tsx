@@ -25,11 +25,37 @@ export function DriverFile({ driverId, name, onClose }: { driverId: string; name
     <Dialog open wide onClose={onClose} title={t('df.title', { name })}>
       {!file ? <p className="muted">{t('common.loading')}</p> : (
         <div className="stack">
+          <Details file={file} />
           <Notes file={file} onChange={reload} />
           <Loans file={file} onChange={reload} />
         </div>
       )}
     </Dialog>
+  );
+}
+
+/** Who the person is: name as on the license, how to reach them and who to call in an emergency. */
+function Details({ file }: { file: File }) {
+  const t = useT();
+  const d = file.details;
+  const rows: [string, React.ReactNode][] = [
+    [t('drivers.legalName'), d.legalName ?? <Pill tone="warn">{t('drivers.noLegalName')}</Pill>],
+    [t('drivers.phone'), d.phone ? <a href={`tel:${d.phone}`}>{d.phone}</a> : '–'],
+    [t('drivers.email'), d.email ? <a href={`mailto:${d.email}`} style={{ overflowWrap: 'anywhere' }}>{d.email}</a> : '–'],
+  ];
+  if ('licenseNumber' in d) rows.push(
+    [t('drivers.license'), d.licenseNumber ?? '–'],
+    [t('drivers.address'), d.address ?? '–'],
+    [t('drivers.emergency'), d.emergencyName || d.emergencyPhone
+      ? <>{d.emergencyName}{d.emergencyPhone && <> · <a href={`tel:${d.emergencyPhone}`}>{d.emergencyPhone}</a></>}</> : '–'],
+  );
+  return (
+    <section className="stack" style={{ gap: 8 }}>
+      <h3 style={{ margin: 0 }}>{t('df.details')}</h3>
+      <dl className="details-list">
+        {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+      </dl>
+    </section>
   );
 }
 

@@ -486,3 +486,8 @@ li.new-record { background: var(--brand-tint); display: flex; flex-direction: co
 /* A status you can tap to change (Drivers: Active / Inactive). */
 .pill-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 4px; margin: -9px -4px; border: 0; background: none; cursor: pointer; color: var(--ink-3); border-radius: 15px; }
 .pill-btn:hover .pill { filter: brightness(.96); }
+
+/* Driver file: who the person is, label over value, two columns on wide screens. */
+.details-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 20px; margin: 0; }
+.details-list dt { font-size: 13px; color: var(--ink-4); }
+.details-list dd { margin: 0; font-weight: 500; }

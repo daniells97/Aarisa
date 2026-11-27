@@ -31,6 +31,8 @@ export interface DriverProfile {
   worksHovership: boolean;
   email: string | null;
   address: string | null;
+  /** Full name as on the license, for payroll and checks. */
+  legalName: string | null;
   licenseNumber: string | null;
   emergencyName: string | null;
   emergencyPhone: string | null;
@@ -83,7 +85,7 @@ export async function driverProfiles(tx: Tx, on: string, ids?: string[]): Promis
       hovershipCode: code.get(d.id) ?? null, phone: p.phone,
       aliases: aliases.filter((a) => a.driverId === d.id).map((a) => a.aliasText),
       active: p.active, setupComplete: d.setupComplete, worksTforce: d.worksTforce, worksHovership: d.worksHovership,
-      email: p.email, address: p.postalAddress, licenseNumber: d.licenseNumber,
+      email: p.email, address: p.postalAddress, legalName: d.legalName, licenseNumber: d.licenseNumber,
       emergencyName: d.emergencyContactName, emergencyPhone: d.emergencyContactPhone,
     };
   });
@@ -135,6 +137,7 @@ export interface DriverInput {
   /** Contact details. Left out on edit: kept as they were. */
   email?: string | null;
   address?: string | null;
+  legalName?: string | null;
   licenseNumber?: string | null;
   emergencyName?: string | null;
   emergencyPhone?: string | null;
@@ -167,7 +170,7 @@ function clean(input: DriverInput) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new RuleError('email_invalid');
   const license = opt(input.licenseNumber);
   return {
-    email, address: opt(input.address), licenseNumber: license && license.toUpperCase(),
+    email, address: opt(input.address), legalName: opt(input.legalName), licenseNumber: license && license.toUpperCase(),
     emergencyName: opt(input.emergencyName), emergencyPhone: opt(input.emergencyPhone),
     fullName: input.fullName.trim().replace(/\s+/g, ' '),
     hovershipCode: input.hovershipCode?.trim().toUpperCase() || null,
@@ -238,7 +241,7 @@ export async function createDriver(tx: Tx, actor: Actor, input: DriverInput & { 
   }).returning();
   const [driver] = await tx.insert(drivers).values({
     payeeId: payee!.id, setupComplete: input.setupComplete,
-    licenseNumber: v.licenseNumber ?? null, emergencyContactName: v.emergencyName ?? null, emergencyContactPhone: v.emergencyPhone ?? null,
+    legalName: v.legalName ?? null, licenseNumber: v.licenseNumber ?? null, emergencyContactName: v.emergencyName ?? null, emergencyContactPhone: v.emergencyPhone ?? null,
     worksTforce: input.worksTforce ?? !v.hovershipCode, worksHovership: input.worksHovership ?? !!v.hovershipCode,
   }).returning();
   const id = driver!.id;
@@ -272,7 +275,7 @@ export async function updateDriverProfile(tx: Tx, actor: Actor, id: string, inpu
     displayName: v.fullName, phone: v.phone, active: v.active, updatedAt: new Date(), email: v.email, postalAddress: v.address,
   }).where(eq(payees.id, before.payeeId));
   await tx.update(drivers).set({
-    licenseNumber: v.licenseNumber, emergencyContactName: v.emergencyName, emergencyContactPhone: v.emergencyPhone,
+    legalName: v.legalName, licenseNumber: v.licenseNumber, emergencyContactName: v.emergencyName, emergencyContactPhone: v.emergencyPhone,
     setupComplete: input.setupComplete ?? before.setupComplete, updatedAt: new Date(),
     worksTforce: input.worksTforce ?? before.worksTforce, worksHovership: input.worksHovership ?? before.worksHovership,
   }).where(eq(drivers.id, id));

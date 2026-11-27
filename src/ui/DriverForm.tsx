@@ -18,6 +18,7 @@ export interface DriverFormInput {
   worksHovership: boolean;
   email: string | null;
   address: string | null;
+  legalName: string | null;
   licenseNumber: string | null;
   emergencyName: string | null;
   emergencyPhone: string | null;
@@ -47,14 +48,14 @@ export function DriverDialog({ driver, initial, contractors, save, onSaved, onCl
   const start = driver ?? initial ?? {};
   const [form, setForm] = useState({
     fullName: start.fullName ?? '', phone: start.phone ?? '', email: start.email ?? '', address: start.address ?? '',
-    licenseNumber: start.licenseNumber ?? '', emergencyName: start.emergencyName ?? '', emergencyPhone: start.emergencyPhone ?? '',
+    legalName: start.legalName ?? '', licenseNumber: start.licenseNumber ?? '', emergencyName: start.emergencyName ?? '', emergencyPhone: start.emergencyPhone ?? '',
     hovershipCode: start.hovershipCode ?? '', contractorId: start.contractorId ?? '', aliases: (start.aliases ?? []).join(', '),
     active: start.active ?? true, worksTforce: start.worksTforce ?? true, worksHovership: start.worksHovership ?? false,
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((s) => ({ ...s, [k]: v }));
-  const text = (k: 'fullName' | 'phone' | 'email' | 'address' | 'licenseNumber' | 'emergencyName' | 'emergencyPhone' | 'hovershipCode' | 'aliases') =>
+  const text = (k: 'fullName' | 'legalName' | 'phone' | 'email' | 'address' | 'licenseNumber' | 'emergencyName' | 'emergencyPhone' | 'hovershipCode' | 'aliases') =>
     ({ value: form[k], onChange: (e: React.ChangeEvent<HTMLInputElement>) => set(k, e.target.value), autoComplete: 'off' });
 
   const submit = async (e: React.FormEvent) => {
@@ -67,7 +68,7 @@ export function DriverDialog({ driver, initial, contractors, save, onSaved, onCl
         fullName: form.fullName, hovershipCode: form.hovershipCode || null, contractorId: form.contractorId || null,
         phone: form.phone || null, aliases: form.aliases.split(','), active: form.active,
         worksTforce: form.worksTforce, worksHovership: form.worksHovership,
-        email: form.email || null, address: form.address || null, licenseNumber: form.licenseNumber || null,
+        email: form.email || null, address: form.address || null, legalName: form.legalName || null, licenseNumber: form.licenseNumber || null,
         emergencyName: form.emergencyName || null, emergencyPhone: form.emergencyPhone || null,
       });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
@@ -88,6 +89,7 @@ export function DriverDialog({ driver, initial, contractors, save, onSaved, onCl
       </>}>
       <form id={formId} onSubmit={submit} className="stack driver-form">
         <TextField label={t('drivers.name')} required {...text('fullName')} autoFocus={!start.fullName} />
+        <TextField label={t('drivers.legalName')} hint={t('drivers.legalNameHint')} autoCapitalize="words" {...text('legalName')} />
         <div className="grid-2">
           <TextField label={t('drivers.phone')} type="tel" inputMode="tel" {...text('phone')} />
           <TextField label={t('drivers.email')} type="email" inputMode="email" autoCapitalize="off" spellCheck={false} {...text('email')} />
