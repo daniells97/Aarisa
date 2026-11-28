@@ -1,0 +1,139 @@
+import { useState, type ReactNode } from 'react';
+import { Link, useRouterState } from '@tanstack/react-router';
+import { useT, type MessageKey } from '~/i18n';
+import { can, type Role } from '~/domain/permissions';
+import { Icon, type IconName } from './icons';
+import { BrandLogo } from './BrandLogo';
+import { Badge } from './Pill';
+import { Sheet } from './Dialog';
+
+export interface ShellUser { name: string; role: Role }
+
+interface NavItem { to: string; label: MessageKey; icon: IconName; show?: (r: Role) => boolean; badge?: number; op?: string }
+interface NavGroup { label?: MessageKey; title?: string; items: NavItem[] }
+export interface ShellOperation { code: string; name: string; driverSource: 'report_code' | 'daily_list' }
+
+/**
+ * One menu group per contract, with the screens its driver source needs (stage 6c): the daily list and
+ * weekly check when Aarisa's list names the driver, the weekly report when the client's report does.
+ * The first contract of each kind keeps the plain address; others add ?op=<code>.
+ */
+function operationGroups(ops: ShellOperation[]): NavGroup[] {
+  const firstOf = (src: ShellOperation['driverSource']) => ops.find((o) => o.driverSource === src)?.code;
+  return ops.map((o) => {
+    const op = o.code === firstOf(o.driverSource) ? undefined : o.code;
+    return {
+      title: o.name,
+      items: o.driverSource === 'daily_list'
+        // Today's drivers is one item at the top (tabs T-Force | Hovership inside); another daily-list contract keeps its own.
+        ? [...(op ? [{ to: '/tforce/today', label: 'nav.todayDrivers' as const, icon: 'calendar' as const, op }] : []), { to: '/tforce/week', label: 'nav.weeklyCheck' as const, icon: 'swap' as const, op }]
+        : [{ to: '/hovership', label: 'nav.weeklyReport' as const, icon: 'file' as const, op }],
+    };
+  });
+}
+
+const fixedGroups: NavGroup[] = [
+  { label: 'nav.group.money', items: [
+    { to: '/payroll', label: 'nav.payroll', icon: 'cash' },
+    { to: '/settlements', label: 'nav.settlements', icon: 'receipt', show: (r) => can(r, 'money.view') },
+  ] },
+  { label: 'nav.group.settings', items: [
+    { to: '/settings/rates', label: 'nav.driversRates', icon: 'sliders' },
+    { to: '/settings/team', label: 'nav.team', icon: 'team', show: (r) => can(r, 'team.manage') },
+    { to: '/settings/audit', label: 'nav.audit', icon: 'file', show: (r) => can(r, 'audit.view') },
+  ] },
+];
+
+const tabs: NavItem[] = [
+  { to: '/tforce/today', label: 'tab.today', icon: 'calendar' },
+  { to: '/extra-jobs', label: 'tab.extraJobs', icon: 'plus' },
+  { to: '/exceptions', label: 'tab.exceptions', icon: 'diamond' },
+  { to: '/week', label: 'tab.week', icon: 'chart' },
+];
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('');
+}
+
+function isActive(path: string, to: string) {
+  if (to === '/') return path === '/';
+  // Today's drivers is one item for both tabs; the weekly report (/hovership) isn't lit on its Hovership tab.
+  if (to === '/hovership' && path.startsWith('/hovership/today')) return false;
+  if (to === '/tforce/today' && path.startsWith('/hovership/today')) return true;
+  return path === to || path.startsWith(`${to}/`);
+}
+
+export function AppShell({ user, children, badges = {}, operations = [] }: { user: ShellUser; children: ReactNode; badges?: Record<string, number>; operations?: ShellOperation[] }) {
+  const t = useT();
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const currentOp = useRouterState({ select: (s) => (s.location.search as { op?: string }).op });
+  const groups: NavGroup[] = [{ items: [{ to: '/tforce/today', label: 'nav.todayDrivers', icon: 'calendar' }, { to: '/', label: 'nav.overview', icon: 'home' }, { to: '/history', label: 'nav.history', icon: 'chart' }] }, ...operationGroups(operations), ...fixedGroups];
+  const active = (i: NavItem) => isActive(path, i.to) && (i.op ?? undefined) === (currentOp ?? undefined);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The same menu in the side bar (desktop) and in the phone's menu sheet (every screen, not only the tabs).
+  const navList = (onGo?: () => void) => groups.map((g, gi) => {
+    const items = g.items.filter((i) => !i.show || i.show(user.role));
+    if (!items.length) return null;
+    return (
+      <div key={gi} style={{ display: 'contents' }}>
+        {(g.label || g.title) && <div className="side-group">{g.title ?? t(g.label!)}</div>}
+        {items.map((i) => (
+          <Link key={`${i.to}${i.op ?? ''}`} to={i.to} search={(i.op ? { op: i.op } : {}) as never} activeOptions={{ exact: true, includeSearch: false }} aria-current={active(i) ? 'page' : undefined} onClick={onGo}>
+            <Icon name={i.icon} />{t(i.label)}
+            <Badge count={badges[i.to] ?? 0} label={String(badges[i.to] ?? 0)} />
+          </Link>
+        ))}
+      </div>
+    );
+  });
+  return (
+    <div className="shell">
+      <aside className="side">
+        <Link to="/" className="side-brand" aria-label={t('nav.overview')}><BrandLogo height={58} /></Link>
+        <nav aria-label={t('nav.main')}>{navList()}</nav>
+      </aside>
+      <main className="content" id="main">
+        {/* Top bar: the logo on a phone (no side menu there), and who is signed in, top right. */}
+        <div className="topbar">
+          <Link to="/" className="phone-brand" aria-label={t('nav.overview')}><BrandLogo variant="horizontal" height={34} /></Link>
+          <div className="top-user">
+            <span className="avatar" aria-hidden="true">{initials(user.name)}</span>
+            <span className="top-user-text">
+              <span style={{ fontWeight: 600, fontSize: 14.5 }}>{user.name}</span>
+              <span className="muted" style={{ fontSize: 13 }}>{t(`role.${user.role}`)}</span>
+            </span>
+            <a href="/auth/logout" className="btn btn-sm" aria-label={t('nav.signOut')} title={t('nav.signOut')} style={{ width: 44, padding: 0 }}>
+              <Icon name="signOut" width={19} height={19} />
+            </a>
+            <button type="button" className="btn btn-sm menu-btn" onClick={() => setMenuOpen(true)} aria-label={t('nav.menu')} title={t('nav.menu')}>
+              <Icon name="menu" width={20} height={20} />
+            </button>
+          </div>
+        </div>
+        {children}
+      </main>
+      {menuOpen && (
+        <Sheet open onClose={() => setMenuOpen(false)} title={t('nav.menu')}>
+          <nav className="menu-sheet" aria-label={t('nav.main')}>{navList(() => setMenuOpen(false))}</nav>
+        </Sheet>
+      )}
+      <nav className="tabbar" aria-label={t('nav.main')}>
+        {tabs.map((i) => (
+          <Link key={i.to} to={i.to} activeOptions={{ exact: true, includeSearch: false }} aria-current={isActive(path, i.to) ? 'page' : undefined}>
+            <Icon name={i.icon} />{t(i.label)}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+/** `stacked`: the actions always go under the title and lead (Daily operations: same layout on every client). */
+export function PageHead({ title, lead, actions, stacked = false }: { title: ReactNode; lead?: ReactNode; actions?: ReactNode; stacked?: boolean }) {
+  return (
+    <header className={stacked ? 'page-head page-head-stacked' : 'page-head'}>
+      <div><h1>{title}</h1>{lead && <p>{lead}</p>}</div>
+      {actions}
+    </header>
+  );
+}

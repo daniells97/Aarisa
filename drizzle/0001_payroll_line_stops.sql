@@ -1,0 +1,1 @@
+ALTER TABLE "payroll_lines" ADD COLUMN "stops" integer DEFAULT 0 NOT NULL;

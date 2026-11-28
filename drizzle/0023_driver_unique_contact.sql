@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "drivers_license" ON "core"."drivers" USING btree (upper("license_number")) WHERE "core"."drivers"."license_number" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "payees_driver_email" ON "core"."payees" USING btree (lower("email")) WHERE "core"."payees"."payee_type" = 'driver' and "core"."payees"."email" is not null;

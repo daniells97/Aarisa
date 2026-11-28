@@ -1,0 +1,210 @@
+import type { ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
+import { useT, type MessageKey } from '~/i18n';
+import type { NeedItem } from '~/server/overview';
+import type { getOverview } from '~/server/overview-fns';
+import { PageHead } from './AppShell';
+import { buttonClass } from './Button';
+import { Icon } from './icons';
+import { Figures, Panel } from './Panel';
+import { WarningDiamond } from './WarningDiamond';
+import { useFormat } from './format';
+import { rangeText } from './payroll-text';
+import { addDays } from '~/domain/dates';
+import { useClientName } from './ClientNames';
+
+type Data = Awaited<ReturnType<typeof getOverview>>;
+
+function greeting(hour: number): MessageKey {
+  return hour < 12 ? 'ov.morning' : hour < 18 ? 'ov.afternoon' : 'ov.evening';
+}
+
+/** First Monday of a month, to go from the month view back to a week in it. */
+function weekStartIn(month: string) {
+  const dow = new Date(`${month}-01T12:00:00Z`).getUTCDay();
+  return addDays(`${month}-01`, (8 - dow) % 7);
+}
+
+/** Overview (spec 6.2). Same component on `/` (desktop) and `/week` (phone). */
+export function Overview({ data, userName, hourLA, weekPath }: { data: Data; userName: string; hourLA: number; weekPath: '/' | '/week' }) {
+  const t = useT();
+  const f = useFormat();
+  const range = rangeText(data.week, t, f);
+  const n = data.needs.length;
+  const m = data.month;
+  const monthText = m ? f.date(`${m}-01`, { month: 'long', year: 'numeric' }) : '';
+  const monthName = monthText.charAt(0).toUpperCase() + monthText.slice(1); // sentence case: "Junio de 2026"
+  // A month is the weeks that start in it; the lead says which days that covers.
+  const when = m ? t('ov.monthOf', { month: monthName, range, weeks: data.weeks }) : t('ov.weekOf', { range });
+  const lead = n === 0 ? t('ov.leadClear', { when }) : n === 1 ? t('ov.leadOne', { when }) : t('ov.leadNeeds', { when, count: n });
+  const shiftMonth = (k: number) => addDays(`${m ?? data.week.start.slice(0, 7)}-15`, k * 30).slice(0, 7);
+  const first = userName.split(' ')[0] ?? userName;
+  const pct = data.figures.profitChangePct;
+  const max = Math.max(1, ...data.perDay.map((d) => d.hovership + d.tforce));
+  return (
+    <>
+      <PageHead title={t(greeting(hourLA), { name: first })} lead={lead}
+        actions={
+          <div className="row">
+            <nav className="seg" aria-label={t('ov.periodKind')}>
+              <Link to={weekPath} search={{ week: m ? weekStartIn(m) : data.week.start }} aria-current={m ? undefined : 'page'}>{t('ov.byWeek')}</Link>
+              <Link to={weekPath} search={{ month: m ?? data.week.start.slice(0, 7) }} aria-current={m ? 'page' : undefined}>{t('ov.byMonth')}</Link>
+            </nav>
+            {m ? (
+              <div className="week-nav">
+                <Link to={weekPath} search={{ month: shiftMonth(-1) }} aria-label={t('ov.prevMonth')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+                <span className="num">{monthName}</span>
+                <Link to={weekPath} search={{ month: shiftMonth(1) }} aria-label={t('ov.nextMonth')}><Icon name="chevronRight" width={18} height={18} /></Link>
+              </div>
+            ) : (
+              <div className="week-nav">
+                <Link to={weekPath} search={{ week: addDays(data.week.start, -7) }} aria-label={t('hs.prevWeek')}><Icon name="chevronLeft" width={18} height={18} /></Link>
+                <span className="num">{f.date(data.week.start, { month: 'short', day: 'numeric' })} – {f.date(data.week.end, { month: 'short', day: 'numeric' })}</span>
+                <Link to={weekPath} search={{ week: addDays(data.week.start, 7) }} aria-label={t('hs.nextWeek')}><Icon name="chevronRight" width={18} height={18} /></Link>
+              </div>
+            )}
+          </div>
+        } />
+
+      <Panel title={t('ov.needsTitle')} id="needs">
+        {n === 0 ? <p className="panel-body muted" style={{ margin: 0 }}>{t('ov.allClear')}</p> : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {data.needs.map((item, i) => <Need key={i} item={item} />)}
+          </ul>
+        )}
+      </Panel>
+
+      {(data.ledger.notes.length > 0 || data.ledger.owedCents > 0) && (
+        <Panel title={t('ov.notesTitle')} id="driver-notes"
+          aside={<Link to="/settings/rates" search={{ tab: 'drivers' }} className={buttonClass('secondary', 'sm')}>{t('ov.notesAll')}</Link>}>
+          <div className="panel-body stack">
+            {data.ledger.owedCents > 0 && <p style={{ margin: 0 }}>{t(data.ledger.owing === 1 ? 'ov.owedLoansOne' : 'ov.owedLoans', { amount: f.money(data.ledger.owedCents), count: data.ledger.owing })}</p>}
+            {data.ledger.notes.length > 0 && (
+              <ul className="note-list">
+                {data.ledger.notes.map((n) => (
+                  <li key={n.id}><span><strong>{n.name}</strong>: {n.body}<span className="sub">{f.dateTime(n.at)}</span></span></li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Panel>
+      )}
+
+      <Panel>
+        <Figures items={[
+          { label: t('ov.packages'), value: f.number(data.figures.packages), note: t('ov.packagesSplit', { tforce: f.number(data.figures.tforcePieces), hovership: f.number(data.figures.hovershipPackages) }) },
+          { label: t('ov.routeDays'), value: f.number(data.figures.routeDays), note: t('ov.routeDaysSplit', { tforce: data.figures.tforceRouteDays, hovership: data.figures.hovershipRouteDays }) },
+          { label: t('ov.owed'), value: f.money(data.figures.owedCents), note: data.tforce.payCents ? t('ov.owedNote') : t('ov.owedNoteBoth') },
+          ...(data.showMoney ? [{
+            label: t('ov.profit'),
+            value: <span className={(data.figures.profitCents ?? 0) < 0 ? 'neg' : undefined}>{f.money(data.figures.profitCents)}</span>,
+            note: pct == null ? undefined : pct === 0 ? t(m ? 'ov.sameMonth' : 'ov.same') : t(pct > 0 ? (m ? 'ov.upMonth' : 'ov.up') : (m ? 'ov.downMonth' : 'ov.down'), { pct: Math.abs(pct) }),
+          }] : []),
+        ]} />
+      </Panel>
+
+      <div className="grid-2" style={{ alignItems: 'start' }}>
+        <Panel title={t('ov.byDay')} id="by-day">
+          <div className="panel-body">
+            <div className={m ? 'bars bars-month' : 'bars'} aria-hidden="true">
+              {data.perDay.map((d) => (
+                <div key={d.date} className="bar-col">
+                  {!m && <span className="num bar-label">{d.hovership + d.tforce ? f.number(d.hovership + d.tforce) : ''}</span>}
+                  <span className="bar" style={{ height: `${Math.round((d.hovership / max) * 150)}px`, borderRadius: d.tforce ? '3px 3px 0 0' : undefined }} />
+                  {d.tforce > 0 && <span className="bar bar-tforce" style={{ height: `${Math.round((d.tforce / max) * 150)}px`, borderRadius: d.hovership ? '0 0 3px 3px' : '3px' }} />}
+                  <span className="bar-day">{m ? (d.date.endsWith('-01') || Number(d.date.slice(8)) % 7 === 1 ? Number(d.date.slice(8)) : '') : f.date(d.date, { weekday: 'short' })}</span>
+                </div>
+              ))}
+            </div>
+            <p className="legend"><span className="swatch swatch-tforce" aria-hidden="true" />T-Force <span className="swatch" aria-hidden="true" style={{ marginLeft: 12 }} />Hovership</p>
+            <div className="visually-hidden"><table>
+              <caption>{t('ov.byDayCaption')}</caption>
+              <thead><tr><th scope="col">{t('ov.day')}</th><th scope="col">T-Force</th><th scope="col">Hovership</th></tr></thead>
+              <tbody>{data.perDay.map((d) => <tr key={d.date}><th scope="row">{f.date(d.date, { weekday: 'long', month: 'long', day: 'numeric' })}</th><td>{d.tforce}</td><td>{d.hovership}</td></tr>)}</tbody>
+            </table></div>
+          </div>
+        </Panel>
+        <Panel title={t('ov.eachOp')} id="ops">
+          <div className="op-block">
+            <div className="row" style={{ justifyContent: 'space-between' }}><strong>Hovership</strong><span className="muted">{t('ov.biweekly')}</span></div>
+            <dl className="op-figures">
+              {data.showMoney && <div><dt>{t('ov.revenue')}</dt><dd className="num">{f.money(data.hovership.revenueCents)}</dd></div>}
+              <div><dt>{t('ov.driversCost')}</dt><dd className="num">{f.money(data.hovership.driversCents)}</dd></div>
+              {data.showMoney && <div><dt>{t('hs.profit')}</dt><dd className="num">{f.money(data.hovership.profitCents)}</dd></div>}
+            </dl>
+            <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('ov.hovershipTerms')}</p>
+          </div>
+          <div className="op-block">
+            <div className="row" style={{ justifyContent: 'space-between' }}><strong>T-Force</strong><span className="muted">{t('ov.weekly')}</span></div>
+            <dl className="op-figures">
+              <div><dt>{t('ov.pieces')}</dt><dd className="num">{f.number(data.tforce.pieces)}</dd></div>
+              <div><dt>{t('ov.routeDays')}</dt><dd className="num">{f.number(data.tforce.routeDays)}</dd></div>
+              <div><dt>{t('ov.driversCost')}</dt><dd className="num">{data.tforce.payCents ? f.money(data.tforce.payCents) : <span className="muted" style={{ font: '400 14px var(--font)' }}>{t('ov.tforceProfitLater')}</span>}</dd></div>
+            </dl>
+            <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>{t('ov.tforceTerms')}</p>
+          </div>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function Need({ item }: { item: NeedItem }) {
+  const t = useT();
+  const clientName = useClientName();
+  const f = useFormat();
+  let title: ReactNode, body: ReactNode, action: ReactNode;
+  switch (item.kind) {
+    case 'tforce_exceptions':
+      title = t('ov.tforceExceptions', { count: item.count });
+      body = t('ov.tforceExceptionsBody');
+      action = <Link className={buttonClass('primary', 'sm')} to="/tforce/week/$weekId" params={{ weekId: item.week }}>{t('ov.review')}</Link>;
+      break;
+    case 'late_payment': {
+      const client = clientName(item.operation);
+      const what = item.lineKind === 'invoice' && item.periodEnd ? t('st.weekEnding', { date: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
+        : item.lineKind === 'weekly_statement' && item.periodStart && item.periodEnd ? t('st.ecommerce', { start: f.date(item.periodStart, { month: 'short', day: 'numeric' }), end: f.date(item.periodEnd, { month: 'short', day: 'numeric' }) })
+          : item.reference ?? '';
+      title = t('ov.latePayment', { client, what });
+      body = t('ov.latePaymentBody', { amount: f.money(item.missingCents), days: item.daysLate, count: item.count });
+      action = <Link className={buttonClass('secondary', 'sm')} to="/settlements" search={{ line: item.lineId }}>{t('ov.open')}</Link>;
+      break;
+    }
+    case 'unknown_codes':
+      title = t('ov.unknownCodes', { count: item.count });
+      body = t('ov.unknownCodesBody');
+      action = <Link className={buttonClass('primary', 'sm')} to="/hovership/week/$weekId" params={{ weekId: item.week }}>{t('ov.review')}</Link>;
+      break;
+    case 'missing_rates':
+      title = t('ov.missingRates', { count: item.count });
+      body = t('ov.missingRatesBody');
+      action = <Link className={buttonClass('primary', 'sm')} to="/settings/rates">{t('ov.addRate')}</Link>;
+      break;
+    case 'run_ready':
+      title = t('ov.runReady', { range: rangeText(item, t, f) });
+      body = t('ov.runReadyBody', { amount: f.money(item.payCents) });
+      action = <Link className={buttonClass('primary', 'sm')} to="/payroll/$runId" params={{ runId: item.runId }}>{t('ov.review')}</Link>;
+      break;
+    case 'run_blocked': {
+      title = t('ov.runBlocked', { range: rangeText(item, t, f) });
+      const [kind, weeks] = item.reason.split(':');
+      body = kind === 'missing_report'
+        ? t('pay.blocker.missing_report', { weeks: (weeks ?? '').split(',').map((w) => f.date(w, { month: 'long', day: 'numeric' })).join(', ') })
+        : t(`pay.blocker.${kind}` as MessageKey, { count: '' });
+      action = <Link className={buttonClass('secondary', 'sm')} to="/payroll/$runId" params={{ runId: item.runId }}>{t('ov.open')}</Link>;
+      break;
+    }
+    case 'lost_day':
+      title = t('ov.lostDay', { name: item.name });
+      body = t('ov.lostDayBody', { bonus: f.money(item.bonusCents), packages: item.packages, margin: f.money(item.marginCents), count: item.count });
+      action = <Link className={buttonClass('secondary', 'sm')} to="/hovership/week/$weekId" params={{ weekId: item.week }}>{t('ov.seeDay')}</Link>;
+      break;
+  }
+  return (
+    <li className="todo">
+      <WarningDiamond />
+      <div style={{ flex: 1, minWidth: 0 }}><strong>{title}</strong><span className="sub" style={{ fontSize: 14 }}>{body}</span></div>
+      {action}
+    </li>
+  );
+}

@@ -1,0 +1,202 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791472590316,
+      "tag": "0000_cloudy_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791474479921,
+      "tag": "0001_payroll_line_stops",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791487859858,
+      "tag": "0002_payroll_line_extra_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791548875873,
+      "tag": "0003_service_active_and_spanish_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792381264890,
+      "tag": "0004_core_schema_and_naming",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792382364992,
+      "tag": "0005_payees_and_route_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792383460371,
+      "tag": "0006_route_executions",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792384765982,
+      "tag": "0007_tiers_rate_agreements_pay_adjustments",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792412641850,
+      "tag": "0008_zones_and_other_revenues",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792413554340,
+      "tag": "0009_clients_and_contract_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792414969178,
+      "tag": "0010_generic_reports_and_raw_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792937974093,
+      "tag": "0011_claims_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795472472825,
+      "tag": "0012_sort_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795473928952,
+      "tag": "0013_usual_sort_codes",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795475625658,
+      "tag": "0014_driver_platforms",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795476516506,
+      "tag": "0015_driver_loans_and_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795529382305,
+      "tag": "0016_hovership_usual_routes_and_loan_permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795549088206,
+      "tag": "0017_hovership_other_extra_job",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795554346153,
+      "tag": "0018_user_first_sign_in",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795565166153,
+      "tag": "0019_execution_off_today",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795565379193,
+      "tag": "0020_execution_off_payee_check",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795661953032,
+      "tag": "0021_driver_contact_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795663383596,
+      "tag": "0022_day_list_send",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795737153485,
+      "tag": "0023_driver_unique_contact",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795738337635,
+      "tag": "0024_driver_legal_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795740155571,
+      "tag": "0025_day_list_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795740584252,
+      "tag": "0026_drop_driver_legal_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1795819893211,
+      "tag": "0027_hovership_off_keeps_person",
+      "breakpoints": true
+    }
+  ]
+}

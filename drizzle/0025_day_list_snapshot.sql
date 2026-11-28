@@ -1,0 +1,1 @@
+ALTER TABLE "core"."day_list_sends" ADD COLUMN "snapshot" jsonb;

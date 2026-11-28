@@ -1,0 +1,264 @@
+import { and, desc, eq, gte, inArray, lte, getViewSelectedFields } from 'drizzle-orm';
+import type { Tx } from '~/db/client';
+import { aiSuggestions, claims, exceptions, extraJobView, operations, payAdjustments, paymentAllocations, paymentsReceived, payrollRuns, routes, serviceTypes, settlementLines, workView } from '~/db/schema';
+import { addDays, weekStart } from '~/domain/dates';
+import { can } from '~/domain/permissions';
+import { settlementStatus, settlementSummary, type SettlementStatus } from '~/domain/settlements';
+import { assertCan, type Actor } from './actor';
+import { audit, type AuditEntry } from './audit';
+import { RuleError } from './errors';
+import { getOperation, type Operation } from './ops';
+import { otherRevenueTotal } from './revenue';
+import { clientRate, valuationContext } from './valuation';
+import { payeeNameMaps } from './people';
+import { claimBasis } from './claims';
+import { payeeNamesById } from './executions';
+
+// Settlements (spec §5.6, 6.9): what each client is expected to pay, what arrived, what is late,
+// and claims for money paid out to drivers but left out by the client.
+
+/**
+ * Expected weekly amount for any client: its reported work × the client rate valid on each day, plus its
+ * other revenue (Hovership's STEM). Work with no payee (not our route) isn't billed. Null when a client
+ * rate is missing, so the line shows "amount unknown" instead of a wrong number.
+ */
+async function weeklyExpected(tx: Tx, op: Operation, start: string, end: string): Promise<number | null> {
+  const ctx = await valuationContext(tx, op.id);
+  const records = await tx.select().from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'client_report'), gte(workView.date, start), lte(workView.date, end)));
+  let total = 0;
+  for (const w of records) {
+    if (!w.payeeId) continue;
+    const cents = clientRate(ctx, w.serviceTypeId, w.tierId, w.date);
+    if (cents == null) return null;
+    total += w.pieces * cents;
+  }
+  return total + await otherRevenueTotal(tx, op.id, start, end);
+}
+
+/**
+ * Creates or updates the weekly expected line for each week that has report work, with the kind the
+ * contract uses (Aarisa's invoice or the client's statement). Runs after a report import, a rate change
+ * or a weekly-check resolution. Paid lines are not touched.
+ */
+export async function refreshWeeklyLines(tx: Tx, actor: Actor, code: string, weekStarts?: string[]) {
+  const op = await getOperation(tx, code);
+  const kind = op.weeklySettlementKind;
+  let weeks = weekStarts;
+  if (!weeks) {
+    const dates = await tx.selectDistinct({ date: workView.date }).from(workView).where(and(eq(workView.operationId, op.id), eq(workView.source, 'client_report')));
+    weeks = [...new Set(dates.map((d) => weekStart(d.date)))];
+  }
+  const trail: AuditEntry[] = [];
+  for (const start of weeks.sort()) {
+    const end = addDays(start, 6);
+    const expected = await weeklyExpected(tx, op, start, end);
+    const expectedDate = addDays(end, op.paymentTermsDays);
+    const [line] = await tx.select().from(settlementLines).where(and(eq(settlementLines.operationId, op.id), eq(settlementLines.kind, kind), eq(settlementLines.periodStart, start)));
+    if (!line) {
+      const [row] = await tx.insert(settlementLines).values({ operationId: op.id, kind, periodStart: start, periodEnd: end, expectedCents: expected, expectedDate, status: 'open' }).returning();
+      trail.push({ table: 'settlement_lines', recordId: row!.id, action: 'insert', after: row, userId: actor.userId, source: actor.source });
+    } else if (line.status !== 'paid' && (line.expectedCents !== expected || line.expectedDate !== expectedDate)) {
+      const [row] = await tx.update(settlementLines).set({ expectedCents: expected, expectedDate, updatedAt: new Date() }).where(eq(settlementLines.id, line.id)).returning();
+      trail.push({ table: 'settlement_lines', recordId: line.id, action: 'update', before: line, after: row, userId: actor.userId, source: actor.source });
+    }
+  }
+  await audit(tx, trail);
+}
+
+async function receivedByLine(tx: Tx, lineIds: string[]) {
+  const map = new Map<string, { cents: number; lastDate: string | null }>();
+  if (!lineIds.length) return map;
+  const rows = await tx.select({ lineId: paymentAllocations.settlementLineId, amount: paymentAllocations.amountCents, date: paymentsReceived.receivedOn })
+    .from(paymentAllocations).innerJoin(paymentsReceived, eq(paymentsReceived.id, paymentAllocations.paymentId)).where(inArray(paymentAllocations.settlementLineId, lineIds));
+  for (const r of rows) {
+    const e = map.get(r.lineId) ?? { cents: 0, lastDate: null };
+    e.cents += r.amount;
+    e.lastDate = !e.lastDate || r.date > e.lastDate ? r.date : e.lastDate;
+    map.set(r.lineId, e);
+  }
+  return map;
+}
+
+/** Was the driver or contractor already paid for this line's work (its payroll run approved or paid)? */
+async function paidOutLines(tx: Tx, lines: (typeof settlementLines.$inferSelect)[]) {
+  const out = new Set<string>();
+  const approved = new Set((await tx.select({ id: payrollRuns.id }).from(payrollRuns).where(inArray(payrollRuns.status, ['approved', 'paid']))).map((r) => r.id));
+  if (!approved.size) return out;
+  for (const l of lines) {
+    const recs = l.extraJobId
+      ? await tx.select({ run: workView.payrollRunId }).from(workView).where(eq(workView.extraJobId, l.extraJobId))
+      : await tx.select({ run: workView.payrollRunId }).from(workView).where(and(eq(workView.operationId, l.operationId), gte(workView.date, l.periodStart ?? '9999-12-31'), lte(workView.date, l.periodEnd ?? '0000-01-01')));
+    if (recs.length && recs.every((r) => r.run && approved.has(r.run))) out.add(l.id);
+  }
+  return out;
+}
+
+export async function loadSettlements(tx: Tx, actor: Actor, today: string, filter: string = 'all') {
+  assertCan(actor, 'money.view');
+  const ops = await tx.select().from(operations);
+  const opCode = new Map(ops.map((o) => [o.id, o.code]));
+  let lines = await tx.select().from(settlementLines).orderBy(desc(settlementLines.expectedDate));
+  if (filter !== 'all') lines = lines.filter((l) => opCode.get(l.operationId) === filter);
+  const ids = lines.map((l) => l.id);
+  const received = await receivedByLine(tx, ids);
+  const claimRows = ids.length ? await tx.select().from(claims).where(inArray(claims.settlementLineId, ids)).orderBy(desc(claims.createdAt)) : [];
+  const paidOut = await paidOutLines(tx, lines);
+  const jobIds = lines.map((l) => l.extraJobId).filter((x): x is string => !!x);
+  const jobs = jobIds.length ? await tx.select({ job: getViewSelectedFields(extraJobView), service: serviceTypes.name, route: routes.code }).from(extraJobView)
+    .innerJoin(serviceTypes, eq(serviceTypes.id, extraJobView.serviceTypeId)).leftJoin(routes, eq(routes.id, extraJobView.nearRouteId)).where(inArray(extraJobView.id, jobIds)) : [];
+  const { driver: dName, contractor: cName } = await payeeNameMaps(tx);
+
+  const view = lines.map((l) => {
+    const rec = received.get(l.id) ?? { cents: 0, lastDate: null };
+    const lineClaims = claimRows.filter((c) => c.settlementLineId === l.id);
+    const sent = lineClaims.find((c) => c.sentAt);
+    const claim = sent ? 'sent' as const : l.status === 'claim_ready' || l.status === 'claimed' || lineClaims.length ? 'ready' as const : 'none' as const;
+    const s = settlementStatus({ expectedCents: l.expectedCents, expectedDate: l.expectedDate, receivedCents: rec.cents, claim }, today);
+    const j = jobs.find((x) => x.job.id === l.extraJobId);
+    return {
+      id: l.id, operation: opCode.get(l.operationId)!, kind: l.kind, reference: l.reference, periodStart: l.periodStart, periodEnd: l.periodEnd,
+      expectedCents: l.expectedCents, expectedDate: l.expectedDate, receivedCents: rec.cents, paidOn: s.status === 'paid' ? rec.lastDate : null,
+      missingCents: s.missingCents, daysLate: s.daysLate, status: s.status as SettlementStatus, paidToPayee: paidOut.has(l.id),
+      claimSentAt: sent?.sentAt?.toISOString() ?? null, claimSentTo: sent?.sentTo ?? null,
+      claimResponse: lineClaims.find((c) => c.response)?.response ?? null,
+      job: j ? {
+        service: j.service, date: j.job.date, orderNumber: j.job.orderNumber, nearRoute: j.route ?? null,
+        payee: j.job.driverId ? dName.get(j.job.driverId) ?? '' : cName.get(j.job.contractorId!) ?? '', contractor: !!j.job.contractorId,
+        clientAmountCents: j.job.clientAmountCents, payeeAmountCents: j.job.driverAmountCents, source: j.job.source, viaAi: !!j.job.aiSuggestionId,
+      } : null,
+    };
+  });
+
+  const payments = await tx.select().from(paymentsReceived).orderBy(desc(paymentsReceived.receivedOn));
+  // "Received in <last month>" (design 6.9).
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const prevMonthStart = `${addDays(monthStart, -1).slice(0, 7)}-01`;
+  const summary = settlementSummary(
+    view.map((v) => ({ expectedCents: v.expectedCents, expectedDate: v.expectedDate, receivedCents: v.receivedCents, claim: v.claimSentAt ? 'sent' as const : v.status === 'claim_ready' ? 'ready' as const : 'none' as const, operation: v.operation, kind: v.kind, paidToPayee: v.paidToPayee })),
+    today, { start: prevMonthStart, end: addDays(monthStart, -1) },
+    payments.filter((p) => filter === 'all' || opCode.get(p.operationId) === filter).map((p) => ({ date: p.receivedOn, amountCents: p.amountCents })),
+  );
+  return {
+    today, filter, canRecord: can(actor.role, 'settlements.record'), lines: view, summary, previousMonth: prevMonthStart,
+    clients: ops.filter((o) => o.active).map((o) => ({ code: o.code, name: o.name })),
+    payments: payments.filter((p) => filter === 'all' || opCode.get(p.operationId) === filter).map((p) => ({ id: p.id, operation: opCode.get(p.operationId)!, receivedOn: p.receivedOn, amountCents: p.amountCents, method: p.method, reference: p.reference, note: p.note })),
+  };
+}
+
+export interface PaymentInput {
+  operation: string;
+  receivedOn: string;
+  amountCents: number;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  allocations: { lineId: string; amountCents: number }[];
+}
+
+/** Finance records money that arrived and says which expected lines it pays. */
+export async function recordPayment(tx: Tx, actor: Actor, input: PaymentInput) {
+  assertCan(actor, 'settlements.record');
+  if (input.amountCents <= 0) throw new RuleError('invalid_amount');
+  const allocated = input.allocations.reduce((s, a) => s + a.amountCents, 0);
+  if (allocated > input.amountCents) throw new RuleError('allocations_exceed_payment');
+  if (input.allocations.some((a) => a.amountCents <= 0)) throw new RuleError('invalid_amount');
+  const op = await getOperation(tx, input.operation);
+  const lineIds = input.allocations.map((a) => a.lineId);
+  const lines = lineIds.length ? await tx.select().from(settlementLines).where(inArray(settlementLines.id, lineIds)) : [];
+  if (lines.length !== new Set(lineIds).size || lines.some((l) => l.operationId !== op.id)) throw new RuleError('line_not_found');
+
+  const [payment] = await tx.insert(paymentsReceived).values({
+    operationId: op.id, receivedOn: input.receivedOn, amountCents: input.amountCents, method: input.method, reference: input.reference, note: input.note, createdBy: actor.userId,
+  }).returning();
+  const trail: AuditEntry[] = [{ table: 'payments_received', recordId: payment!.id, action: 'insert', after: payment, userId: actor.userId, source: actor.source }];
+  if (input.allocations.length) {
+    const rows = await tx.insert(paymentAllocations).values(input.allocations.map((a) => ({ paymentId: payment!.id, settlementLineId: a.lineId, amountCents: a.amountCents }))).returning();
+    for (const r of rows) trail.push({ table: 'payment_allocations', recordId: r.id, action: 'insert', after: r, userId: actor.userId, source: actor.source });
+  }
+  // Keep the stored status in step for lines this payment completes.
+  const received = await receivedByLine(tx, lineIds);
+  for (const l of lines) {
+    const got = received.get(l.id)?.cents ?? 0;
+    if (l.expectedCents != null && got >= l.expectedCents && l.status !== 'paid') {
+      const [after] = await tx.update(settlementLines).set({ status: 'paid', updatedAt: new Date() }).where(eq(settlementLines.id, l.id)).returning();
+      trail.push({ table: 'settlement_lines', recordId: l.id, action: 'update', before: l, after, userId: actor.userId, source: actor.source });
+    }
+  }
+  await audit(tx, trail);
+  return payment!;
+}
+
+/** Marks a line as missing from the client's payment, ready to claim. */
+export async function markClaimReady(tx: Tx, actor: Actor, lineId: string) {
+  assertCan(actor, 'settlements.record');
+  const [before] = await tx.select().from(settlementLines).where(eq(settlementLines.id, lineId));
+  if (!before) throw new RuleError('line_not_found');
+  if (before.status === 'paid') throw new RuleError('already_paid');
+  const [after] = await tx.update(settlementLines).set({ status: 'claim_ready', updatedAt: new Date() }).where(eq(settlementLines.id, lineId)).returning();
+  await audit(tx, { table: 'settlement_lines', recordId: lineId, action: 'update', before, after, userId: actor.userId, source: actor.source });
+  return after!;
+}
+
+/** Records that the claim was sent (by email or handed over at the client meeting). */
+export async function markClaimSent(tx: Tx, actor: Actor, lineId: string, sentTo: string | null) {
+  assertCan(actor, 'settlements.record');
+  const [line] = await tx.select().from(settlementLines).where(eq(settlementLines.id, lineId));
+  if (!line) throw new RuleError('line_not_found');
+  if (line.status === 'paid') throw new RuleError('already_paid');
+  // A weekly-check claim already has its draft (what is claimed and why): it becomes the sent claim.
+  const [draft] = await tx.select().from(claims).where(and(eq(claims.settlementLineId, lineId), eq(claims.status, 'draft')));
+  const [claim] = draft
+    ? await tx.update(claims).set({ status: 'sent', sentTo, sentAt: new Date() }).where(eq(claims.id, draft.id)).returning()
+    : await tx.insert(claims).values({ settlementLineId: lineId, status: 'sent', sentTo, sentAt: new Date(), createdBy: actor.userId }).returning();
+  const [after] = await tx.update(settlementLines).set({ status: 'claimed', updatedAt: new Date() }).where(eq(settlementLines.id, lineId)).returning();
+  await audit(tx, [
+    { table: 'claims', recordId: claim!.id, action: draft ? 'update' : 'insert', before: draft ?? undefined, after: claim, userId: actor.userId, source: actor.source },
+    { table: 'settlement_lines', recordId: lineId, action: 'update', before: line, after, userId: actor.userId, source: actor.source },
+  ]);
+  return claim!;
+}
+
+/** Everything a claim needs (spec §5.6): order, date, route, who, agreed, paid out, and the phone agreement log. */
+export async function claimDetails(tx: Tx, actor: Actor, lineId: string, today: string) {
+  assertCan(actor, 'money.view');
+  const all = await loadSettlements(tx, actor, today, 'all');
+  const line = all.lines.find((l) => l.id === lineId);
+  if (!line) throw new RuleError('line_not_found');
+  let agreement: { at: string; text: string } | null = null;
+  const [row] = await tx.select({ extraJobId: settlementLines.extraJobId }).from(settlementLines).where(eq(settlementLines.id, lineId));
+  if (row?.extraJobId) {
+    const [job] = await tx.select().from(extraJobView).where(eq(extraJobView.id, row.extraJobId));
+    // The phone agreement: the WhatsApp message the job came from, else the note typed when it was logged.
+    if (job?.aiSuggestionId) {
+      const [s] = await tx.select().from(aiSuggestions).where(eq(aiSuggestions.id, job.aiSuggestionId));
+      if (s) agreement = { at: s.createdAt.toISOString(), text: s.inputText };
+    } else if (job) {
+      agreement = { at: job.createdAt.toISOString(), text: job.note ?? '' };
+    }
+  }
+  // A weekly-check claim: the route-day, what was reported and claimed, and the client's answer.
+  let weekly = null;
+  const [c] = await tx.select().from(claims).where(and(eq(claims.settlementLineId, lineId))).orderBy(desc(claims.createdAt)).limit(1);
+  if (c?.exceptionId) {
+    const [ex] = await tx.select().from(exceptions).where(eq(exceptions.id, c.exceptionId));
+    const basis = await claimBasis(tx, ex!);
+    const [route] = await tx.select({ code: routes.code }).from(routes).where(eq(routes.id, ex!.routeId!));
+    const names = await payeeNamesById(tx, basis.execution?.payeeId ? [basis.execution.payeeId] : []);
+    const [adj] = c.payAdjustmentId ? await tx.select().from(payAdjustments).where(eq(payAdjustments.id, c.payAdjustmentId)) : [];
+    weekly = {
+      route: route?.code ?? '', date: ex!.date, type: ex!.type, reported: basis.reported, usual: basis.usual,
+      claimedQuantity: c.claimedQuantity, claimedCents: c.claimedCents, note: c.note,
+      payee: basis.execution?.payeeId ? names.get(basis.execution.payeeId) ?? '' : null,
+      payeeRateCents: basis.payeeRateCents,
+      response: c.response, acceptedCents: c.acceptedCents, respondedAt: c.respondedAt?.toISOString() ?? null,
+      payeeCorrectionCents: adj ? Number(adj.amountCents) : null,
+    };
+  }
+  return {
+    line, agreement, weekly,
+    canRespond: can(actor.role, 'settlements.record') && !!weekly && !weekly.response,
+    canPayPayee: can(actor.role, 'payroll.approve'),
+    checklist: { orderNumber: !!line.job?.orderNumber, agreementLogged: !!agreement, sent: !!line.claimSentAt },
+  };
+}
+

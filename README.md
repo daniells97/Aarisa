@@ -5,8 +5,7 @@ Built by Dimetrics for Leanova Consulting.
 
 ## What's in this repository today
 
-This is the hand-off package: everything needed to build the app with Claude Code.
-No application code yet.
+Phase 1 (foundation and Hovership) is built. The hand-off documents below still drive the next phases.
 
 | Path | What it is |
 |---|---|
@@ -30,3 +29,20 @@ No application code yet.
 4. Repeat for Phase 2 and 3.
 
 Design canvas: [Portal Aarisa](https://claude.ai/artifact/YHRUwyMjLV3t4jDmrD7u2y)
+
+## Run it locally
+
+Needs Node 22, pnpm and a PostgreSQL 16 database.
+
+```bash
+pnpm install
+cp .env.example .env        # fill DATABASE_URL and SESSION_SECRET (32+ chars); DEV_LOGIN=1 for local sign-in by role
+pnpm db:migrate
+pnpm db:seed                # operations, services, rates, drivers, Puma, and the June 2026 Hovership sample
+pnpm dev                    # http://127.0.0.1:3100
+pnpm test                   # unit and database tests (each database test rolls back)
+pnpm test:e2e               # Playwright; or scripts/e2e-docker.sh on a host without browser libraries
+```
+
+Without Zitadel configured, `/login` shows a development sign-in (only when `DEV_LOGIN=1` and not in production).
+`pnpm db:restore-sample` puts the sample bonuses back if a manual test changed them.
