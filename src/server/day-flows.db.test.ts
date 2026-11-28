@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { operations, routeExecutions, routes, sortCodes } from '~/db/schema';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
 import {
-  removeRouteRow, addPersonToday, addRoute, bringUsual, confirmUsual, loadDay, markOffToday, moveToCode, removePersonToday, setAssignment, setPersonSortCodes,
+  removeRouteRow, restoreRouteRow, addPersonToday, addRoute, bringUsual, confirmUsual, loadDay, markOffToday, moveToCode, removePersonToday, setAssignment, setPersonSortCodes,
   setPersonStatus, setRouteOnList, setRouteStatus, setSortCodes, undoAssignment,
 } from './daily';
 import { coverHovership, loadHovershipDay, restoreHovership, setHovershipRoutes } from './hovership-day';
@@ -182,11 +182,20 @@ describe("Daily operations, T-Force: didn't run vs the ×", () => {
     expect((await rowOf(tx, '9000E')).today.driverId).toBe(e.usualDriverId);
   }));
 
-  it('the × takes the line off the day completely', () => withRollback(async (tx) => {
-    const { code } = await tforceReady(tx);
-    const e = await code('9000E');
-    await removeRouteRow(tx, d, { date: DATE, routeId: e.id });
-    expect(await rowOf(tx, '9000E')).toBeUndefined();
+  it('the × takes the line off that day only: the code stays on the list for other days; Undo puts it back with its routes', () => withRollback(async (tx) => {
+    const { code, sc } = await tforceReady(tx);
+    const g = await code('9000G');
+    await setRouteStatus(tx, d, { date: DATE, routeId: g.id, status: 'confirmed' });
+    await setSortCodes(tx, d, { date: DATE, routeId: g.id, sortCodeIds: [sc[0]!.id] });
+    await setRouteStatus(tx, d, { date: '2031-03-05', routeId: g.id, status: 'confirmed' });
+    const res = await removeRouteRow(tx, d, { date: DATE, routeId: g.id });
+    expect(await rowOf(tx, '9000G')).toMatchObject({ saved: false });
+    expect((await tx.select().from(routes).where(eq(routes.id, g.id)))[0]!.active).toBe(true);
+    expect((await loadDay(tx, d, '2031-03-05')).rows.find((r) => r.code === '9000G')).toMatchObject({ saved: true, status: 'confirmed' });
+    expect((await loadDay(tx, d, '2031-03-06')).summary.usualAvailable).toBeGreaterThan(0);
+    await restoreRouteRow(tx, d, { date: DATE, routeId: g.id, ...res });
+    expect(await rowOf(tx, '9000G')).toMatchObject({ saved: true, status: 'confirmed', today: { driverId: g.usualDriverId } });
+    expect((await rowOf(tx, '9000G')).sortCodes.map((x) => x.id)).toEqual([sc[0]!.id]);
   }));
 });
 

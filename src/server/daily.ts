@@ -648,18 +648,38 @@ export async function setPersonToday(tx: Tx, actor: Actor, input: { executionId:
 }
 
 /**
- * The × on a line with a driver code: the person didn't run that day (kept for the history, nobody paid) and the
- * code comes off the list, so the line goes away. Returns what Undo needs.
+ * The × on a line with a driver code: takes it off that day's list and nothing else (the code stays on the list for
+ * every other day; taking a code off for good is in Drivers and rates). The history keeps it (audited delete).
+ * Returns what was there, for Undo (restoreRouteRow).
  */
 export async function removeRouteRow(tx: Tx, actor: Actor, input: { date: string; routeId: string }) {
   assertCan(actor, 'drivers.confirm_today');
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
-  const off = await markOffToday(tx, actor, input);
-  // The × means "this line doesn't belong today": unlike the "didn't run" status, nobody is kept on it.
-  await tx.update(routeExecutions).set({ driverId: null }).where(eq(routeExecutions.id, off.assignmentId));
-  if (route.active) await setRouteOnList(tx, actor, { routeId: route.id, active: false });
-  return { previous: off.previous, wasActive: route.active };
+  const op = await getOperationById(tx, route.operationId);
+  await assertNotLocked(tx, op, input.date);
+  const view = await routeDay(tx, op.id, input.date, route.id);
+  const [row] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, input.date),
+    eq(routeExecutions.kind, 'route'), eq(routeExecutions.routeId, route.id)));
+  if (!row || !view) return { previous: null, drove: null, sortCodeIds: [] as string[] };
+  const previous = { driverId: view.payeeDriverId, contractorId: view.payeeContractorId, rawName: view.rawName, status: view.status as DayStatus };
+  const sortCodeIds = (await tx.select().from(executionSortCodes).where(eq(executionSortCodes.executionId, row.id))).map((x) => x.sortCodeId);
+  // Work from the client's report already hangs on it: the line can't go, it is left with nobody (not paid).
+  const [work] = await tx.select({ id: workRecords.id }).from(workRecords).where(eq(workRecords.executionId, row.id)).limit(1);
+  if (work) await writeAssignment(tx, actor, input.date, route.id, { driverId: null, contractorId: null, rawName: null, status: 'no_driver' });
+  else await dropPersonRow(tx, actor, row);
+  return { previous, drove: row.driverId, sortCodeIds };
+}
+
+/** Undo of the ×: the line comes back as it was (who, status, routes). */
+export async function restoreRouteRow(tx: Tx, actor: Actor, input: {
+  date: string; routeId: string; previous: { driverId: string | null; contractorId: string | null; rawName: string | null; status: DayStatus } | null;
+  drove: string | null; sortCodeIds: string[];
+}) {
+  if (!input.previous) return;
+  const { after } = await writeAssignment(tx, actor, input.date, input.routeId, input.previous, 'undo');
+  if (input.previous.status === 'off' && input.drove) await tx.update(routeExecutions).set({ driverId: input.drove }).where(eq(routeExecutions.id, after.id));
+  if (input.sortCodeIds.length) await setSortCodes(tx, actor, { date: input.date, routeId: input.routeId, sortCodeIds: input.sortCodeIds });
 }
 
 /** Takes someone without driver code off today's list ("Didn't work today"). Returns them, for Undo. */

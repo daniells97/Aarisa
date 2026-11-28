@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { removeRow, setStatus, addPerson, bringUsualDrivers, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { removeRow, restoreRow, setStatus, addPerson, bringUsualDrivers, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -169,26 +169,13 @@ function TodayPage() {
   };
 
   // A driver code off the list from now on, with Undo; "Add driver" with the same code brings it back.
-  const removeRoute = async (r: Row) => {
-    const res = await setRouteListed({ data: { routeId: r.routeId, active: false } });
-    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
-    await router.invalidate();
-    toast(t('td.routeRemoved', { route: r.code }), async () => {
-      const u = await setRouteListed({ data: { routeId: r.routeId, active: true } });
-      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
-      await router.invalidate();
-      toast(t('td.undone'));
-    });
-  };
-
-  // The × on a line: off today's list (the history keeps that they didn't run), with Undo putting it all back.
+  // The × on a line: off this day's list only (the driver code stays for every other day), with Undo putting it back.
   const removeLine = async (r: Row) => {
     const res = await removeRow({ data: { date: day.date, routeId: r.routeId } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(t('td.personRemoved', { name: r.today.name ?? r.code }), async () => {
-      if (res.value.wasActive) await setRouteListed({ data: { routeId: r.routeId, active: true } });
-      const u = await undoAssign({ data: { date: day.date, routeId: r.routeId, previous: res.value.previous } });
+    toast(r.today.name ? t('td.personRemoved', { name: r.today.name }) : t('td.routeRemoved', { route: r.code }), async () => {
+      const u = await restoreRow({ data: { date: day.date, routeId: r.routeId, ...res.value } });
       if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
       await router.invalidate();
       toast(t('td.undone'));
@@ -226,7 +213,7 @@ function TodayPage() {
   // The × on each row: a person comes off this day's list ("didn't run today", only this day); a driver code
   // nobody drives that day comes off the list. Both with Undo.
   const removeX = (r: Row) => !day.canEdit ? null : emptyCode(r)
-    ? <RowRemove label={t('td.removeRoute', { route: r.code })} onClick={() => removeRoute(r)} />
+    ? <RowRemove label={t('td.removeRoute', { route: r.code })} onClick={() => removeLine(r)} />
     : <RowRemove label={t('td.removeFromDay', { name: r.today.name ?? r.code })} onClick={() => removeLine(r)} />;
 
   // The driver code of the person on a line: pick another one (they swap with whoever had it) or type a new one.
