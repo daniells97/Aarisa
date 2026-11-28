@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { operations, routeExecutions, routes, sortCodes } from '~/db/schema';
 import { actorAs, driverNamed, withRollback } from '../../tests/helpers/db';
 import {
-  removeRouteRow, restoreRouteRow, addPersonToday, addRoute, bringUsual, confirmUsual, loadDay, markOffToday, moveToCode, removePersonToday, setAssignment, setPersonSortCodes,
+  removeRouteRow, restoreRouteRow, addPersonToday, addRoute, copyPreviousDay, confirmUsual, loadDay, markOffToday, moveToCode, removePersonToday, setAssignment, setPersonSortCodes,
   setPersonStatus, setRouteOnList, setRouteStatus, setSortCodes, undoAssignment,
 } from './daily';
 import { coverHovership, loadHovershipDay, restoreHovership, setHovershipRoutes } from './hovership-day';
@@ -25,6 +25,16 @@ async function tforceReady(tx: Tx) {
   const code = async (c: string) => (await tx.select().from(routes).where(and(eq(routes.operationId, op!.id), eq(routes.code, c))))[0]!;
   const sc = await tx.select().from(sortCodes).where(eq(sortCodes.operationId, op!.id)).limit(3);
   return { op: op!, code, sc };
+}
+// Puts each code's usual driver on the day, to confirm (one line per person).
+async function usualOnDay(tx: Tx, date = DATE) {
+  const seen = new Set<string>();
+  for (const r of (await loadDay(tx, d, date)).rows) {
+    const who = r.usual.driverId ?? r.usual.contractorId;
+    if (!who || seen.has(who)) continue;
+    seen.add(who);
+    await setRouteStatus(tx, d, { date, routeId: r.routeId, status: 'proposed' });
+  }
 }
 const rowOf = async (tx: Tx, code: string) => (await loadDay(tx, d, DATE)).rows.find((r) => r.code === code)!;
 
@@ -59,30 +69,41 @@ describe('Daily operations, T-Force: add, change, take off', () => {
     expect(await rowOf(tx, '9000E')).toMatchObject({ saved: false, today: { driverId: null } });
   }));
 
-  it('a day nobody filled starts empty; "Bring usual drivers" adds them to confirm, once per person', () => withRollback(async (tx) => {
-    const { code } = await tforceReady(tx);
+  it('a day nobody filled starts empty; "Copy the previous day" brings its list as it was, to confirm', () => withRollback(async (tx) => {
+    const { code, sc } = await tforceReady(tx);
+    const PREV = '2031-03-03';
     let day = await loadDay(tx, d, DATE);
     expect(day.rows.filter((r) => r.saved)).toHaveLength(0);
     expect(day.summary.people).toBe(0);
-    expect(day.summary.usualAvailable).toBeGreaterThan(0);
-    // Someone already on the list keeps their own line: their usual code isn't filled with them again.
-    const e = await code('9000E');
-    const other = await code('9000A');
-    await setAssignment(tx, d, { date: DATE, routeId: other.id, payee: { driverId: e.usualDriverId! } });
-    const n = await bringUsual(tx, d, DATE);
+    // The previous day: a code with someone and a route, someone without code, someone who didn't run.
+    const g = await code('9000G');
+    const k = await code('9000K');
+    const p = await createDriver(tx, d, { ...base, fullName: 'Flow Copy' }, PREV);
+    const q = await createDriver(tx, d, { ...base, fullName: 'Flow Copy Two' }, PREV);
+    await setAssignment(tx, d, { date: PREV, routeId: g.id, payee: { driverId: p.id } });
+    await setSortCodes(tx, d, { date: PREV, routeId: g.id, sortCodeIds: [sc[0]!.id] });
+    await addPersonToday(tx, d, { date: PREV, driverId: q.id });
+    await setRouteStatus(tx, d, { date: PREV, routeId: k.id, status: 'confirmed' });
+    await markOffToday(tx, d, { date: PREV, routeId: k.id });
     day = await loadDay(tx, d, DATE);
-    expect(n).toBeGreaterThan(0);
-    expect(day.rows.find((r) => r.code === '9000E')).toMatchObject({ saved: false });
-    expect(day.rows.filter((r) => r.today.driverId === e.usualDriverId)).toHaveLength(1);
-    expect(day.rows.filter((r) => r.status === 'proposed')).toHaveLength(n);
-    // Another day stays empty.
-    expect((await loadDay(tx, d, '2031-03-05')).rows.filter((r) => r.saved)).toHaveLength(0);
-    expect(await confirmUsual(tx, d, DATE)).toBe(n);
+    expect(day.previous).toMatchObject({ date: PREV, missing: 3 });
+    const n = await copyPreviousDay(tx, d, DATE);
+    expect(n).toBe(3);
+    day = await loadDay(tx, d, DATE);
+    expect(day.rows.find((r) => r.code === '9000G')).toMatchObject({ saved: true, status: 'proposed', today: { driverId: p.id } });
+    expect(day.rows.find((r) => r.code === '9000G')!.sortCodes.map((x) => x.id)).toEqual([sc[0]!.id]);
+    expect(day.rows.find((r) => r.code === '9000K')).toMatchObject({ saved: true, status: 'proposed', today: { driverId: k.usualDriverId } });
+    expect(day.noCode.find((x) => x.driverId === q.id)).toMatchObject({ status: 'proposed' });
+    expect(day.previous!.missing).toBe(0);
+    // Nothing twice: copying again adds nobody. Another day stays empty.
+    expect(await copyPreviousDay(tx, d, DATE)).toBe(0);
+    expect(await confirmUsual(tx, d, DATE)).toBe(3);
   }));
+;
 
   it("picking someone who is on another code is refused on the server (the screen moves them instead)", () => withRollback(async (tx) => {
     const { code } = await tforceReady(tx);
-    await bringUsual(tx, d, DATE); // the usual drivers on the day
+    await usualOnDay(tx); // the usual drivers on the day
     const e = await code('9000G');
     const robert = await driverNamed(tx, 'Robert Arteaga');
     await expect(setAssignment(tx, d, { date: DATE, routeId: e.id, payee: { driverId: robert.id } })).rejects.toMatchObject({ code: 'already_on_list' });
@@ -96,7 +117,7 @@ describe('Daily operations, T-Force: add, change, take off', () => {
 
   it('giving a person without code a code, then changing it; their routes move with them and never stay twice', () => withRollback(async (tx) => {
     const { code, sc } = await tforceReady(tx);
-    await bringUsual(tx, d, DATE); // the usual drivers on the day
+    await usualOnDay(tx); // the usual drivers on the day
     const p = await createDriver(tx, d, { ...base, fullName: 'Flow Four' }, DATE);
     const id = await addPersonToday(tx, d, { date: DATE, driverId: p.id });
     await setPersonSortCodes(tx, d, { executionId: id, sortCodeIds: [sc[0]!.id] });
@@ -156,7 +177,7 @@ describe('Daily operations, T-Force: add, change, take off', () => {
 
   it('the × on a line with a code: off the day\'s list (the history keeps who didn\'t run), back with Undo', () => withRollback(async (tx) => {
     const { code } = await tforceReady(tx);
-    await bringUsual(tx, d, DATE); // the usual drivers on the day
+    await usualOnDay(tx); // the usual drivers on the day
     const e = await code('9000G');
     await markOffToday(tx, d, { date: DATE, routeId: e.id });
     await setRouteOnList(tx, d, { routeId: e.id, active: false });
@@ -192,7 +213,6 @@ describe("Daily operations, T-Force: didn't run vs the ×", () => {
     expect(await rowOf(tx, '9000G')).toMatchObject({ saved: false });
     expect((await tx.select().from(routes).where(eq(routes.id, g.id)))[0]!.active).toBe(true);
     expect((await loadDay(tx, d, '2031-03-05')).rows.find((r) => r.code === '9000G')).toMatchObject({ saved: true, status: 'confirmed' });
-    expect((await loadDay(tx, d, '2031-03-06')).summary.usualAvailable).toBeGreaterThan(0);
     await restoreRouteRow(tx, d, { date: DATE, routeId: g.id, ...res });
     expect(await rowOf(tx, '9000G')).toMatchObject({ saved: true, status: 'confirmed', today: { driverId: g.usualDriverId } });
     expect((await rowOf(tx, '9000G')).sortCodes.map((x) => x.id)).toEqual([sc[0]!.id]);

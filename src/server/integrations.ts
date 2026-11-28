@@ -8,7 +8,7 @@ import { isLocale } from '~/i18n';
 import type { Actor } from './actor';
 import { assertCan } from './actor';
 import { audit } from './audit';
-import { bringUsual, confirmUsual, loadDay, setAssignment, setUnknownName } from './daily';
+import { copyPreviousDay, confirmUsual, loadDay, setAssignment, setUnknownName } from './daily';
 import { RuleError } from './errors';
 import { extraServices } from './extra-jobs';
 import { whatsappEnabled } from './features';
@@ -146,7 +146,7 @@ export async function applyDailyChanges(tx: Tx, input: z.infer<typeof dailyChang
   }
   // "All good" confirms everything still on its usual driver, after the specific changes.
   // "All good" by message: the usual drivers still missing come in, then everything is confirmed.
-  if (parsed.data.confirm_all) { await bringUsual(tx, actor, input.date); confirmedAll = await confirmUsual(tx, actor, input.date); }
+  if (parsed.data.confirm_all) { await copyPreviousDay(tx, actor, input.date); confirmedAll = await confirmUsual(tx, actor, input.date); }
   await recheckForDate(tx, actor, input.date);
 
   const status = unresolved.length === 0 ? 'applied' : applied.length || confirmedAll ? 'partially_applied' : 'pending';

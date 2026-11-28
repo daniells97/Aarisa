@@ -161,8 +161,6 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       contractor: count('contractor'),
       waiting: count('waiting'),
       noDriver: codeRows.filter((r) => r.saved && r.status === 'no_driver').length,
-      // Codes with a usual payee and nothing saved yet: what "Bring the usual drivers" would add.
-      usualAvailable: codeRows.filter((r) => !r.saved && (r.usual.driverId || r.usual.contractorId)).length,
       off: codeRows.filter((r) => r.status === 'off').length,
     },
     options: {
@@ -186,6 +184,20 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       .filter(([, rs]) => rs.length > 1 && rs.some((r) => r.status === 'changed')).map(([, rs]) => ({ name: rs[0]!.today.name ?? '', codes: rs.map((r) => r.code) })),
     // The last "Confirm and send list" of this day: who, when, and whether the list changed since.
     sent: await lastSend(tx, op.id, date, tforceListPeople({ noCode, rows })),
+    // "Copy the previous day": the last day with a list, and how many of its lines aren't on this day yet.
+    previous: await (async () => {
+      const prev = await previousListDay(tx, op.id, date);
+      if (!prev) return null;
+      const onDay = new Set([...rows.filter((r) => r.saved && r.today.driverId).map((r) => r.today.driverId!), ...noCode.map((p) => p.driverId)]);
+      const saved = new Set(rows.filter((r) => r.saved).map((r) => r.routeId));
+      const lines = await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, prev), eq(executionView.kind, 'route')));
+      const missing = lines.filter((l) => {
+        const who = l.status === 'off' ? l.driverId : l.payeeDriverId;
+        if (!who && !l.payeeContractorId) return false;
+        return !(who && onDay.has(who)) && !(l.routeId && saved.has(l.routeId));
+      }).length;
+      return { date: prev, missing };
+    })(),
     // For the Send dialog: who will get it (only for people who can send it).
     recipients: can(actor.role, 'drivers.confirm_today') ? await listRecipients(tx) : [],
   };
@@ -327,22 +339,50 @@ export async function confirmUsual(tx: Tx, actor: Actor, date: string, operation
   return n;
 }
 
+/** The last day before `date` with someone on the T-Force list (what "Copy the previous day" copies). */
+async function previousListDay(tx: Tx, operationId: string, date: string) {
+  const [row] = await tx.select({ date: routeExecutions.date }).from(routeExecutions)
+    .where(and(eq(routeExecutions.operationId, operationId), sql`${routeExecutions.date} < ${date}`, eq(routeExecutions.kind, 'route'),
+      or(isNotNull(routeExecutions.payeeId), isNotNull(routeExecutions.driverId))))
+    .groupBy(routeExecutions.date).orderBy(desc(routeExecutions.date)).limit(1);
+  return row?.date ?? null;
+}
+
 /**
- * "Bring the usual drivers": fills a day nobody has filled yet. Every code with nothing saved gets its usual payee,
- * still to confirm, unless that person is already on the day's list (one line per person).
+ * "Copy the previous day": the last day's list comes in as it was (person, driver code, routes), every line to
+ * confirm. Someone already on this day keeps their line, a code already saved here stays, and a route someone here
+ * already runs stays with them.
  */
-export async function bringUsual(tx: Tx, actor: Actor, date: string, operation?: string) {
+export async function copyPreviousDay(tx: Tx, actor: Actor, date: string, operation?: string) {
   assertCan(actor, 'drivers.confirm_today');
-  const day = await loadDay(tx, actor, date, operation);
-  const onDay = new Set([...day.rows.filter((r) => r.saved && r.today.driverId).map((r) => r.today.driverId!), ...day.noCode.map((p) => p.driverId)]);
+  const op = await operationFor(tx, operation, 'daily_list');
+  await assertNotLocked(tx, op, date);
+  const prev = await previousListDay(tx, op.id, date);
+  if (!prev) return 0;
+  const from = await loadDay(tx, actor, prev, op.code);
+  const here = await loadDay(tx, actor, date, op.code);
+  const onDay = new Set([...here.rows.filter((r) => r.saved && r.today.driverId).map((r) => r.today.driverId!), ...here.noCode.map((p) => p.driverId)]);
+  const savedCodes = new Set(here.rows.filter((r) => r.saved).map((r) => r.routeId));
+  const free = async (ids: string[], exceptId?: string) => { const taken = await sortCodesTaken(tx, op.id, date, ids, exceptId); return ids.filter((x) => !taken.includes(x)); };
   let n = 0;
-  for (const r of day.rows) {
-    if (r.saved || (!r.usual.driverId && !r.usual.contractorId)) continue;
-    if (r.usual.driverId) {
-      if (onDay.has(r.usual.driverId)) continue;
-      onDay.add(r.usual.driverId);
+  for (const r of from.rows) {
+    if (!r.saved || (!r.today.driverId && !r.today.contractorId) || savedCodes.has(r.routeId)) continue;
+    if (r.today.driverId && onDay.has(r.today.driverId)) continue;
+    const { after } = await writeAssignment(tx, actor, date, r.routeId, { driverId: r.today.driverId, contractorId: r.today.contractorId, status: 'proposed' }, 'insert');
+    if (r.sortCodes.length && !r.sortCodesSuggested) {
+      const ids = await free(r.sortCodes.map((x) => x.id), after.id);
+      if (ids.length) await setSortCodes(tx, actor, { date, routeId: r.routeId, sortCodeIds: ids });
     }
-    await writeAssignment(tx, actor, date, r.routeId, { driverId: r.usual.driverId, contractorId: r.usual.contractorId, status: 'proposed' }, 'insert');
+    if (r.today.driverId) onDay.add(r.today.driverId);
+    n++;
+  }
+  for (const p of from.noCode) {
+    if (onDay.has(p.driverId)) continue;
+    const id = await addPersonToday(tx, actor, { date, driverId: p.driverId, operation: op.code });
+    await setPersonStatus(tx, actor, { executionId: id, status: 'proposed' });
+    const ids = await free(p.sortCodes.map((x) => x.id), id);
+    if (ids.length) await setPersonSortCodes(tx, actor, { executionId: id, sortCodeIds: ids });
+    onDay.add(p.driverId);
     n++;
   }
   return n;

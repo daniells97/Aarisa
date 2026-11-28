@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { removeRow, restoreRow, setStatus, addPerson, bringUsualDrivers, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { removeRow, restoreRow, setStatus, addPerson, copyPrevious, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -106,12 +106,12 @@ function TodayPage() {
     toast(t('td.confirmedAll', { count: res.value }), unconfirm);
   };
 
-  // "Bring usual drivers": each code nobody saved yet gets its usual driver, still to confirm.
-  const bring = async () => {
-    const res = await bringUsualDrivers({ data: { date: day.date, operation: day.operation.code } });
+  // "Copy the previous day": the last day's list comes in as it was, every line to confirm.
+  const copyPrev = async () => {
+    const res = await copyPrevious({ data: { date: day.date, operation: day.operation.code } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
-    toast(res.value ? t('td.broughtUsual', { count: res.value }) : t('td.broughtNone'));
+    toast(res.value ? t('td.copiedPrevious', { count: res.value }) : t('td.copiedNone'));
   };
 
   const send = async () => {
@@ -396,7 +396,7 @@ function TodayPage() {
         <span className="muted" role="listitem">{t('td.sumPeople', { count: s.people })} · {t('td.sumRoutes', { count: s.routes })}</span>
         {day.canEdit && (
           <span className="send-list">
-            {s.usualAvailable > 0 && <Button variant={s.people === 0 ? 'primary' : 'secondary'} onClick={bring}>{t('td.bringUsual', { count: s.usualAvailable })}</Button>}
+            {day.previous && day.previous.missing > 0 && <Button variant={s.people === 0 ? 'primary' : 'secondary'} onClick={copyPrev}>{t('td.copyPrevious', { date: f.date(day.previous.date, { weekday: 'short', month: 'short', day: 'numeric' }) })}</Button>}
             {s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all">{t('td.confirmAll', { count: s.proposed })}</Button>}
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
             <Button variant={s.proposed === 0 && (!day.sent || day.sent.changed) ? 'primary' : 'secondary'} onClick={() => setSending(true)} className="confirm-all">

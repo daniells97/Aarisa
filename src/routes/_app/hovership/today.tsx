@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { setHovershipRowStatus, sendHovershipList, addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
+import { copyHovershipPrevious, removeHovershipRow, setHovershipRowStatus, sendHovershipList, addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, unconfirmHovershipUsual } from '~/server/hovership-fns';
 import { Button, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
@@ -77,18 +77,7 @@ function HovershipTodayPage() {
     toast(t('hd.unconfirmedAll', { count: res.value }));
   };
 
-  // Off the list with Undo: it changes the person's platform, never what they already worked.
-  const remove = async (r: Row) => {
-    const res = await setHovershipDriverOnList({ data: { driverId: r.driverId, on: false } });
-    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
-    await router.invalidate();
-    toast(t('hd.removed', { name: r.name }), async () => {
-      const u = await setHovershipDriverOnList({ data: { driverId: r.driverId, on: true } });
-      if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
-      await router.invalidate();
-      toast(t('td.undone'));
-    });
-  };
+
 
   // "Didn't work today": only this day (no routes), one tap, with Undo back to how the day was.
   // The status of a row, changeable in place: Confirmed (their routes), To confirm (back to the suggestion),
@@ -106,7 +95,7 @@ function HovershipTodayPage() {
   };
   // Every status change can be undone back to how the line was (routes, and whether they didn't work).
   const setRowStatus = async (r: Row, v: RowStatus) => {
-    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested || r.status === 'none' ? null : r.sortCodes.map((x) => x.id), off: r.status === 'off' }];
+    const previous = [{ driverId: r.driverId, sortCodeIds: r.sortCodes.map((x) => x.id), off: r.status === 'off', proposed: r.status === 'proposed' }];
     const res = await setHovershipRowStatus({ data: { date: day.date, driverId: r.driverId, status: v } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
@@ -187,22 +176,26 @@ function HovershipTodayPage() {
   const removeX = (r: Row) => !day.canEdit ? null
     : <RowRemove label={t('td.removeFromDay', { name: r.name })} onClick={() => removeLine(r)} />;
   const removeLine = async (r: Row) => {
-    const previous = [{ driverId: r.driverId, sortCodeIds: r.suggested ? null : r.sortCodes.map((x) => x.id), off: r.status === 'off' }];
-    if (r.status !== 'off') {
-      const off = await setHovershipRowStatus({ data: { date: day.date, driverId: r.driverId, status: 'off' } });
-      if (!off.ok) return toast(t(`error.${off.code}` as MessageKey));
-    }
-    const res = await setHovershipDriverOnList({ data: { driverId: r.driverId, on: false } });
+    const res = await removeHovershipRow({ data: { date: day.date, driverId: r.driverId } });
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
     toast(t('td.personRemoved', { name: r.name }), async () => {
-      await setHovershipDriverOnList({ data: { driverId: r.driverId, on: true } });
-      const u = await restoreHovershipDrivers({ data: { date: day.date, previous } });
+      if (!res.value) return;
+      const u = await restoreHovershipDrivers({ data: { date: day.date, previous: [res.value] } });
       if (!u.ok) return toast(t(`error.${u.code}` as MessageKey));
       await router.invalidate();
       toast(t('td.undone'));
     });
   };
+
+  // "Copy the previous day": the last day's list comes in, to confirm.
+  const copyPrevious = async () => {
+    const res = await copyHovershipPrevious({ data: { date: day.date, operation: day.operation.code } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(res.value ? t('td.copiedPrevious', { count: res.value }) : t('td.copiedNone'));
+  };
+
 
   // Lines keep their place while people work; a column can be chosen to sort by.
   const HRANK: Record<string, number> = { confirmed: 0, changed: 0, covered: 0, proposed: 1, none: 1, off: 2 };
@@ -248,6 +241,7 @@ function HovershipTodayPage() {
         <span role="listitem" className="muted">{t('hd.people', { count: s.drivers })}</span>
         {day.canEdit && (
           <span className="send-list">
+            {day.previous && day.previous.missing > 0 && <Button variant={s.drivers === 0 ? 'primary' : 'secondary'} onClick={copyPrevious}>{t('td.copyPrevious', { date: f.date(day.previous.date, { weekday: 'short', month: 'short', day: 'numeric' }) })}</Button>}
             {s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all">{t('hd.confirmAll', { count: s.proposed })}</Button>}
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
             <Button variant={s.proposed === 0 && (!day.sent || day.sent.changed) ? 'primary' : 'secondary'} onClick={() => setSending(true)} className="confirm-all">
@@ -261,7 +255,7 @@ function HovershipTodayPage() {
             {t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}
             {day.sent.changed && <> <Pill tone="warn">{t('td.changedSinceSent')}</Pill></>}
           </p>
-        : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('hd.listHint')}</p>}
+        : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t(day.rows.length ? 'hd.listHint' : 'td.emptyDay')}</p>}
 
       <div className="today-layout">
         <div className="today-list"><Panel>
@@ -367,7 +361,7 @@ function HovershipRecord({ day, dateLabel, layout, onCancel, focus }: { day: Day
     if (!who) return;
     setBusy(true);
     try {
-      const res = await addHovershipDriver({ data: who });
+      const res = await addHovershipDriver({ data: { ...who, date: day.date } });
       if (!res.ok) return setError(t(`error.${res.code}` as MessageKey));
       if (routes.length) {
         const r = await saveHovershipRoutes({ data: { date: day.date, driverId: res.value.driverId, sortCodeIds: routes.map((x) => x.id) } });
