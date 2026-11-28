@@ -48,7 +48,9 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     keptForDay.length ? or(eq(routes.active, true), inArray(routes.id, keptForDay)) : eq(routes.active, true))).orderBy(asc(routes.code));
   const assignments = (routeRows.length
     ? await tx.select().from(executionView).where(and(eq(executionView.operationId, op.id), eq(executionView.date, date), eq(executionView.kind, 'route'), inArray(executionView.routeId, routeRows.map((r) => r.id))))
-    : []).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId, drove: a.driverId }));
+    : []).map((a) => ({ ...a, routeId: a.routeId!, driverId: a.payeeDriverId, contractorId: a.payeeContractorId, drove: a.driverId }))
+    // "Didn't run" with nobody kept: what the × used to leave behind. Same as not on the day's list.
+    .filter((a) => !(a.status === 'off' && !a.driverId && !a.contractorId && !a.drove));
   const owners = await routeOwners(tx, date, routeRows.map((r) => r.id));
   // The sort codes (routes) each driver code ran that day.
   const ran = assignments.length ? await tx.select({ executionId: executionSortCodes.executionId, id: sortCodes.id, code: sortCodes.code })
