@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { Tx } from '~/db/client';
-import { auditLog, contractors, dayListSends, drivers, executionSortCodes, executionView, routeExecutions, routes, sortCodes, users } from '~/db/schema';
+import { auditLog, contractors, dayListSends, drivers, executionSortCodes, executionView, routeExecutions, routes, sortCodes, users, workRecords } from '~/db/schema';
 import { todayLA } from '~/domain/dates';
 import { can } from '~/domain/permissions';
 import { assertCan, type Actor } from './actor';
@@ -70,17 +70,21 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
     const owner = owners.get(r.id) ?? null;
     const usual = usualOf(r, owner);
     // "Didn't run" keeps who it was (not paid: no payee), so the line still shows the person and their routes.
-    const today = a ? (a.status === 'off' && a.drove ? { driverId: a.drove, contractorId: null } : { driverId: a.driverId, contractorId: a.contractorId }) : usual;
-    const status: DayStatus = a ? a.status : usual.driverId || usual.contractorId ? 'proposed' : 'no_driver';
+    // A day nobody has filled starts empty: the usual payee comes only with "Bring the usual drivers" (nothing appears by itself).
+    const today = a ? (a.status === 'off' && a.drove ? { driverId: a.drove, contractorId: null } : { driverId: a.driverId, contractorId: a.contractorId }) : { driverId: null, contractorId: null };
+    const status: DayStatus = a ? a.status : 'no_driver';
     return {
       routeId: r.id, code: r.code, contractorRoute: !!owner,
       usual: { ...usual, name: label(usual) },
       today: { ...today, name: label(today) },
       rawName: a?.rawName ?? null,
       // The day's routes once someone set them (or confirmed the day); before that, the usual ones as a suggestion.
-      ...(a && routesSet.has(a.id)
+      ...(!a ? { sortCodes: [], sortCodesSuggested: false }
+        : routesSet.has(a.id)
         ? { sortCodes: ran.filter((x) => x.executionId === a.id).map(({ id, code }) => ({ id, code })), sortCodesSuggested: false }
         : { sortCodes: usualRoutes.get(r.id) ?? [], sortCodesSuggested: (usualRoutes.get(r.id) ?? []).length > 0 }),
+      // Nothing saved for this code on this day: it isn't on the day's list (it can still be given to someone).
+      saved: !!a,
       status,
       source: a?.source ?? null,
       assignmentId: a?.id ?? null,
@@ -154,7 +158,9 @@ export async function loadDay(tx: Tx, actor: Actor, date: string, operation?: st
       usualConfirmed: codeRows.filter((r) => r.status === 'confirmed' && samePayee(r.today, r.usual)).length,
       contractor: count('contractor'),
       waiting: count('waiting'),
-      noDriver: codeRows.filter((r) => r.status === 'no_driver').length,
+      noDriver: codeRows.filter((r) => r.saved && r.status === 'no_driver').length,
+      // Codes with a usual payee and nothing saved yet: what "Bring the usual drivers" would add.
+      usualAvailable: codeRows.filter((r) => !r.saved && (r.usual.driverId || r.usual.contractorId)).length,
       off: codeRows.filter((r) => r.status === 'off').length,
     },
     options: {
@@ -288,8 +294,16 @@ export async function undoAssignment(tx: Tx, actor: Actor, input: {
   assertCan(actor, 'drivers.confirm_today');
   const [route] = await tx.select().from(routes).where(eq(routes.id, input.routeId));
   if (!route) throw new RuleError('not_found');
-  const values = input.previous ?? { ...usualOf(route, await ownerOn(tx, route.id, input.date)), rawName: null, status: 'proposed' as const };
-  await writeAssignment(tx, actor, input.date, input.routeId, values, 'undo');
+  if (input.previous) return void await writeAssignment(tx, actor, input.date, input.routeId, input.previous, 'undo');
+  // Nothing was saved before: the code goes back off the day's list (empty again), unless the report already has work on it.
+  const op = await getOperationById(tx, route.operationId);
+  await assertNotLocked(tx, op, input.date);
+  const [row] = await tx.select().from(routeExecutions).where(and(eq(routeExecutions.operationId, op.id), eq(routeExecutions.date, input.date),
+    eq(routeExecutions.kind, 'route'), eq(routeExecutions.routeId, route.id)));
+  if (!row) return;
+  const [work] = await tx.select({ id: workRecords.id }).from(workRecords).where(eq(workRecords.executionId, row.id)).limit(1);
+  if (work) return void await writeAssignment(tx, actor, input.date, input.routeId, { driverId: null, contractorId: null, rawName: null, status: 'no_driver' }, 'undo');
+  await dropPersonRow(tx, actor, row);
 }
 
 /** "All good": confirms every route still on its proposed usual payee. */
@@ -299,13 +313,34 @@ export async function confirmUsual(tx: Tx, actor: Actor, date: string, operation
   let n = 0;
   for (const r of day.rows) {
     if (r.status !== 'proposed') continue;
-    await writeAssignment(tx, actor, date, r.routeId, { driverId: r.usual.driverId, contractorId: r.usual.contractorId, status: 'confirmed' });
+    await writeAssignment(tx, actor, date, r.routeId, { driverId: r.today.driverId, contractorId: r.today.contractorId, status: samePayee(r.today, r.usual) ? 'confirmed' : 'changed' });
     n++;
   }
   // People without driver code someone left "to confirm".
   for (const p of day.noCode) {
     if (p.status !== 'proposed') continue;
     await setPersonStatus(tx, actor, { executionId: p.executionId, status: 'confirmed' });
+    n++;
+  }
+  return n;
+}
+
+/**
+ * "Bring the usual drivers": fills a day nobody has filled yet. Every code with nothing saved gets its usual payee,
+ * still to confirm, unless that person is already on the day's list (one line per person).
+ */
+export async function bringUsual(tx: Tx, actor: Actor, date: string, operation?: string) {
+  assertCan(actor, 'drivers.confirm_today');
+  const day = await loadDay(tx, actor, date, operation);
+  const onDay = new Set([...day.rows.filter((r) => r.saved && r.today.driverId).map((r) => r.today.driverId!), ...day.noCode.map((p) => p.driverId)]);
+  let n = 0;
+  for (const r of day.rows) {
+    if (r.saved || (!r.usual.driverId && !r.usual.contractorId)) continue;
+    if (r.usual.driverId) {
+      if (onDay.has(r.usual.driverId)) continue;
+      onDay.add(r.usual.driverId);
+    }
+    await writeAssignment(tx, actor, date, r.routeId, { driverId: r.usual.driverId, contractorId: r.usual.contractorId, status: 'proposed' }, 'insert');
     n++;
   }
   return n;
@@ -544,8 +579,8 @@ async function onCode(tx: Tx, opId: string, date: string, route: typeof routes.$
     const p = view.status === 'off' && view.driverId ? { driverId: view.driverId, contractorId: null } : { driverId: view.payeeDriverId, contractorId: view.payeeContractorId };
     return { view, payee: p.driverId || p.contractorId ? p : null, confirmed: view.status === 'confirmed' || view.status === 'changed' };
   }
-  const usual = usualOf(route, await ownerOn(tx, route.id, date));
-  return { view: null, payee: usual.driverId || usual.contractorId ? usual : null, confirmed: false };
+  // Nothing saved: nobody is on it that day (the usual driver only comes with "Bring the usual drivers").
+  return { view: null, payee: null, confirmed: false };
 }
 
 /**
@@ -556,17 +591,8 @@ async function assertNotOnList(tx: Tx, opId: string, date: string, driverId: str
   const day = (await tx.select().from(executionView).where(and(eq(executionView.operationId, opId), eq(executionView.date, date), eq(executionView.kind, 'route'),
     eq(executionView.payeeDriverId, driverId))))
     .filter((d) => d.routeId !== (opts.exceptRouteId ?? '') && !(opts.allowWithoutCode && !d.routeId));
+  // Only saved lines count: a usual driver code with nothing saved that day doesn't hold anyone.
   if (day.some((d) => d.status !== 'off' && d.status !== 'no_driver')) throw new RuleError('already_on_list');
-  // Still only proposed on their usual driver code (nothing saved yet for that code today).
-  const usual = await tx.select().from(routes).where(and(eq(routes.operationId, opId), eq(routes.active, true), eq(routes.usualDriverId, driverId)));
-  // Still only proposed on a usual code counts when adding someone new; when putting someone on a code, only saved lines
-  // do (a person can be the usual driver of two codes: the screen moves them instead).
-  if (opts.savedOnly) return;
-  for (const r of usual) {
-    if (r.id === opts.exceptRouteId) continue;
-    const saved = await routeDay(tx, opId, date, r.id);
-    if (!saved && !(await ownerOn(tx, r.id, date))) throw new RuleError('already_on_list');
-  }
 }
 
 async function writePersonDay(tx: Tx, actor: Actor, opId: string, date: string, driverId: string) {

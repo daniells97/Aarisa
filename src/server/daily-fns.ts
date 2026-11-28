@@ -8,7 +8,7 @@ import type { Tx } from '~/db/client';
 import { operations, routeExecutions, routes } from '~/db/schema';
 import type { Actor } from './actor';
 import { read, run } from './fn';
-import { removeRouteRow, setPersonStatus, setRouteStatus, addPersonToday, moveToCode, removePersonToday, sendDayList, setPersonSortCodes, setPersonToday, addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
+import { removeRouteRow, setPersonStatus, setRouteStatus, addPersonToday, moveToCode, removePersonToday, sendDayList, setPersonSortCodes, setPersonToday, addDriverFromToday, addDriverForRoute, addRoute, assignNewDriver, bringUsual, confirmUsual, markOffToday, setRouteOnList, unconfirmUsual, loadDay, setAssignment, setSortCodes, undoAssignment } from './daily';
 import { recheckForDate } from './tforce';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -59,6 +59,10 @@ export const markOff = createServerFn({ method: 'POST' })
 export const confirmAll = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, operation }))
   .handler(({ data }) => run('drivers.confirm_today', async (tx, actor) => { const n = await confirmUsual(tx, actor, data.date, data.operation); await recheckForDate(tx, actor, data.date, data.operation); return n; }));
+
+export const bringUsualDrivers = createServerFn({ method: 'POST' })
+  .validator(z.object({ date: isoDate, operation }))
+  .handler(({ data }) => run('drivers.confirm_today', (tx, actor) => bringUsual(tx, actor, data.date, data.operation)));
 
 export const unconfirmAll = createServerFn({ method: 'POST' })
   .validator(z.object({ date: isoDate, operation }))

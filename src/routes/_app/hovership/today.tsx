@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
 import { setHovershipRowStatus, sendHovershipList, addHovershipDriver, coverHovershipDriver, restoreHovershipDrivers, confirmHovershipUsual, getHovershipDay, saveHovershipRoutes, setHovershipDriverOnList, unconfirmHovershipUsual } from '~/server/hovership-fns';
-import { Button, Icon, PageHead, Panel, PersonPicker, Pill, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
+import { Button, Icon, PageHead, Panel, PersonPicker, Pill, RoutePlate, WarningDiamond, buttonClass, useFormat, useToast, type PillTone } from '~/ui';
 import { DayTabs } from '~/ui/DayTabs';
 import { PersonActions } from '~/ui/PersonActions';
 import { NewRecord } from '~/ui/NewRecord';
@@ -173,7 +173,7 @@ function HovershipTodayPage() {
   ].filter(Boolean).join(' · ');
 
   const who = (r: Row) => (
-    <><strong>{r.name}</strong>{r.code && <span className="sub">{r.code}</span>}</>
+    <><strong>{r.name}</strong>{r.code && <span style={{ display: 'block', marginTop: 4 }}><RoutePlate code={r.code} /></span>}</>
   );
 
   const actions = (r: Row) => (
@@ -279,7 +279,7 @@ function HovershipTodayPage() {
                     {order.lines.map((r) => (
                       <tr key={r.driverId}>
                         <td>{picker(r)}<span className="sub">{r.status === 'covered' ? t('hd.coversFor', { name: r.name }) + ' · ' : ''}{about(r)}</span>{actions(r)}</td>
-                        <td><span className="cell-text">{r.code ? <strong>{r.code}</strong> : <span className="muted">–</span>}</span></td>
+                        <td className="code-cell">{r.code ? <RoutePlate code={r.code} /> : <span className="cell-text muted">–</span>}</td>
                         <td>{routesOf(r)}</td>
                         <td><span className="status-cell">{statusCell(r)}{removeX(r)}</span></td>
                       </tr>

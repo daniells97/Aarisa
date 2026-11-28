@@ -3,7 +3,7 @@ import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
 import { z } from 'zod';
 import { useT, type MessageKey } from '~/i18n';
 import { addDays, todayLA } from '~/domain/dates';
-import { removeRow, setStatus, addPerson, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
+import { removeRow, setStatus, addPerson, bringUsualDrivers, confirmAll, giveCode, removePerson, savePersonSortCodes, sendList, setPerson, assign, createRoute, getDay, markOff, saveSortCodes, setRouteListed, unconfirmAll, undoAssign } from '~/server/daily-fns';
 import { SortCodes } from '~/ui/SortCodes';
 import { createSortCodeFromDay } from '~/server/setup-fns';
 import { DayTabs } from '~/ui/DayTabs';
@@ -67,7 +67,9 @@ function TodayPage() {
   // The new-record line: open when the list is empty, or after "+ Add record".
   const [adding, setAdding] = useState(false);
   // Open after "+ Add record", or by itself when the day has nobody at all (no codes, nobody without code).
-  const draftOpen = day.canEdit && (adding || (day.rows.length === 0 && day.noCode.length === 0));
+  // Only codes with something saved that day are on its list: a day nobody filled starts empty.
+  const listed = day.rows.filter((r) => r.saved);
+  const draftOpen = day.canEdit && (adding || (listed.length === 0 && day.noCode.length === 0));
 
   // "+ New person…": the same form as Drivers and rates, then assigned to the row.
   const [newPerson, newPersonDialog] = useNewPerson(day.options.contractors, { worksTforce: true, worksHovership: false });
@@ -102,6 +104,14 @@ function TodayPage() {
     if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
     await router.invalidate();
     toast(t('td.confirmedAll', { count: res.value }), unconfirm);
+  };
+
+  // "Bring usual drivers": each code nobody saved yet gets its usual driver, still to confirm.
+  const bring = async () => {
+    const res = await bringUsualDrivers({ data: { date: day.date, operation: day.operation.code } });
+    if (!res.ok) return toast(t(`error.${res.code}` as MessageKey));
+    await router.invalidate();
+    toast(res.value ? t('td.broughtUsual', { count: res.value }) : t('td.broughtNone'));
   };
 
   const send = async () => {
@@ -295,9 +305,9 @@ function TodayPage() {
   // A code with nobody on it. "Didn't run" keeps its person and routes, so it stays a normal line (status in red).
   const emptyCode = (r: Row) => !r.today.name || r.status === 'no_driver';
   const baseLines: Line[] = [
-    ...[...day.rows.filter((r) => !emptyCode(r)).map((r) => ({ kind: 'code' as const, r })), ...day.noCode.map((p) => ({ kind: 'person' as const, p }))]
+    ...[...listed.filter((r) => !emptyCode(r)).map((r) => ({ kind: 'code' as const, r })), ...day.noCode.map((p) => ({ kind: 'person' as const, p }))]
       .sort((a, b) => (a.kind === 'code' ? a.r.today.name ?? '' : a.p.name).localeCompare(b.kind === 'code' ? b.r.today.name ?? '' : b.p.name)),
-    ...day.rows.filter(emptyCode).map((r) => ({ kind: 'code' as const, r })),
+    ...listed.filter(emptyCode).map((r) => ({ kind: 'code' as const, r })),
   ];
   // Lines keep their place while people work (by person: a line doesn't jump when its code or status changes);
   // a column can be chosen to sort by.
@@ -399,6 +409,7 @@ function TodayPage() {
         <span className="muted" role="listitem">{t('td.sumPeople', { count: s.people })} · {t('td.sumRoutes', { count: s.routes })}</span>
         {day.canEdit && (
           <span className="send-list">
+            {s.usualAvailable > 0 && <Button variant={s.people === 0 ? 'primary' : 'secondary'} onClick={bring}>{t('td.bringUsual', { count: s.usualAvailable })}</Button>}
             {s.proposed > 0 && <Button variant="primary" onClick={confirm} className="confirm-all">{t('td.confirmAll', { count: s.proposed })}</Button>}
             {s.proposed === 0 && s.usualConfirmed > 0 && <Button onClick={unconfirm}>{t('td.unconfirmAll', { count: s.usualConfirmed })}</Button>}
             <Button variant={s.proposed === 0 && (!day.sent || day.sent.changed) ? 'primary' : 'secondary'} onClick={() => setSending(true)} className="confirm-all">
@@ -412,11 +423,11 @@ function TodayPage() {
             {t(day.sent.recipients ? 'td.listSent' : 'td.listSentNobody', { time: sentTime, name: day.sent.by ?? '', count: day.sent.recipients })}
             {day.sent.changed && <> <Pill tone="warn">{t('td.changedSinceSent')}</Pill></>}
           </p>
-        : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t('td.listHint')}</p>}
+        : day.canEdit && <p className="muted" style={{ margin: 0, fontSize: 14 }}>{t(listed.length || day.noCode.length ? 'td.listHint' : 'td.emptyDay')}</p>}
 
       <div className="today-layout">
         <div className="today-list"><Panel>
-          {day.rows.length === 0 && day.noCode.length === 0 && !draftOpen ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t('td.noRoutes', { client: day.operation.name })}</p> : (
+          {listed.length === 0 && day.noCode.length === 0 && !draftOpen ? <p className="panel-body" style={{ paddingTop: 20, margin: 0 }}>{t(day.rows.length ? 'td.emptyDay' : 'td.noRoutes', { client: day.operation.name })}</p> : (
             <>
               <div className="table-wrap desktop-only">
                 <table>

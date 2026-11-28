@@ -5,7 +5,7 @@ import { exceptions, extraJobView } from '~/db/schema';
 import { can } from '~/domain/permissions';
 import { isLocale, translate, type Locale, type MessageKey } from '~/i18n';
 import { ForbiddenError, type Actor } from './actor';
-import { confirmUsual, loadDay, setAssignment, type DayStatus, type PayeeInput } from './daily';
+import { bringUsual, confirmUsual, loadDay, setAssignment, type DayStatus, type PayeeInput } from './daily';
 import { RuleError } from './errors';
 import { actorForPhone } from './integrations';
 import { operationFor } from './ops';
@@ -87,6 +87,7 @@ export async function whatsappMenu(tx: Tx, input: z.infer<typeof menuInput>, bas
     switch (what) {
       case 'confirm': {
         if (!canEdit) return { messages: [text(t('wa.notAllowed'))] };
+        await bringUsual(tx, actor, date);
         const n = await confirmUsual(tx, actor, date);
         await recheckForDate(tx, actor, date);
         const left = day.rows.filter((r) => r.status === 'no_driver').map((r) => r.code);
